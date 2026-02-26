@@ -190,7 +190,12 @@ public class InkMdTableTest
                                             ? pb.Inline.Cast<Inline>()
                                             : Enumerable.Empty<Inline>()))
                                     {
-                                        sb.Append(inline.ToString());
+                                        if (inline is LinkInline link)
+                                            sb.Append(link.Url ?? link.Title ?? "");
+                                        else if (inline is LiteralInline lit)
+                                            sb.Append(lit.Content);
+                                        else
+                                            sb.Append(inline.ToString());
                                     }
                                     cells.Add(sb.ToString().Trim());
                                 }
@@ -279,7 +284,7 @@ public class InkMdTableTest
     [Fact]
     public void Extracts_all_9_ink_blocks_via_Markdig()
     {
-        Assert.Equal(9, InkBlocks.Count);
+        Assert.Equal(10, InkBlocks.Count);
     }
 
     [Fact]
@@ -333,7 +338,7 @@ public class InkMdTableTest
         var inkFenced = allFenced.Where(f => f.Info?.Trim() == "ink").ToList();
         var otherFenced = allFenced.Where(f => f.Info?.Trim() != "ink").ToList();
 
-        Assert.Equal(9, inkFenced.Count);
+        Assert.Equal(10, inkFenced.Count);
         Assert.True(otherFenced.Count >= 0,
             "Non-ink code blocks exist as separate routes");
     }

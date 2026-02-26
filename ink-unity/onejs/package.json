@@ -1,0 +1,12 @@
+{
+    "name": "com.singtaa.onejs",
+    "version": "2.3.4",
+    "displayName": "OneJS",
+    "description": "OneJS brings JavaScript and many beloved web techs to Unity, seamlessly integrating with UI Toolkit without the need for a browser or webview.",
+    "unity": "2022.3",
+    "documentationUrl": "https://onejs.com/",
+    "dependencies": {
+        "com.unity.mathematics": "1.2.6",
+        "com.unity.burst": "1.8.4"
+    }
+}

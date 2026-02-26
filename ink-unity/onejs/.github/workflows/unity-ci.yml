@@ -1,0 +1,129 @@
+name: OneJS CI
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.md.meta'
+      - '**/LICENSE~'
+      - '.gitignore'
+      - '.gitattributes'
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.md.meta'
+      - '**/LICENSE~'
+      - '.gitignore'
+      - '.gitattributes'
+  workflow_dispatch:
+
+env:
+  UNITY_VERSION: '6000.0.48f1'
+  PROJECT_PATH: OneJS_CI_Project
+  SAMPLE_SCENE: Assets/OneJS/Samples/OneJS_SampleScene.unity
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    environment: unity-ci
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Create empty project + import OneJS
+      # Deleting the Android folder in the end to avoid possible naming conflict with Linux
+      # https://github.com/Tencent/puerts/issues/1817#issuecomment-2292431530
+      - name: Bootstrap minimal Unity project
+        run: |
+          mkdir -p "$PROJECT_PATH/Assets" "$PROJECT_PATH/Packages" "$PROJECT_PATH/ProjectSettings"
+          cat > "$PROJECT_PATH/Packages/manifest.json" <<'JSON'
+          {
+            "dependencies": {
+              "com.unity.mathematics": "1.2.6",
+              "com.unity.burst": "1.8.4",
+              "com.unity.test-framework": "1.4.5",
+              "com.unity.modules.imageconversion": "1.0.0",
+              "com.unity.modules.physics": "1.0.0",
+              "com.unity.modules.unitywebrequest": "1.0.0",
+              "com.unity.modules.unitywebrequesttexture": "1.0.0",
+              "com.unity.modules.unitywebrequestwww": "1.0.0",
+              "com.unity.modules.ui": "1.0.0",
+              "com.unity.modules.uielements": "1.0.0"
+            }
+          }
+          JSON
+          echo "m_EditorVersion: $UNITY_VERSION" > "$PROJECT_PATH/ProjectSettings/ProjectVersion.txt"
+          rsync -a --exclude=.git --exclude=.github ./ "$PROJECT_PATH/Assets/OneJS"
+          rm -rf "$PROJECT_PATH/Assets/OneJS/Puerts/Plugins/Android"
+
+      - name: Apply csc.rsp (pre-processor symbols)
+        run: |
+          echo "-define:PUERTS_DISABLE_IL2CPP_OPTIMIZATION" > "$PROJECT_PATH/Assets/csc.rsp"
+
+      # Cache Library for faster reruns
+      - uses: actions/cache@v3
+        with:
+          path: ${{ env.PROJECT_PATH }}/Library
+          key: Library-${{ env.UNITY_VERSION }}-${{ github.sha }}
+          restore-keys: |
+            Library-${{ env.UNITY_VERSION }}-
+      
+      # - name: Copy libpuerts.so from Docker image into project
+      #   run: |
+      #     docker run --rm \
+      #       -v "$GITHUB_WORKSPACE/${{ env.PROJECT_PATH }}/Assets/OneJS/Puerts/Plugins/x86_64:/out" \
+      #       singtaa/unity-ci-node:6000.0.48f1 \
+      #       cp /home/libpuerts.so /out/libpuerts.so
+
+      # Playmode tests
+      - uses: game-ci/unity-test-runner@v4
+        id: tests
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          customImage: singtaa/unity-ci-node:6000.0.48f1
+          unityVersion: ${{ env.UNITY_VERSION }}
+          projectPath: ${{ env.PROJECT_PATH }}
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          testMode: playmode
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Test results
+          path: artifacts
+
+      - name: Add Sample Scene to Build Settings
+        run: |
+          mkdir -p "$PROJECT_PATH/Assets/Editor"
+          echo "using UnityEditor;" > "$PROJECT_PATH/Assets/Editor/AddScenes.cs"
+          echo "using UnityEditor.SceneManagement;" >> "$PROJECT_PATH/Assets/Editor/AddScenes.cs"
+          echo "class AddScenes { [InitializeOnLoadMethod] static void Init() {" >> "$PROJECT_PATH/Assets/Editor/AddScenes.cs"
+          echo "EditorBuildSettings.scenes = new EditorBuildSettingsScene[] {" >> "$PROJECT_PATH/Assets/Editor/AddScenes.cs"
+          echo "new EditorBuildSettingsScene(\"Assets/OneJS/Samples/OneJS_SampleScene.unity\", true) };" >> "$PROJECT_PATH/Assets/Editor/AddScenes.cs"
+          echo "} }" >> "$PROJECT_PATH/Assets/Editor/AddScenes.cs"
+
+      # Build the Sample Scene
+      - uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          customImage: singtaa/unity-ci-node:6000.0.48f1
+          allowDirtyBuild: true
+          unityVersion: ${{ env.UNITY_VERSION }}
+          projectPath: ${{ env.PROJECT_PATH }}
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          targetPlatform: StandaloneLinux64
+          buildName: OneJS_Sample
+          buildScenes: ${{ env.SAMPLE_SCENE }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Build
+          path: build
