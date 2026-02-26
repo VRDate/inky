@@ -322,7 +322,7 @@ class BidiTddInkTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `session lifecycle — create, list, end`() {
+    fun `session lifecycle - create, list, end`() {
         val (sessionId, _) = engine.startSession(bidiTddSource)
         try {
             val sessions = engine.listSessions()
@@ -382,5 +382,200 @@ class BidiTddInkTest {
         } finally {
             engine.endSession(sessionId)
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // LISTS — syn_15: LIST operators (?, !?, +=, -=)
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `LIST declarations are accessible`() {
+        val (sessionId, _) = engine.startSession(bidiTddSource)
+        try {
+            // mood LIST is declared at top level
+            val mood = engine.getVariable(sessionId, "mood")
+            assertNotNull(mood, "mood LIST should be accessible")
+
+            // inventory LIST should exist
+            val inventory = engine.getVariable(sessionId, "inventory")
+            assertNotNull(inventory, "inventory LIST should be accessible")
+        } finally {
+            engine.endSession(sessionId)
+        }
+    }
+
+    @Test
+    fun `LIST mutation via set variable`() {
+        val (sessionId, _) = engine.startSession(bidiTddSource)
+        try {
+            // Set mood
+            engine.setVariable(sessionId, "mood", "happy")
+            val mood = engine.getVariable(sessionId, "mood")
+            assertNotNull(mood, "mood should be set")
+        } finally {
+            engine.endSession(sessionId)
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // CONDITIONALS — syn_18/19: conditional choices + multi-line
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `conditional expressions in source compile`() {
+        // Verify the source contains conditional patterns
+        assertTrue(bidiTddSource.contains("{inventory ? sword}"),
+            "Source should have conditional choice syntax")
+        assertTrue(bidiTddSource.contains("- mood == happy:"),
+            "Source should have multi-line conditional")
+        assertTrue(bidiTddSource.contains("- else:"),
+            "Source should have else branch")
+
+        // And that it compiles successfully
+        val result = engine.compile(bidiTddSource)
+        assertTrue(result.success, "Source with conditionals should compile")
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ALTERNATIVES — syn_17: visit counts (sequence / cycle)
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `visit count and TURNS_SINCE in source`() {
+        assertTrue(bidiTddSource.contains("{syn_17}"),
+            "Source should reference visit count for syn_17")
+        assertTrue(bidiTddSource.contains("TURNS_SINCE"),
+            "Source should use TURNS_SINCE")
+
+        val result = engine.compile(bidiTddSource)
+        assertTrue(result.success, "Source with visit counts should compile")
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // TUNNELS — syn_13: ->-> return from tunnel
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `tunnel syntax in source`() {
+        assertTrue(bidiTddSource.contains("->->"),
+            "Source should have tunnel return operator ->->")
+        val result = engine.compile(bidiTddSource)
+        assertTrue(result.success, "Source with tunnels should compile")
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // THREADS — syn_14: <- thread merge
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `thread syntax in source`() {
+        assertTrue(bidiTddSource.contains("<- syn_thread"),
+            "Source should have thread syntax <- syn_thread")
+        val result = engine.compile(bidiTddSource)
+        assertTrue(result.success, "Source with threads should compile")
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // INCLUDE — syn_26: INCLUDE statement (commented in fixture)
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `INCLUDE syntax present in source comments`() {
+        assertTrue(bidiTddSource.contains("// INCLUDE"),
+            "Source should reference INCLUDE syntax (commented out for single-file)")
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // EXTERNAL — syn_27: EXTERNAL function declarations
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `EXTERNAL declaration syntax in source`() {
+        // The bidi_and_tdd.ink may have EXTERNAL as a commented reference
+        val hasExternal = bidiTddSource.contains("EXTERNAL") || bidiTddSource.contains("external")
+        // EXTERNAL functions are documented in syn_27
+        assertTrue(bidiTddSource.contains("27/28") || bidiTddSource.contains("EXTERNAL") ||
+            bidiTddSource.contains("extern"),
+            "Source should reference EXTERNAL functions in syn_27 section")
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // GLUE — syn_10: <> operator
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `glue operator in source`() {
+        assertTrue(bidiTddSource.contains("<>"),
+            "Source should contain glue operator <>")
+        val result = engine.compile(bidiTddSource)
+        assertTrue(result.success, "Source with glue should compile")
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // TAGS — syn_11: # tag syntax
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `tag syntax in source`() {
+        assertTrue(bidiTddSource.contains("# ") || bidiTddSource.contains("#tag"),
+            "Source should contain tag syntax")
+        val result = engine.compile(bidiTddSource)
+        assertTrue(result.success, "Source with tags should compile")
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // STRING OPERATIONS — syn_20
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `string operations with Hebrew compile`() {
+        assertTrue(bidiTddSource.contains("שלום לכולם"),
+            "Source should have Hebrew string literal")
+        val result = engine.compile(bidiTddSource)
+        assertTrue(result.success)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // MATH — syn_21
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `math operations compile`() {
+        assertTrue(bidiTddSource.contains("a mod b"),
+            "Source should have mod operator")
+        val result = engine.compile(bidiTddSource)
+        assertTrue(result.success)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // STARTFROMSESSIONJSON — alternative session start
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `startSessionFromJson works with compiled output`() {
+        val compiled = engine.compile(bidiTddSource)
+        assertTrue(compiled.success)
+
+        val (sessionId, result) = engine.startSessionFromJson(compiled.json!!)
+        try {
+            assertTrue(result.choices.isNotEmpty(), "JSON-started session should have choices")
+        } finally {
+            engine.endSession(sessionId)
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // HAS SESSION
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `hasSession returns true for active sessions`() {
+        val (sessionId, _) = engine.startSession(bidiTddSource)
+        try {
+            assertTrue(engine.hasSession(sessionId), "Active session should be found")
+        } finally {
+            engine.endSession(sessionId)
+        }
+        assertFalse(engine.hasSession(sessionId), "Ended session should not be found")
     }
 }

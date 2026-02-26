@@ -284,7 +284,7 @@ public class InkMdTableTest
     [Fact]
     public void Extracts_all_9_ink_blocks_via_Markdig()
     {
-        Assert.Equal(10, InkBlocks.Count);
+        Assert.Equal(14, InkBlocks.Count);
     }
 
     [Fact]
@@ -327,7 +327,7 @@ public class InkMdTableTest
     public void Ink_blocks_cover_expected_issues()
     {
         var headings = string.Join(" ", InkBlocks.Select(b => b.Heading.Text));
-        foreach (var issue in new[] { "#122", "#541", "#534", "#508", "#485", "ink-959", "ink-916", "ink-844" })
+        foreach (var issue in new[] { "#122", "#541", "#534", "#508", "#485", "#502", "ink-959", "ink-916", "ink-844", "ink-950" })
             Assert.Contains(issue, headings);
     }
 
@@ -338,7 +338,7 @@ public class InkMdTableTest
         var inkFenced = allFenced.Where(f => f.Info?.Trim() == "ink").ToList();
         var otherFenced = allFenced.Where(f => f.Info?.Trim() != "ink").ToList();
 
-        Assert.Equal(10, inkFenced.Count);
+        Assert.Equal(14, inkFenced.Count);
         Assert.True(otherFenced.Count >= 0,
             "Non-ink code blocks exist as separate routes");
     }
@@ -482,6 +482,145 @@ public class InkMdTableTest
             foreach (var line in logicLines)
                 Assert.Matches(logicRegex, line.Trim());
         }
+    }
+
+    [Fact]
+    public void Divert_syntax_present_in_blocks()
+    {
+        var divertBlocks = InkBlocks.Where(b => b.Source.Contains("->")).ToList();
+        Assert.True(divertBlocks.Count >= 3,
+            $"At least 3 ink blocks should contain divert ->, got {divertBlocks.Count}");
+    }
+
+    [Fact]
+    public void Divert_targets_use_valid_identifiers()
+    {
+        var divertRegex = new Regex(@"->\s*(\w+)");
+        foreach (var block in InkBlocks)
+        {
+            var diverts = divertRegex.Matches(block.Source);
+            foreach (Match m in diverts)
+            {
+                var target = m.Groups[1].Value;
+                Assert.Matches(new Regex(@"^\w+$"), target);
+            }
+        }
+    }
+
+    [Fact]
+    public void Glue_syntax_present_in_blocks()
+    {
+        var glueBlocks = InkBlocks.Where(b => b.Source.Contains("<>")).ToList();
+        Assert.True(glueBlocks.Count >= 1,
+            "At least 1 ink block should contain glue <> operator");
+    }
+
+    [Fact]
+    public void Blocks_contain_ASSERT_comments()
+    {
+        var assertBlocks = InkBlocks.Where(b => b.Source.Contains("// ASSERT:")).ToList();
+        Assert.True(assertBlocks.Count >= 8,
+            $"At least 8 blocks should have // ASSERT:, got {assertBlocks.Count}");
+    }
+
+    [Fact]
+    public void CJK_text_present_in_blocks()
+    {
+        var cjkBlocks = InkBlocks.Where(b =>
+        {
+            var cjkRegex = new Regex(@"[\u3040-\u309F\u4E00-\u9FFF\uAC00-\uD7AF]");
+            return cjkRegex.IsMatch(b.Source);
+        }).ToList();
+        Assert.True(cjkBlocks.Count >= 1,
+            "At least 1 ink block should contain CJK text");
+    }
+
+    [Fact]
+    public void Knot_and_divert_cross_reference()
+    {
+        var knotRegex = new Regex(@"===\s*(\w+)");
+        var divertRegex = new Regex(@"->\s*(\w+)");
+        bool foundMatch = false;
+
+        foreach (var block in InkBlocks)
+        {
+            var knots = knotRegex.Matches(block.Source).Cast<Match>().Select(m => m.Groups[1].Value).ToHashSet();
+            var diverts = divertRegex.Matches(block.Source).Cast<Match>().Select(m => m.Groups[1].Value);
+            if (knots.Count > 0 && diverts.Any(d => knots.Contains(d) || d == "END" || d == "DONE"))
+            {
+                foundMatch = true;
+                break;
+            }
+        }
+        Assert.True(foundMatch, "At least one block should have knots with matching divert targets");
+    }
+
+    [Fact]
+    public void String_operations_with_Hebrew_present()
+    {
+        var hebrewStringBlocks = InkBlocks.Where(b =>
+        {
+            var hebrewRegex = new Regex(@"[\u0590-\u05FF]");
+            return hebrewRegex.IsMatch(b.Source) && b.Source.Contains("\"");
+        }).ToList();
+        Assert.True(hebrewStringBlocks.Count >= 1,
+            "At least 1 ink block should have Hebrew string literals");
+    }
+
+    [Fact]
+    public void Float_decimal_separator_test_present()
+    {
+        var floatBlocks = InkBlocks.Where(b =>
+            b.Source.Contains("3.14") || b.Source.Contains("float")).ToList();
+        Assert.True(floatBlocks.Count >= 1,
+            "At least 1 ink block should test float decimal separator");
+    }
+
+    [Fact]
+    public void Tunnel_syntax_present_in_blocks()
+    {
+        var tunnelBlocks = InkBlocks.Where(b => b.Source.Contains("->->")).ToList();
+        Assert.True(tunnelBlocks.Count >= 1,
+            "At least 1 ink block should contain tunnel return ->->");
+    }
+
+    [Fact]
+    public void Thread_syntax_present_in_blocks()
+    {
+        var threadBlocks = InkBlocks.Where(b =>
+            b.Source.Split('\n').Any(l => l.Trim().StartsWith("<-") && !l.Contains("DONE"))).ToList();
+        Assert.True(threadBlocks.Count >= 1,
+            "At least 1 ink block should contain thread merge <-");
+    }
+
+    [Fact]
+    public void Multi_line_conditional_syntax_present()
+    {
+        var condBlocks = InkBlocks.Where(b =>
+        {
+            var lines = b.Source.Split('\n').Select(l => l.Trim()).ToList();
+            return lines.Any(l => l == "{") || lines.Any(l => l.StartsWith("- mood") || l.StartsWith("- else"));
+        }).ToList();
+        Assert.True(condBlocks.Count >= 1,
+            "At least 1 ink block should contain multi-line conditionals");
+    }
+
+    [Fact]
+    public void LIST_declarations_present_in_blocks()
+    {
+        var listBlocks = InkBlocks.Where(b => b.Source.Contains("LIST ")).ToList();
+        Assert.True(listBlocks.Count >= 1,
+            "At least 1 ink block should contain LIST declarations");
+    }
+
+    [Fact]
+    public void LIST_operations_present_in_blocks()
+    {
+        var listOpBlocks = InkBlocks.Where(b =>
+            b.Source.Contains("? sword") || b.Source.Contains("!?") ||
+            b.Source.Contains("+= sword") || b.Source.Contains("+= potion")).ToList();
+        Assert.True(listOpBlocks.Count >= 1,
+            "At least 1 ink block should contain LIST query operations (?, !?, +=)");
     }
 
     // ═══════════════════════════════════════════════════════════════

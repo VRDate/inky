@@ -273,7 +273,7 @@ class InkMdTableTest {
 
     @Test
     fun `extracts all 9 ink blocks via flexmark`() {
-        assertEquals(10, inkBlocks.size,
+        assertEquals(14, inkBlocks.size,
             "Headings: ${inkBlocks.map { it.heading.text }}")
     }
 
@@ -341,7 +341,7 @@ class InkMdTableTest {
             while (child != null) { walk(child); child = child.next }
         }
         walk(mdDocument)
-        assertEquals(10, inkCount)
+        assertEquals(14, inkCount)
         assertTrue(otherCount >= 0, "Non-ink code blocks exist as separate routes")
     }
 

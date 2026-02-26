@@ -255,6 +255,117 @@ VAR thread_result = ""
 -> END
 ```
 
+### Issue #502 — Tunnel to Parameterised Knot Crashes Export
+
+```ink
+// TDD test: tunnel to parameterised knot round-trips correctly
+=== start ===
+Before tunnel.
+-> greet("שלום") ->
+After tunnel.
+-> END
+
+=== greet(msg) ===
+Greeting: {msg}
+->->
+
+// ASSERT: Compiles without crash
+// ASSERT: Output contains "Before tunnel."
+// ASSERT: Output contains "Greeting: שלום"
+// ASSERT: Output contains "After tunnel."
+// ASSERT: Tunnel return (->->) resumes correctly
+```
+
+### Issue ink-950 / ink-923 — Conditional Branch Coverage
+
+```ink
+// TDD test: multi-line conditionals evaluate all branches
+VAR mood = "happy"
+VAR score = 75
+
+=== start ===
+{
+  - mood == "happy": You smile.
+  - mood == "sad": You frown.
+  - else: You shrug.
+}
+{score >= 90: A grade | score >= 70: B grade | C grade}
+* {score > 50} [Pass] -> passed
+* {score <= 50} [Fail] -> failed
+
+=== passed ===
+You passed!
+-> END
+
+=== failed ===
+Try again.
+-> END
+
+// ASSERT: Output contains "You smile." (mood == happy)
+// ASSERT: Output contains "B grade" (score == 75)
+// ASSERT: "Pass" choice is visible (score > 50)
+// ASSERT: "Fail" choice is NOT visible (score > 50)
+```
+
+### Issue — LIST Operations and Membership Coverage
+
+```ink
+// TDD test: LIST add/remove/query operations work correctly
+LIST inventory = (nothing), sword, shield, potion, map
+LIST mood = neutral, happy, sad
+
+=== start ===
+~ mood = happy
+~ inventory += sword
+~ inventory += potion
+~ inventory -= nothing
+{inventory ? sword: Armed | Unarmed}
+{inventory !? map: No map | Has map}
+{mood == happy: Smiling | Not smiling}
+Inventory: {inventory}
+-> END
+
+// ASSERT: Compiles without errors
+// ASSERT: Output contains "Armed" (has sword)
+// ASSERT: Output contains "No map" (no map)
+// ASSERT: Output contains "Smiling" (mood is happy)
+// ASSERT: inventory contains sword and potion
+```
+
+### Issue #502+threads — Thread Merge with Tunnel Return
+
+```ink
+// TDD test: threads and tunnels coexist without corruption
+VAR thread_visited = false
+
+=== start ===
+Town square.
+<- merchant_thread
+<- gossip_thread
+* [Leave town] -> journey
+
+=== merchant_thread ===
+* [Buy sword] Bought! -> DONE
+
+=== gossip_thread ===
+* [Listen] Rumors of treasure. -> DONE
+
+=== journey ===
+-> dream_tunnel ->
+~ thread_visited = true
+Back from dream.
+-> END
+
+=== dream_tunnel ===
+You dream of adventure.
+->->
+
+// ASSERT: Compiles without errors
+// ASSERT: "Buy sword" and "Listen" choices both appear at start
+// ASSERT: Tunnel return from dream_tunnel works correctly
+// ASSERT: thread_visited == true after journey
+```
+
 ---
 
 ## inkle/inky — Issues Table
