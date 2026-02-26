@@ -301,6 +301,18 @@ fun startServer(
                 val result = tools.callTool("puml2svg", body)
                 call.respondText(result.content.first().text, ContentType.Application.Json)
             }
+
+            post("/api/ink-toc") {
+                val body = mcpJson.parseToJsonElement(call.receiveText()).jsonObject
+                val result = tools.callTool("ink_toc", body)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            post("/api/ink-toc-puml") {
+                val body = mcpJson.parseToJsonElement(call.receiveText()).jsonObject
+                val result = tools.callTool("ink_toc_puml", body)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
         }
     }.start(wait = true)
 }

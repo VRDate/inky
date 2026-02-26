@@ -29,17 +29,211 @@ class Ink2PumlEngine(
      * @param inkSource  the ink script to analyze
      * @param mode       diagram type: ACTIVITY or STATE
      * @param title      optional diagram title (defaults to "Ink Story Flow")
+     * @param mcpLinks   if true, embed MCP tool URIs in PlantUML notes for LLM navigation
      * @return PlantUML source string
      */
     fun inkToPuml(
         inkSource: String,
         mode: DiagramMode = DiagramMode.ACTIVITY,
-        title: String = "Ink Story Flow"
+        title: String = "Ink Story Flow",
+        mcpLinks: Boolean = true
     ): String {
         val structure = editEngine.parse(inkSource)
         return when (mode) {
-            DiagramMode.ACTIVITY -> generateActivityDiagram(structure, inkSource, title)
-            DiagramMode.STATE -> generateStateDiagram(structure, inkSource, title)
+            DiagramMode.ACTIVITY -> generateActivityDiagram(structure, inkSource, title, mcpLinks)
+            DiagramMode.STATE -> generateStateDiagram(structure, inkSource, title, mcpLinks)
+        }
+    }
+
+    /**
+     * Generate a Table of Contents (TOC) for an ink script, mapped to PlantUML
+     * and MCP tool links. Designed for LLMs with limited context — the TOC
+     * gives a compact overview and lets the LLM fetch specific sections via MCP.
+     *
+     * Format:
+     *   # Story TOC
+     *   ## Knots
+     *   - knot_name (lines 10-25, 3 choices) → mcp:get_section {section_name: "knot_name"}
+     *   ## Variables
+     *   - VAR score = 0 → mcp:get_variable {name: "score"}
+     *   ## Stats
+     *   - 5 knots, 3 stitches, 12 choices → mcp:ink_stats
+     *   ## Diagram
+     *   - mcp:ink2puml → activity diagram | mcp:ink2svg → SVG
+     */
+    fun generateToc(inkSource: String): String {
+        val structure = editEngine.parse(inkSource)
+        return buildString {
+            appendLine("# Ink Story — Table of Contents")
+            appendLine()
+
+            // Knots
+            val knots = structure.sections.filter { it.type == "knot" }
+            if (knots.isNotEmpty()) {
+                appendLine("## Knots (${knots.size})")
+                for (knot in knots) {
+                    val choices = extractChoices(knot.content)
+                    val diverts = extractDivertsFromContent(knot.content)
+                    val stitches = structure.sections.filter { it.type == "stitch" && it.parent == knot.name }
+                    val info = buildList {
+                        add("lines ${knot.startLine + 1}-${knot.endLine}")
+                        if (choices.isNotEmpty()) add("${choices.size} choices")
+                        if (stitches.isNotEmpty()) add("${stitches.size} stitches")
+                        if (diverts.isNotEmpty()) add("→ ${diverts.joinToString(", ")}")
+                    }
+                    appendLine("- **${knot.name}** (${info.joinToString(", ")})")
+                    appendLine("  mcp:get_section {\"source\": \"...\", \"section_name\": \"${knot.name}\"}")
+
+                    for (stitch in stitches) {
+                        appendLine("  - ${stitch.name} (lines ${stitch.startLine + 1}-${stitch.endLine})")
+                        appendLine("    mcp:get_section {\"source\": \"...\", \"section_name\": \"${stitch.name}\"}")
+                    }
+                }
+                appendLine()
+            }
+
+            // Functions
+            val functions = structure.sections.filter { it.type == "function" }
+            if (functions.isNotEmpty()) {
+                appendLine("## Functions (${functions.size})")
+                for (func in functions) {
+                    appendLine("- **${func.name}**(${func.parameters.joinToString(", ")}) — lines ${func.startLine + 1}-${func.endLine}")
+                    appendLine("  mcp:get_section {\"source\": \"...\", \"section_name\": \"${func.name}\"}")
+                }
+                appendLine()
+            }
+
+            // Variables
+            if (structure.variables.isNotEmpty()) {
+                appendLine("## Variables (${structure.variables.size})")
+                for (v in structure.variables) {
+                    appendLine("- ${v.type} **${v.name}** = ${v.initialValue} (line ${v.line + 1})")
+                    appendLine("  mcp:get_variable {\"session_id\": \"...\", \"name\": \"${v.name}\"}")
+                }
+                appendLine()
+            }
+
+            // Includes
+            if (structure.includes.isNotEmpty()) {
+                appendLine("## Includes (${structure.includes.size})")
+                for (inc in structure.includes) {
+                    appendLine("- INCLUDE $inc")
+                }
+                appendLine()
+            }
+
+            // Stats summary
+            appendLine("## Stats")
+            appendLine("- ${knots.size} knots, " +
+                "${structure.sections.count { it.type == "stitch" }} stitches, " +
+                "${functions.size} functions, " +
+                "${structure.variables.size} variables, " +
+                "${structure.diverts.size} diverts, " +
+                "${structure.totalLines} lines")
+            appendLine("  mcp:ink_stats {\"source\": \"...\"}")
+            appendLine()
+
+            // Diagram links
+            appendLine("## Diagrams")
+            appendLine("- Activity diagram: mcp:ink2puml {\"source\": \"...\", \"mode\": \"activity\"}")
+            appendLine("- State diagram:    mcp:ink2puml {\"source\": \"...\", \"mode\": \"state\"}")
+            appendLine("- SVG rendering:    mcp:ink2svg  {\"source\": \"...\", \"mode\": \"activity\"}")
+            appendLine()
+
+            // Quick actions
+            appendLine("## MCP Quick Actions")
+            appendLine("- Parse structure:  mcp:parse_ink      {\"source\": \"...\"}")
+            appendLine("- Compile & play:   mcp:start_story    {\"source\": \"...\"}")
+            appendLine("- Review code:      mcp:review_ink     {\"source\": \"...\"}")
+            appendLine("- Debug session:    mcp:start_story → mcp:start_debug → mcp:debug_step")
+        }
+    }
+
+    /**
+     * Generate a compact PlantUML TOC diagram with MCP links embedded in notes.
+     * Designed for LLMs to scan quickly and call the right MCP tool.
+     */
+    fun generateTocPuml(inkSource: String, title: String = "Ink Story TOC"): String {
+        val structure = editEngine.parse(inkSource)
+        val knots = structure.sections.filter { it.type == "knot" }
+        val functions = structure.sections.filter { it.type == "function" }
+
+        return buildString {
+            appendLine("@startuml")
+            appendLine("!theme plain")
+            appendLine("skinparam backgroundColor #FEFEFE")
+            appendLine("title $title")
+            appendLine("footer TOC with MCP tool links | Ink2PumlEngine")
+            appendLine()
+
+            // Map diagram
+            appendLine("map \"Story Map\" as storyMap {")
+            for (knot in knots) {
+                val choices = extractChoices(knot.content)
+                val choiceInfo = if (choices.isNotEmpty()) " [${choices.size} choices]" else ""
+                appendLine("  ${knot.name} => lines ${knot.startLine + 1}-${knot.endLine}$choiceInfo")
+            }
+            for (func in functions) {
+                appendLine("  ${func.name}() => lines ${func.startLine + 1}-${func.endLine}")
+            }
+            appendLine("}")
+            appendLine()
+
+            // Variables map
+            if (structure.variables.isNotEmpty()) {
+                appendLine("map \"Variables\" as varsMap {")
+                for (v in structure.variables) {
+                    appendLine("  ${v.name} => ${v.type} = ${v.initialValue}")
+                }
+                appendLine("}")
+                appendLine()
+            }
+
+            // MCP tools note
+            appendLine("note right of storyMap")
+            appendLine("  **MCP Tools for Navigation**")
+            appendLine("  ----")
+            appendLine("  get_section: read a knot/stitch by name")
+            appendLine("  parse_ink: full structure analysis")
+            appendLine("  ink_stats: statistics & dead-end detection")
+            appendLine("  ink2puml: activity/state diagram")
+            appendLine("  ink2svg: SVG rendering of diagram")
+            appendLine("  start_story: compile & play")
+            appendLine("  start_debug: debug with breakpoints")
+            appendLine("  review_ink: LLM code review")
+            appendLine("end note")
+
+            // Knot detail notes with MCP links
+            for (knot in knots) {
+                val choices = extractChoices(knot.content)
+                val diverts = extractDivertsFromContent(knot.content)
+                val stitches = structure.sections.filter { it.type == "stitch" && it.parent == knot.name }
+
+                if (choices.isNotEmpty() || stitches.isNotEmpty()) {
+                    appendLine()
+                    appendLine("note bottom of storyMap")
+                    appendLine("  **${knot.name}** (${knot.endLine - knot.startLine} lines)")
+                    if (stitches.isNotEmpty()) {
+                        appendLine("  Stitches: ${stitches.joinToString(", ") { it.name }}")
+                    }
+                    if (choices.isNotEmpty()) {
+                        appendLine("  Choices:")
+                        for (c in choices) {
+                            val arrow = if (c.divert != null) " → ${c.divert}" else ""
+                            appendLine("    ${if (c.isStickyChoice) "+" else "*"} ${escapePuml(c.text)}$arrow")
+                        }
+                    }
+                    if (diverts.isNotEmpty()) {
+                        appendLine("  Diverts: ${diverts.joinToString(", ")}")
+                    }
+                    appendLine("  ----")
+                    appendLine("  mcp:get_section {section_name: \"${knot.name}\"}")
+                    appendLine("end note")
+                }
+            }
+
+            appendLine()
+            appendLine("@enduml")
         }
     }
 
@@ -99,7 +293,8 @@ class Ink2PumlEngine(
     private fun generateActivityDiagram(
         structure: InkEditEngine.InkStructure,
         inkSource: String,
-        title: String
+        title: String,
+        mcpLinks: Boolean = true
     ): String = buildString {
         appendLine("@startuml")
         appendLine("!theme plain")
@@ -108,13 +303,36 @@ class Ink2PumlEngine(
         appendLine("footer Generated from ink source by Ink2PumlEngine")
         appendLine()
 
-        // Show variables as notes
+        // Show variables as notes with MCP links
         if (structure.variables.isNotEmpty()) {
             appendLine("floating note left")
             appendLine("  **Variables**")
             structure.variables.forEach { v ->
                 appendLine("  ${v.type} ${v.name} = ${v.initialValue}")
             }
+            if (mcpLinks) {
+                appendLine("  ----")
+                appendLine("  mcp:get_variable {name: \"<var>\"}")
+                appendLine("  mcp:set_variable {name: \"<var>\", value: <val>}")
+            }
+            appendLine("end note")
+            appendLine()
+        }
+
+        // TOC note with MCP navigation links
+        if (mcpLinks) {
+            val knots = structure.sections.filter { it.type == "knot" }
+            appendLine("floating note right")
+            appendLine("  **TOC** (${knots.size} knots, ${structure.variables.size} vars)")
+            for (knot in knots) {
+                val choices = extractChoices(knot.content)
+                val choiceLabel = if (choices.isNotEmpty()) " [${choices.size}ch]" else ""
+                appendLine("  · ${knot.name}$choiceLabel → L${knot.startLine + 1}")
+            }
+            appendLine("  ----")
+            appendLine("  mcp:get_section {section_name: \"<knot>\"}")
+            appendLine("  mcp:parse_ink → full structure")
+            appendLine("  mcp:ink_stats → dead-end analysis")
             appendLine("end note")
             appendLine()
         }
@@ -232,7 +450,8 @@ class Ink2PumlEngine(
     private fun generateStateDiagram(
         structure: InkEditEngine.InkStructure,
         inkSource: String,
-        title: String
+        title: String,
+        mcpLinks: Boolean = true
     ): String = buildString {
         appendLine("@startuml")
         appendLine("!theme plain")
@@ -327,6 +546,21 @@ class Ink2PumlEngine(
                 val targetId = if (divert == "END" || divert == "DONE") "[*]" else sanitizeId(divert)
                 appendLine("$sectionId --> $targetId")
             }
+        }
+
+        // MCP navigation legend
+        if (mcpLinks) {
+            appendLine()
+            appendLine("legend right")
+            appendLine("  **MCP Tool Links**")
+            appendLine("  |= Action |= Tool Call |")
+            for (k in knots) {
+                appendLine("  | Read ${k.name} | mcp:get_section {section_name: \"${k.name}\"} |")
+            }
+            appendLine("  | Full parse | mcp:parse_ink |")
+            appendLine("  | Statistics | mcp:ink_stats |")
+            appendLine("  | Play story | mcp:start_story |")
+            appendLine("endlegend")
         }
 
         appendLine()

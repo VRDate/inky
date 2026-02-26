@@ -8,7 +8,7 @@ import kotlinx.serialization.json.*
  *   - Ink debugging (8 tools)
  *   - Ink section editing (6 tools)
  *   - Ink+Markdown template processing (3 tools)
- *   - Ink→PlantUML diagrams (3 tools)
+ *   - Ink→PlantUML diagrams + TOC (5 tools)
  *   - LLM model management (8 tools)
  *   - LLM service providers (2 tools)
  *   - Collaboration (2 tools)
@@ -467,7 +467,7 @@ class McpTools(
     )
 
     // ════════════════════════════════════════════════════════════════════
-    // PLANTUML DIAGRAM TOOLS (3)
+    // PLANTUML DIAGRAM TOOLS (5)
     // ════════════════════════════════════════════════════════════════════
 
     private val pumlTools: List<McpToolInfo> = listOf(
@@ -506,6 +506,29 @@ class McpTools(
                     putJsonObject("puml") { put("type", "string"); put("description", "PlantUML source code") }
                 }
                 putJsonArray("required") { add("puml") }
+            }
+        ),
+        McpToolInfo(
+            name = "ink_toc",
+            description = "Generate a Table of Contents for an ink script with MCP tool links. Designed for LLMs with limited context — gives compact overview with mcp:tool_name references for each section.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("source") { put("type", "string"); put("description", "Ink source code") }
+                }
+                putJsonArray("required") { add("source") }
+            }
+        ),
+        McpToolInfo(
+            name = "ink_toc_puml",
+            description = "Generate a PlantUML TOC diagram with MCP tool links embedded in notes. Visual map of the story with clickable MCP references.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("source") { put("type", "string"); put("description", "Ink source code") }
+                    putJsonObject("title") { put("type", "string"); put("description", "Optional diagram title") }
+                }
+                putJsonArray("required") { add("source") }
             }
         )
     )
@@ -705,6 +728,8 @@ class McpTools(
                 "ink2puml" -> handleInk2Puml(arguments)
                 "ink2svg" -> handleInk2Svg(arguments)
                 "puml2svg" -> handlePuml2Svg(arguments)
+                "ink_toc" -> handleInkToc(arguments)
+                "ink_toc_puml" -> handleInkTocPuml(arguments)
                 // LLM tools
                 "list_models" -> handleListModels(arguments)
                 "load_model" -> handleLoadModel(arguments)
@@ -1176,6 +1201,23 @@ class McpTools(
         val svg = ink2PumlEngine.pumlToSvg(puml)
         return textResult(buildJsonObject {
             put("svg", svg)
+        }.toString())
+    }
+
+    private fun handleInkToc(args: JsonObject?): McpToolResult {
+        val source = args.requireString("source")
+        val toc = ink2PumlEngine.generateToc(source)
+        return textResult(buildJsonObject {
+            put("toc", toc)
+        }.toString())
+    }
+
+    private fun handleInkTocPuml(args: JsonObject?): McpToolResult {
+        val source = args.requireString("source")
+        val title = args?.get("title")?.jsonPrimitive?.contentOrNull ?: "Ink Story TOC"
+        val puml = ink2PumlEngine.generateTocPuml(source, title)
+        return textResult(buildJsonObject {
+            put("puml", puml)
         }.toString())
     }
 

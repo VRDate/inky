@@ -2,7 +2,7 @@
 !theme plain
 skinparam backgroundColor #FEFEFE
 
-title Inky MCP Server — 49 Tool Architecture
+title Inky MCP Server — 51 Tool Architecture
 footer v0.3.0 | Ktor + GraalJS + Camel + LangChain4j + PlantUML + Yjs
 
 ' ── Tool Groups ──
@@ -52,10 +52,12 @@ package "Ink+Markdown (3 tools)" as inkMd #E1BEE7 {
     card "compile_ink_md" as m3
 }
 
-package "PlantUML (3 tools)" as puml #B2EBF2 {
+package "PlantUML + TOC (5 tools)" as puml #B2EBF2 {
     card "ink2puml" as p1
     card "ink2svg" as p2
     card "puml2svg" as p3
+    card "ink_toc" as p4
+    card "ink_toc_puml" as p5
 }
 
 package "LLM Models (8 tools)" as llm #FFCDD2 {
@@ -108,11 +110,11 @@ legend right
   |<#BBDEFB>| Debug: 8 |
   |<#FFE0B2>| Edit: 6 |
   |<#E1BEE7>| Ink+MD: 3 |
-  |<#B2EBF2>| PlantUML: 3 |
+  |<#B2EBF2>| PlantUML+TOC: 5 |
   |<#FFCDD2>| LLM: 8 |
   |<#FFF9C4>| Services: 2 |
   |<#F3E5F5>| Collab: 2 |
-  | **Total** | **49** |
+  | **Total** | **51** |
 endlegend
 
 @enduml

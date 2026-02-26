@@ -121,7 +121,7 @@ private fun parseArgs(args: Array<String>): Map<String, String> {
                     Usage: jbang InkyMcp.kt [options]
 
                     Modes:
-                      --mode mcp          Full MCP server (default) — 49 tools
+                      --mode mcp          Full MCP server (default) — 51 tools
                       --mode jlama        Local JLama inference
                       --mode lmstudio     External LM Studio
                       --mode pwa          Ink-only, no LLM
@@ -137,7 +137,7 @@ private fun parseArgs(args: Array<String>): Map<String, String> {
                       --no-llm                      Shortcut for --mode pwa
                       --help, -h                    Show this help
 
-                    Tools: ink (17) + debug (8) + edit (6) + ink-md (3) + puml (3) + llm (8) + services (2) + collab (2)
+                    Tools: ink (17) + debug (8) + edit (6) + ink-md (3) + puml (5) + llm (8) + services (2) + collab (2)
                     Collab: Connect Yjs clients to ws://localhost:3001/collab/:docId
                 """.trimIndent())
                 kotlin.system.exitProcess(0)
