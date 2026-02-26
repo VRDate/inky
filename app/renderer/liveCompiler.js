@@ -5,7 +5,6 @@ const i18n = require('./i18n.js');
 
 var namespace = null;
 var sessionIdx = 0;
-var bidifyExportEnabled = false;
 
 var currentPlaySessionId = null;
 var currentExportSessionId = null;
@@ -55,8 +54,7 @@ function buildCompileInstruction() {
         mainName: project.mainInk.filename(),
         updatedFiles: {},
         sessionId: `${namespace}_${sessionIdx}`,
-        namespace: namespace,
-        bidifyExportEnabled: bidifyExportEnabled
+        namespace: namespace
     };
 
     project.files.forEach((inkFile) => {
@@ -418,6 +416,5 @@ exports.LiveCompiler = {
     getLocationInSource: getLocationInSource,
     getRuntimePathInSource: getRuntimePathInSource,
     evaluateExpression: evaluateExpression,
-    getStats: getStats,
-    setBidifyExportEnabled: (enabled) => { bidifyExportEnabled = enabled; }
+    getStats: getStats
 }

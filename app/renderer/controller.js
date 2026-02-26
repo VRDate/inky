@@ -336,25 +336,6 @@ ipc.on("set-autocomplete-disabled", (event, autoCompleteDisabled) => {
     EditorView.setAutoCompleteDisabled(autoCompleteDisabled)
 });
 
-ipc.on("set-bidify-editor-enabled", (event, enabled) => {
-    let editorEl = document.getElementById("editor");
-    if (enabled) {
-        editorEl.classList.add("bidify-enabled");
-    } else {
-        editorEl.classList.remove("bidify-enabled");
-    }
-});
-ipc.on("set-bidify-player-enabled", (event, enabled) => {
-    PlayerView.setBidifyEnabled(enabled);
-    LiveCompiler.setEdited();
-});
-ipc.on("set-strip-bidi-on-save", (event, enabled) => {
-    const InkFile = require("./inkFile.js").InkFile;
-    InkFile.stripBidiOnSave = enabled;
-});
-ipc.on("set-bidify-export-enabled", (event, enabled) => {
-    LiveCompiler.setBidifyExportEnabled(enabled);
-});
 
 
 function updateTheme(event, newTheme) {

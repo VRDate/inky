@@ -2,7 +2,7 @@ const electron = require('electron');
 const BrowserWindow = electron.BrowserWindow;
 const path = require("path");
 const fs = require("fs");
-const inkjsPackage = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'node_modules', 'inkjs', 'package.json'), 'utf8'));
+const inkjsPackage = require('inkjs/package.json');
 const i18n = require('./i18n/i18n.js');
 
 
