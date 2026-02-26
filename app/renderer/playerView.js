@@ -195,7 +195,9 @@ function addChoice(choice, callback)
     //    },
     //    ... other stuff, e.g. choice number ...
     // }
-    var $choice = $("<a href='#'>"+choice.choice.text+"</a>");
+    var choiceText = choice.choice.text;
+    if (bidifyEnabled) choiceText = bidify(choiceText);
+    var $choice = $("<a href='#'>"+choiceText+"</a>");
     var $tags = null;
     if( choice.choice.tags != null && choice.choice.tags.length > 0 ) {
         var tagsStr = "# " + choice.choice.tags.join(" # ");
