@@ -1,0 +1,61 @@
+@startuml dictalm-gguf-models
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title DictaLM 3.0 GGUF Model Selection Guide
+footer HuggingFace: dicta-il | Architecture compatibility with JLama
+
+skinparam note {
+    BackgroundColor #FFFDE7
+}
+
+start
+
+:User reports\navailable VRAM;
+
+if (VRAM >= 48 GB?) then (yes)
+    #90EE90:thinking-24b-bf16\n47.2 GB | BF16\nFull precision|
+    note right: Maximum quality\nA100-80GB / multi-GPU
+elseif (VRAM >= 32 GB?) then (yes)
+    #90EE90:thinking-24b-q8\n25.1 GB | Q8_0\nNear lossless|
+    note right: Very high quality\nA100-40GB / RTX A6000
+elseif (VRAM >= 24 GB?) then (yes)
+    #90EE90:thinking-24b-q5\n16.8 GB | Q5_K_M\nHigh quality|
+    note right: Best for RTX 3090/4090\nExcellent Hebrew
+elseif (VRAM >= 16 GB?) then (yes)
+    if (Prefer quality?) then (yes)
+        #90EE90:thinking-24b-q4\n14.3 GB | Q4_K_M|
+        note right: Good quality/speed\nRTX 4080 / A4000
+    else (speed)
+        #90EE90:thinking-24b-fp8-q4\n13.5 GB | FP8→Q4_K_S|
+        note right: Compact quant\nfrom VRDate
+    endif
+elseif (VRAM >= 8 GB?) then (yes)
+    partition "Nemotron 12B\n(NOT JLama)" #FFE0B2 {
+        :nemotron-12b-q4\n7.49 GB | Q4_K_M|
+        note right #FFCDD2: Requires Ollama/vLLM\nHybrid-SSM architecture\nNOT JLama compatible
+    }
+    #90EE90:thinking-1.7b\n1.1 GB | Q4_K_M\n(JLama fallback)|
+else (< 8 GB)
+    #90EE90:thinking-1.7b\n1.1 GB | Q4_K_M|
+    note right: Fits any GPU\nGreat for testing
+endif
+
+:Load via MCP:\ntools/call load_model\n{model_id: "..."};
+
+if (JLama compatible?) then (yes)
+    #C8E6C9:JlamaChatModel\n→ LangChain4j\n→ Camel Routes;
+else (no)
+    #FFCDD2:Use Ollama/vLLM\nexternal server;
+endif
+
+stop
+
+legend right
+  | Color | Meaning |
+  |<#90EE90>| JLama compatible (Mistral/Llama) |
+  |<#FFE0B2>| Nemotron (requires Ollama/vLLM) |
+  |<#FFCDD2>| Not JLama compatible |
+endlegend
+
+@enduml

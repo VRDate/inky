@@ -29,12 +29,52 @@ class McpSession(val id: String) {
 }
 
 /**
- * Start the Ktor MCP server.
+ * Start the Ktor MCP server with ink engine and optional LLM backends.
+ *
+ * Modes:
+ *   "mcp"      — Full MCP server (JLama available on-demand)
+ *   "jlama"    — MCP server with local JLama inference
+ *   "lmstudio" — MCP server using external LM Studio
+ *   "pwa"      — Ink-only server (no LLM)
  */
-fun startServer(port: Int, inkjsPath: String, bidifyPath: String?) {
-    val engine = InkEngine(inkjsPath, bidifyPath)
-    val tools = McpTools(engine)
+fun startServer(
+    port: Int,
+    inkjsPath: String,
+    bidifyPath: String?,
+    enableLlm: Boolean = true,
+    modelCachePath: String? = null,
+    mode: String = "mcp",
+    autoLoadModel: String? = null,
+    lmStudioUrl: String? = null,
+    lmStudioModel: String? = null
+) {
+    val inkEngine = InkEngine(inkjsPath, bidifyPath)
+
+    // Initialize LLM engine based on mode
+    val llmEngine = if (enableLlm) LlmEngine(
+        modelCachePath = java.nio.file.Path.of(modelCachePath ?: System.getProperty("user.home") + "/.jlama")
+    ) else null
+
+    // Initialize LM Studio engine if mode is lmstudio
+    val lmStudioEngine = if (mode == "lmstudio" && lmStudioUrl != null) {
+        LmStudioEngine(baseUrl = lmStudioUrl, modelName = lmStudioModel)
+    } else null
+
+    val camelRoutes = if (enableLlm && llmEngine != null) CamelRoutes(inkEngine, llmEngine) else null
+    val tools = McpTools(inkEngine, llmEngine, camelRoutes)
     val mcpSessions = ConcurrentHashMap<String, McpSession>()
+
+    // Auto-load model if specified
+    if (autoLoadModel != null && llmEngine != null) {
+        log.info("Auto-loading model: $autoLoadModel")
+        llmEngine.loadModel(autoLoadModel)
+        camelRoutes?.refreshChatModel()
+    }
+
+    // Start Camel routes
+    camelRoutes?.start()
+
+    log.info("Server mode: $mode")
 
     embeddedServer(Netty, port = port) {
         install(ContentNegotiation) {

@@ -17,11 +17,11 @@ else
     echo "SDKMAN already installed ($(sdk version))"
 fi
 
-# Install JDK 21 (GraalVM CE)
+# Install JDK 21 (Oracle GraalVM)
 echo ""
-echo "Installing GraalVM JDK 21..."
-sdk install java 21.0.5-graalce 2>/dev/null || echo "  Already installed"
-sdk use java 21.0.5-graalce
+echo "Installing Oracle GraalVM JDK 21..."
+sdk install java 21.0.5-graal 2>/dev/null || echo "  Already installed"
+sdk use java 21.0.5-graal
 
 # Install JBang
 echo ""
@@ -30,8 +30,8 @@ sdk install jbang 2>/dev/null || echo "  Already installed"
 
 # Install Gradle (optional, for full builds)
 echo ""
-echo "Installing Gradle..."
-sdk install gradle 8.12 2>/dev/null || echo "  Already installed"
+echo "Installing Gradle 9..."
+sdk install gradle 9.3.1 2>/dev/null || echo "  Already installed"
 
 echo ""
 echo "=== Setup Complete ==="

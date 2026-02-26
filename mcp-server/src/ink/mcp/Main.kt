@@ -1,8 +1,19 @@
 package ink.mcp
 
 /**
- * Entry point for Gradle-based builds.
- * JBang entry is InkyMcp.kt (project root).
+ * Inky MCP Server — Multi-mode entry point.
+ *
+ * Modes:
+ *   mcp       — Full MCP server with SSE transport (default)
+ *   jlama     — MCP server with local JLama inference
+ *   lmstudio  — MCP server using external LM Studio
+ *   pwa       — Lightweight ink-only server (no LLM)
+ *
+ * Usage:
+ *   gradle run --args='--mode mcp'
+ *   gradle run --args='--mode lmstudio --lm-studio-url http://localhost:1234/v1'
+ *   gradle run --args='--mode jlama --model thinking-1.7b'
+ *   gradle run --args='--mode pwa --no-llm'
  */
 fun main(args: Array<String>) {
     val parsedArgs = mutableMapOf<String, String>()
@@ -10,12 +21,19 @@ fun main(args: Array<String>) {
     while (i < args.size) {
         when (args[i]) {
             "--port", "-p" -> { if (i + 1 < args.size) parsedArgs["port"] = args[++i] }
+            "--mode", "-m" -> { if (i + 1 < args.size) parsedArgs["mode"] = args[++i] }
             "--inkjs" -> { if (i + 1 < args.size) parsedArgs["inkjs"] = args[++i] }
             "--bidify" -> { if (i + 1 < args.size) parsedArgs["bidify"] = args[++i] }
+            "--model-cache" -> { if (i + 1 < args.size) parsedArgs["model-cache"] = args[++i] }
+            "--model" -> { if (i + 1 < args.size) parsedArgs["model"] = args[++i] }
+            "--lm-studio-url" -> { if (i + 1 < args.size) parsedArgs["lm-studio-url"] = args[++i] }
+            "--lm-studio-model" -> { if (i + 1 < args.size) parsedArgs["lm-studio-model"] = args[++i] }
+            "--no-llm" -> { parsedArgs["mode"] = "pwa" }
         }
         i++
     }
 
+    val mode = parsedArgs["mode"] ?: "mcp"
     val port = parsedArgs["port"]?.toIntOrNull() ?: 3001
     val inkjsPath = parsedArgs["inkjs"] ?: resolveDefault(
         "../app/node_modules/inkjs/dist/ink-full.js",
@@ -28,13 +46,44 @@ fun main(args: Array<String>) {
         "bidify.js"
     )
 
-    println("Inky MCP Server v0.1.0")
-    println("  Port:    $port")
-    println("  inkjs:   $inkjsPath")
-    println("  bidify:  ${bidifyPath ?: "(not found)"}")
+    val enableLlm = mode != "pwa"
+    val modelCachePath = parsedArgs["model-cache"]
+    val autoLoadModel = parsedArgs["model"]
+    val lmStudioUrl = parsedArgs["lm-studio-url"] ?: "http://localhost:1234/v1"
+    val lmStudioModel = parsedArgs["lm-studio-model"]
+
+    println("Inky MCP Server v0.2.0")
+    println("  Mode:        $mode")
+    println("  Port:        $port")
+    println("  inkjs:       $inkjsPath")
+    println("  bidify:      ${bidifyPath ?: "(not found)"}")
+    when (mode) {
+        "jlama" -> {
+            println("  LLM:         JLama (local)")
+            println("  Model cache: ${modelCachePath ?: "~/.jlama"}")
+            if (autoLoadModel != null) println("  Auto-load:   $autoLoadModel")
+        }
+        "lmstudio" -> {
+            println("  LLM:         LM Studio (external)")
+            println("  LM Studio:   $lmStudioUrl")
+            if (lmStudioModel != null) println("  Model:       $lmStudioModel")
+        }
+        "pwa" -> println("  LLM:         disabled (ink-only mode)")
+        else -> println("  LLM:         enabled (JLama + LM Studio supported)")
+    }
     println()
 
-    startServer(port, inkjsPath, bidifyPath)
+    startServer(
+        port = port,
+        inkjsPath = inkjsPath,
+        bidifyPath = bidifyPath,
+        enableLlm = enableLlm,
+        modelCachePath = modelCachePath,
+        mode = mode,
+        autoLoadModel = autoLoadModel,
+        lmStudioUrl = if (mode == "lmstudio") lmStudioUrl else null,
+        lmStudioModel = lmStudioModel
+    )
 }
 
 private fun resolveDefault(vararg candidates: String): String? {

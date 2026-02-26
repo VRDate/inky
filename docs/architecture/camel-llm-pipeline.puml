@@ -1,0 +1,77 @@
+@startuml camel-llm-pipeline
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title Inky MCP Server — Camel + LangChain4j + JLama Pipeline
+footer Apache Camel 4.18 | LangChain4j 1.11 | JLama 0.8.4 | DictaLM 3.0
+
+' ───────── Components ─────────
+actor "LLM Agent\n(Claude/GPT)" as LLM
+participant "MCP SSE\n(Ktor)" as MCP
+participant "McpTools\n(25 tools)" as TOOLS
+participant "Camel Routes\n(8 routes)" as CAMEL
+participant "LlmEngine\n(JLama)" as JLAMA
+participant "InkEngine\n(GraalJS)" as INK
+database "HuggingFace\nModel Hub" as HF
+database "~/.jlama\ncache" as CACHE
+
+== Model Selection (via model_zoo.ink) ==
+LLM -> MCP : tools/call list_models\n{vram_gb: 16}
+MCP -> TOOLS : list_models
+TOOLS --> MCP : JLama-compatible models\n(filtered by VRAM)
+MCP --> LLM : [thinking-1.7b, thinking-24b-q4, ...]
+
+== Model Download & Load ==
+LLM -> MCP : tools/call load_model\n{model_id: "thinking-24b-q4"}
+MCP -> TOOLS : load_model
+TOOLS -> JLAMA : loadModel("thinking-24b-q4")
+JLAMA -> HF : download GGUF\n(first time only)
+HF --> JLAMA : Q4_K_M 14.3 GB
+JLAMA -> CACHE : cache model
+JLAMA --> TOOLS : JlamaChatModel ready
+TOOLS -> CAMEL : refreshChatModel()
+CAMEL --> TOOLS : ChatModel registered
+TOOLS --> MCP : {ok: true}
+MCP --> LLM : Model loaded
+
+== Generate Ink via Camel Route Chain ==
+LLM -> MCP : tools/call generate_compile_play\n{prompt: "mystery in Jerusalem"}
+MCP -> TOOLS : generate_compile_play
+
+group Camel Route: llm-compile-chain
+    TOOLS -> CAMEL : direct:llm-generate-ink
+    CAMEL -> JLAMA : generateInk(prompt)
+    JLAMA --> CAMEL : ink source code
+    CAMEL -> INK : direct:ink-compile
+    INK --> CAMEL : {success: true, json: "..."}
+    CAMEL -> INK : direct:ink-play
+    INK --> CAMEL : {session_id, text, choices}
+end
+
+TOOLS --> MCP : story session + text
+MCP --> LLM : "A narrow alley in the Old City...\n1. Follow the merchant\n2. Enter the spice shop"
+
+== Hebrew Translation via Camel Route ==
+LLM -> MCP : tools/call translate_ink_hebrew\n{source: "...ink..."}
+MCP -> TOOLS : translate_ink_hebrew
+
+group Camel Route: llm-translate-he
+    TOOLS -> CAMEL : direct:llm-translate-he
+    CAMEL -> JLAMA : translateToHebrew(source)
+    note right: DictaLM 3.0 excels\nat Hebrew translation
+    JLAMA --> CAMEL : translated ink
+end
+
+TOOLS --> MCP : {translated_ink: "..."}
+MCP --> LLM : Hebrew ink source
+
+== Bidify RTL Text ==
+LLM -> MCP : tools/call bidify\n{text: "שלום עולם"}
+MCP -> TOOLS : bidify
+TOOLS -> INK : bidify(text)
+note right: GraalJS runs bidify.js\n(Unicode LRI/RLI/PDI)
+INK --> TOOLS : bidified text
+TOOLS --> MCP : result
+MCP --> LLM : "⁧שלום⁩ ⁦World⁩"
+
+@enduml

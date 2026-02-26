@@ -166,10 +166,11 @@ See: [`ink-kmp-classes.puml`](ink-kmp-classes.puml)
 |-----------|------------|---------|
 | Language | Kotlin | 2.1.0 |
 | Web framework | Ktor | 3.1.1 |
-| JS engine | GraalJS (CE) | 25.0.2 |
+| JS engine | GraalJS (Oracle) | 25.0.2 |
 | Serialization | kotlinx-serialization | 1.7.3 |
+| Build | Gradle | 9.3.1 |
 | Launcher | JBang | latest |
-| JDK | GraalVM CE 21 | via SDKMAN |
+| JDK | Oracle GraalVM 21 | via SDKMAN |
 
 ### 17 MCP Tools
 
