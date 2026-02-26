@@ -8,19 +8,30 @@
 
 ---
 
-## Coverage Summary
+## Coverage Summary (Updated — 100 features catalogued)
 
-| Category | Total Features | Covered in E2E | Coverage % |
-|---|---|---|---|
-| Text Output | 7 | 5 | 71% |
-| Flow Control | 7 | 5 | 71% |
-| Choices | 7 | 4 | 57% |
-| Variables & Types | 6 | 3 | 50% |
-| Logic & Conditionals | 8 | 4 | 50% |
-| Functions | 4 | 1 | 25% |
-| Lists | 6 | 1 | 17% |
-| Project Structure | 2 | 1 | 50% |
-| **TOTAL** | **47** | **24** | **51%** |
+| Category | Total Features | In Fixture | In E2E | Fixture % | E2E % |
+|---|---|---|---|---|---|
+| Text Output | 8 | 8 | 5 | 100% | 63% |
+| Flow Control | 16 | 12 | 4 | 75% | 25% |
+| Choices | 10 | 6 | 3 | 60% | 30% |
+| Variables & Types | 15 | 11 | 2 | 73% | 13% |
+| Logic & Conditionals | 14 | 11 | 0 | 79% | 0% |
+| Built-in Functions | 8 | 1 | 0 | 13% | 0% |
+| Functions | 6 | 5 | 0 | 83% | 0% |
+| Lists | 21 | 5 | 0 | 24% | 0% |
+| Project Structure | 1 | 0 | 0 | 0% | 0% |
+| **TOTAL** | **100** | **59** | **14** | **59%** | **14%** |
+
+### Test Files
+
+| Test File | Tests | Coverage Focus |
+|---|---|---|
+| `app/test/test.js` | 7 | Core Inky E2E (launch, compile, choices, TODOs) |
+| `app/test/bidi-e2e.test.js` | 15 | Bidi/RTL typing, compilation, museum, assertions |
+| `app/test/incremental-e2e.test.js` | 15 | Chapter-by-chapter writing simulation, 28 syntax features, timing |
+| `app/test/bidify.test.js` | 29 | Unit tests for bidify/stripBidi/bidifyJson |
+| `app/test/fixtures/bidi_and_tdd.ink` | — | 1113-line fixture covering 28 ink features × 10 RTL scripts |
 
 ### Legend
 

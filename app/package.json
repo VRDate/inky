@@ -15,6 +15,7 @@
     "test:unit": "node test/bidify.test.js",
     "test:e2e": "xvfb-run ./node_modules/mocha/bin/mocha --timeout 30000",
     "test:bidi": "xvfb-run ./node_modules/mocha/bin/mocha test/bidi-e2e.test.js --timeout 90000",
+    "test:incremental": "xvfb-run ./node_modules/mocha/bin/mocha test/incremental-e2e.test.js --timeout 300000",
     "generate-locale": "node ../build/generateLocale.js",
     "build-package": "node build-package.js"
   },
