@@ -1,0 +1,34 @@
+{
+  "name": "@inky/react-ink-editor",
+  "version": "0.1.0",
+  "description": "React ink editor — Edit mode (Remirror MD + CodeMirror ink blocks + live preview) and Play mode (readonly story player). Yjs collab. MCP integration.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "vite dev",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@inky/ink-language": "0.1.0",
+    "@inky/codemirror-ink": "0.1.0",
+    "@inky/remirror-ink": "0.1.0",
+    "@codemirror/view": "^6.26.0",
+    "@codemirror/state": "^6.4.0",
+    "remirror": "^3.0.0",
+    "@remirror/react": "^3.0.0",
+    "inkjs": "^2.4.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "yjs": "^13.6.0",
+    "y-websocket": "^2.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "vite": "^5.4.0",
+    "@vitejs/plugin-react": "^4.3.0"
+  },
+  "license": "MIT"
+}

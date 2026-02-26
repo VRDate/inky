@@ -1,0 +1,67 @@
+{
+  "manifest_version": 3,
+  "name": "Inky PWA — Interactive Fiction Player",
+  "short_name": "Inky PWA",
+  "version": "0.2.0",
+  "description": "Play and edit ink interactive fiction stories. Connects to the Inky MCP server for compilation, LLM integration, and real-time collaboration.",
+  "author": "inkle / Inky MCP",
+
+  "permissions": [
+    "storage",
+    "activeTab",
+    "sidePanel"
+  ],
+
+  "host_permissions": [
+    "http://localhost:3001/*",
+    "http://127.0.0.1:3001/*"
+  ],
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/inky-16.png",
+      "32": "icons/inky-32.png",
+      "48": "icons/inky-48.png",
+      "128": "icons/inky-128.png"
+    },
+    "default_title": "Inky PWA"
+  },
+
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "icons": {
+    "16": "icons/inky-16.png",
+    "32": "icons/inky-32.png",
+    "48": "icons/inky-48.png",
+    "128": "icons/inky-128.png"
+  },
+
+  "web_accessible_resources": [
+    {
+      "resources": ["pwa/*", "icons/*"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';"
+  },
+
+  "minimum_chrome_version": "120"
+}
