@@ -1,6 +1,6 @@
 package ink.mcp
 
-import dev.langchain4j.model.chat.ChatLanguageModel
+import dev.langchain4j.model.chat.ChatModel
 import dev.langchain4j.model.jlama.JlamaChatModel
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
@@ -14,7 +14,7 @@ class LlmEngine(private val modelCachePath: Path = Path.of(System.getProperty("u
     private val log = LoggerFactory.getLogger(LlmEngine::class.java)
 
     @Volatile
-    private var chatModel: ChatLanguageModel? = null
+    private var chatModel: ChatModel? = null
 
     @Volatile
     private var currentModelId: String? = null
@@ -62,7 +62,7 @@ class LlmEngine(private val modelCachePath: Path = Path.of(System.getProperty("u
     /** Send a chat message to the loaded model */
     fun chat(message: String): String {
         val model = chatModel ?: throw IllegalStateException("No model loaded. Call load_model first.")
-        return model.generate(message)
+        return model.chat(message)
     }
 
     /** Generate ink code from a prompt */
@@ -116,6 +116,6 @@ Preserve the ink structure exactly."""
     /** Check if a model is loaded */
     fun isLoaded(): Boolean = chatModel != null
 
-    /** Get the underlying ChatLanguageModel for Camel integration */
-    fun getChatModel(): ChatLanguageModel? = chatModel
+    /** Get the underlying ChatModel for Camel integration */
+    fun getChatModel(): ChatModel? = chatModel
 }

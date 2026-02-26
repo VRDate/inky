@@ -1,6 +1,6 @@
 package ink.mcp
 
-import dev.langchain4j.model.chat.ChatLanguageModel
+import dev.langchain4j.model.chat.ChatModel
 import dev.langchain4j.model.openai.OpenAiChatModel
 import org.slf4j.LoggerFactory
 
@@ -20,7 +20,7 @@ class LmStudioEngine(
     private val log = LoggerFactory.getLogger(LmStudioEngine::class.java)
 
     @Volatile
-    private var chatModel: ChatLanguageModel? = null
+    private var chatModel: ChatModel? = null
 
     init {
         connect()
@@ -45,7 +45,7 @@ class LmStudioEngine(
     /** Send a chat message */
     fun chat(message: String): String {
         val model = chatModel ?: throw IllegalStateException("Not connected to LM Studio")
-        return model.generate(message)
+        return model.chat(message)
     }
 
     /** Generate ink code */
@@ -72,8 +72,8 @@ Keep all ink syntax unchanged. Preserve structure exactly."""
         return chat("$systemPrompt\n\nInk source:\n$inkSource")
     }
 
-    /** Get the ChatLanguageModel for Camel integration */
-    fun getChatModel(): ChatLanguageModel? = chatModel
+    /** Get the ChatModel for Camel integration */
+    fun getChatModel(): ChatModel? = chatModel
 
     /** Check connection */
     fun isConnected(): Boolean = chatModel != null

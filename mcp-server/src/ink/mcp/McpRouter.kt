@@ -20,7 +20,7 @@ import org.slf4j.LoggerFactory
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
-private val log = LoggerFactory.getLogger("ink.mcp.McpRouter")
+private val mcpLog = LoggerFactory.getLogger("ink.mcp.McpRouter")
 
 /**
  * MCP transport session — holds a channel for sending SSE events back to the client.
@@ -85,7 +85,7 @@ fun startServer(
 
     // Auto-load model if specified
     if (autoLoadModel != null && llmEngine != null) {
-        log.info("Auto-loading model: $autoLoadModel")
+        mcpLog.info("Auto-loading model: $autoLoadModel")
         llmEngine.loadModel(autoLoadModel)
         camelRoutes?.refreshChatModel()
     }
@@ -93,7 +93,7 @@ fun startServer(
     // Start Camel routes
     camelRoutes?.start()
 
-    log.info("Server mode: $mode")
+    mcpLog.info("Server mode: $mode")
 
     embeddedServer(Netty, port = port) {
         install(ContentNegotiation) {
@@ -108,7 +108,7 @@ fun startServer(
         }
         install(StatusPages) {
             exception<Throwable> { call, cause ->
-                log.error("Unhandled exception", cause)
+                mcpLog.error("Unhandled exception", cause)
                 call.respondText(
                     """{"error":"${cause.message?.replace("\"", "\\\"") ?: "unknown"}"}""",
                     ContentType.Application.Json,
@@ -139,7 +139,7 @@ fun startServer(
                     event = "endpoint"
                 ))
 
-                log.info("SSE session started: $sessionId")
+                mcpLog.info("SSE session started: $sessionId")
 
                 try {
                     for (event in session.events) {
@@ -147,7 +147,7 @@ fun startServer(
                     }
                 } finally {
                     mcpSessions.remove(sessionId)
-                    log.info("SSE session ended: $sessionId")
+                    mcpLog.info("SSE session ended: $sessionId")
                 }
             }
 
@@ -157,7 +157,7 @@ fun startServer(
                 val session = sessionId?.let { mcpSessions[it] }
 
                 val body = call.receiveText()
-                log.debug("MCP request: $body")
+                mcpLog.debug("MCP request: $body")
 
                 val request = try {
                     mcpJson.decodeFromString<JsonRpcRequest>(body)

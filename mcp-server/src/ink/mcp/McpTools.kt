@@ -26,21 +26,23 @@ class McpTools(
 
     /** Currently connected external LLM service */
     @Volatile
-    private var externalLlm: dev.langchain4j.model.chat.ChatLanguageModel? = null
+    private var externalLlm: dev.langchain4j.model.chat.ChatModel? = null
 
     @Volatile
     private var externalServiceId: String? = null
 
     /** All available MCP tools */
-    val tools: List<McpToolInfo> = buildList {
-        addAll(inkTools)
-        addAll(debugTools)
-        addAll(editTools)
-        addAll(inkMdTools)
-        addAll(pumlTools)
-        if (llmEngine != null) addAll(llmTools)
-        addAll(serviceTools)
-        if (colabEngine != null) addAll(colabTools)
+    val tools: List<McpToolInfo> by lazy {
+        buildList {
+            addAll(inkTools)
+            addAll(debugTools)
+            addAll(editTools)
+            addAll(inkMdTools)
+            addAll(pumlTools)
+            if (llmEngine != null) addAll(llmTools)
+            addAll(serviceTools)
+            if (colabEngine != null) addAll(colabTools)
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -1279,8 +1281,9 @@ class McpTools(
         val message = args.requireString("message")
 
         // Prefer external service if connected, then local LLM
+        val ext = externalLlm
         val response = when {
-            externalLlm != null -> externalLlm!!.generate(message)
+            ext != null -> ext.chat(message)
             llmEngine != null && camelRoutes != null -> {
                 camelRoutes.sendToRoute("llm-chat", message) as? String ?: llmEngine.chat(message)
             }
@@ -1292,13 +1295,14 @@ class McpTools(
 
     private fun handleGenerateInk(args: JsonObject?): McpToolResult {
         val prompt = args.requireString("prompt")
+        val ext = externalLlm
         val inkCode = when {
-            externalLlm != null -> {
+            ext != null -> {
                 val systemPrompt = """You are an expert ink (inkle's ink) script writer.
 Generate valid ink syntax. Use knots (===), stitches (=), choices (*,+),
 diverts (->), variables (VAR), conditionals, and other ink features as needed.
 Only output the ink code, no explanations."""
-                externalLlm!!.generate("$systemPrompt\n\nUser request: $prompt")
+                ext.chat("$systemPrompt\n\nUser request: $prompt")
             }
             llmEngine != null && camelRoutes != null -> {
                 camelRoutes.sendToRoute("llm-generate-ink", prompt) as? String ?: llmEngine.generateInk(prompt)
@@ -1318,12 +1322,13 @@ Only output the ink code, no explanations."""
 
     private fun handleReviewInk(args: JsonObject?): McpToolResult {
         val source = args.requireString("source")
+        val ext = externalLlm
         val review = when {
-            externalLlm != null -> {
+            ext != null -> {
                 val systemPrompt = """You are an expert ink script reviewer.
 Analyze for: syntax errors, dead ends, missing diverts, unused knots, RTL/bidi issues.
 Provide specific, actionable feedback."""
-                externalLlm!!.generate("$systemPrompt\n\nInk code:\n$source")
+                ext.chat("$systemPrompt\n\nInk code:\n$source")
             }
             llmEngine != null -> llmEngine.reviewInk(source)
             else -> return errorResult("No LLM connected.")
@@ -1333,10 +1338,11 @@ Provide specific, actionable feedback."""
 
     private fun handleTranslateHebrew(args: JsonObject?): McpToolResult {
         val source = args.requireString("source")
+        val ext = externalLlm
         val translated = when {
-            externalLlm != null -> {
+            ext != null -> {
                 val systemPrompt = """Translate only story text to Hebrew. Keep all ink syntax unchanged."""
-                externalLlm!!.generate("$systemPrompt\n\nInk source:\n$source")
+                ext.chat("$systemPrompt\n\nInk source:\n$source")
             }
             llmEngine != null && camelRoutes != null -> {
                 camelRoutes.sendToRoute("llm-translate-he", source) as? String ?: llmEngine.translateToHebrew(source)
@@ -1349,10 +1355,11 @@ Provide specific, actionable feedback."""
 
     private fun handleGenerateCompilePlay(args: JsonObject?): McpToolResult {
         val prompt = args.requireString("prompt")
+        val ext = externalLlm
         val inkCode = when {
-            externalLlm != null -> {
+            ext != null -> {
                 val systemPrompt = """Generate a complete ink interactive fiction story. Valid ink syntax only."""
-                externalLlm!!.generate("$systemPrompt\n\nStory: $prompt")
+                ext.chat("$systemPrompt\n\nStory: $prompt")
             }
             llmEngine != null -> llmEngine.generateInk(prompt)
             else -> return errorResult("No LLM connected.")

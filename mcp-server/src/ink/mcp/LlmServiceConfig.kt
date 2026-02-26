@@ -1,6 +1,6 @@
 package ink.mcp
 
-import dev.langchain4j.model.chat.ChatLanguageModel
+import dev.langchain4j.model.chat.ChatModel
 import dev.langchain4j.model.openai.OpenAiChatModel
 import org.slf4j.LoggerFactory
 
@@ -151,13 +151,13 @@ object LlmServiceConfig {
         return SERVICES.find { it.id == serviceId }
     }
 
-    /** Connect to a service and return a ChatLanguageModel */
+    /** Connect to a service and return a ChatModel */
     fun connect(
         serviceId: String,
         apiKey: String? = null,
         modelName: String? = null,
         baseUrl: String? = null
-    ): ChatLanguageModel {
+    ): ChatModel {
         val service = findService(serviceId)
             ?: throw IllegalArgumentException(
                 "Unknown service: $serviceId. Available: ${SERVICES.map { it.id }}"

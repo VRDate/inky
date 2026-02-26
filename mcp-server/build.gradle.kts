@@ -127,14 +127,14 @@ tasks.register("plantUml") {
     val pumlDir = file("${rootProject.projectDir}/docs/architecture")
     val svgDir = file("${rootProject.projectDir}/docs/architecture/svg")
 
-    inputs.dir(pumlDir).include("*.puml")
+    inputs.dir(pumlDir)
     outputs.dir(svgDir)
 
     doLast {
         svgDir.mkdirs()
         pumlDir.listFiles()?.filter { it.extension == "puml" }?.forEach { pumlFile ->
             val svgFile = File(svgDir, pumlFile.nameWithoutExtension + ".svg")
-            logger.lifecycle("PlantUML: ${pumlFile.name} → svg/${svgFile.name}")
+            logger.lifecycle("PlantUML: ${pumlFile.name} -> svg/${svgFile.name}")
 
             try {
                 val readerClass = Class.forName("net.sourceforge.plantuml.SourceStringReader")
@@ -145,12 +145,12 @@ tasks.register("plantUml") {
                 val formatOption = fileFormatOptionClass.getConstructor(fileFormatClass).newInstance(svgFormat)
 
                 val reader = readerClass.getConstructor(String::class.java).newInstance(pumlFile.readText())
-                val fos = java.io.FileOutputStream(svgFile)
-                val outputMethod = readerClass.getMethod(
-                    "outputImage", java.io.OutputStream::class.java, fileFormatOptionClass
-                )
+                val fosClass = Class.forName("java.io.FileOutputStream")
+                val osClass = Class.forName("java.io.OutputStream")
+                val fos = fosClass.getConstructor(File::class.java).newInstance(svgFile)
+                val outputMethod = readerClass.getMethod("outputImage", osClass, fileFormatOptionClass)
                 outputMethod.invoke(reader, fos, formatOption)
-                fos.close()
+                fosClass.getMethod("close").invoke(fos)
             } catch (e: Exception) {
                 logger.warn("Failed to render ${pumlFile.name}: ${e.message}")
             }

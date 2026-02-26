@@ -68,7 +68,7 @@ class InkEngine(private val inkjsPath: String, private val bidifyPath: String? =
 
         // Load inkjs via CommonJS shim
         ctx.eval("js", "var exports = {}; var module = { exports: exports };")
-        ctx.eval("js", Source.newBuilder("js", inkjsSource, "ink-full.js").build())
+        ctx.eval(Source.newBuilder("js", inkjsSource, "ink-full.js").build())
         ctx.eval("js", """
             var inkjs = module.exports;
             if (!inkjs.Compiler) throw new Error('inkjs.Compiler not found');
@@ -78,7 +78,7 @@ class InkEngine(private val inkjsPath: String, private val bidifyPath: String? =
         // Load bidify if available
         if (bidifySource != null) {
             ctx.eval("js", "var exports = {}; var module = { exports: exports };")
-            ctx.eval("js", Source.newBuilder("js", bidifySource, "bidify.js").build())
+            ctx.eval(Source.newBuilder("js", bidifySource, "bidify.js").build())
             ctx.eval("js", "var bidifyModule = module.exports;")
         }
 
