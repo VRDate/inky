@@ -1,0 +1,41 @@
+@startuml bidi-architecture
+!theme plain
+title bidifier — JS Module in Inky (Electron)
+
+package "app/bidifier/ (local module)" as pkg {
+    rectangle "script-runs.js\nIterates codepoints,\ngroups by Unicode script" as sr
+    rectangle "isolate.js\nbidify() pure fn\n~40 lines" as iso
+    rectangle "scripts-data.js\nUnicode script table\nbinary search on ranges" as data
+
+    sr --> data : lookup
+    sr --> iso : feeds runs
+}
+
+package "Inky Editor (Electron)" as inky {
+    rectangle "Ace Editor\n(UNTOUCHED)" as ace
+    rectangle "editor-view.js\n~10 lines of integration" as glue
+    rectangle "ink-player.js\nPlayer Preview\nHTML with dir= per ¶" as preview
+    rectangle "live-compiler.js\nstripBidi() before\npassing to inklecate" as compiler
+}
+
+' JS module used by Inky
+iso --> glue : require
+iso --> preview : require
+iso --> compiler : require
+glue --> ace : set isolated text
+
+' Key point
+note bottom of ace
+  Ace is NOT modified.
+  No fork. No plugin. No config.
+  It receives text that already
+  has correct bidi markers.
+end note
+
+note bottom of pkg
+  Local module, not published to npm.
+  Pure JS, zero dependencies.
+  Follows Inky's existing JS style.
+end note
+
+@enduml

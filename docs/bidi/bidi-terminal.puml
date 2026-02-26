@@ -1,0 +1,37 @@
+@startuml bidi-terminal
+!theme plain
+title ink CLI Terminal — Same Bidifier, Different Renderer
+
+participant "inkjs\nStory runtime" as inkjs
+participant "useInkStory\nReact hook" as hook
+participant "bidify()" as bidi
+participant "ink CLI\n<Text> component" as ink
+participant "Terminal\nstdout" as term
+
+loop while story.canContinue
+    inkjs -> hook : story.Continue()
+    hook -> bidi : raw text line
+    bidi -> bidi : ScriptRun classify
+    bidi -> hook : isolated string +\nDirection (RTL/LTR)
+
+    alt Direction is RTL
+        hook -> ink : <Text>\n{RLM + isolated text}
+        note right
+          Prepend U+200F RLM
+          for terminals without
+          native bidi support.
+          Isolates handle the
+          internal run ordering.
+        end note
+    else Direction is LTR
+        hook -> ink : <Text>\n{isolated text}
+    end
+
+    ink -> term : ANSI output
+end
+
+inkjs -> hook : currentChoices
+hook -> ink : <Select> with\nchoice labels (each bidifierd)
+ink -> term : arrow-key menu
+
+@enduml

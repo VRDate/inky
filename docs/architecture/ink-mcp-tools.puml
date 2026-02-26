@@ -1,0 +1,167 @@
+@startuml ink-mcp-tools
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title Inky MCP Server — 71 Tool Architecture
+footer v0.3.0 | Ktor + GraalJS + Camel + LangChain4j + PlantUML + Yjs + iCal4j + ez-vcard + Keycloak + Sardine
+
+' ── Tool Groups ──
+package "Ink Core (17 tools)" as inkCore #C8E6C9 {
+    card "compile_ink" as t1
+    card "start_story" as t2
+    card "start_story_json" as t3
+    card "choose" as t4
+    card "continue_story" as t5
+    card "get_variable" as t6
+    card "set_variable" as t7
+    card "save_state" as t8
+    card "load_state" as t9
+    card "reset_story" as t10
+    card "evaluate_function" as t11
+    card "get_global_tags" as t12
+    card "list_sessions" as t13
+    card "end_session" as t14
+    card "bidify" as t15
+    card "strip_bidi" as t16
+    card "bidify_json" as t17
+}
+
+package "Debug (8 tools)" as debug #BBDEFB {
+    card "start_debug" as d1
+    card "add_breakpoint" as d2
+    card "remove_breakpoint" as d3
+    card "debug_step" as d4
+    card "debug_continue" as d5
+    card "add_watch" as d6
+    card "debug_inspect" as d7
+    card "debug_trace" as d8
+}
+
+package "Edit (6 tools)" as edit #FFE0B2 {
+    card "parse_ink" as e1
+    card "get_section" as e2
+    card "replace_section" as e3
+    card "insert_section" as e4
+    card "rename_section" as e5
+    card "ink_stats" as e6
+}
+
+package "Ink+Markdown (3 tools)" as inkMd #E1BEE7 {
+    card "parse_ink_md" as m1
+    card "render_ink_md" as m2
+    card "compile_ink_md" as m3
+}
+
+package "PlantUML + TOC (5 tools)" as puml #B2EBF2 {
+    card "ink2puml" as p1
+    card "ink2svg" as p2
+    card "puml2svg" as p3
+    card "ink_toc" as p4
+    card "ink_toc_puml" as p5
+}
+
+package "LLM Models (8 tools)" as llm #FFCDD2 {
+    card "list_models" as l1
+    card "load_model" as l2
+    card "model_info" as l3
+    card "llm_chat" as l4
+    card "generate_ink" as l5
+    card "review_ink" as l6
+    card "translate_ink_hebrew" as l7
+    card "generate_compile_play" as l8
+}
+
+package "Services (2 tools)" as services #FFF9C4 {
+    card "list_services" as s1
+    card "connect_service" as s2
+}
+
+package "Collab (2 tools)" as collab #F3E5F5 {
+    card "collab_status" as c1
+    card "collab_info" as c2
+}
+
+package "Calendar (4 tools)" as calendar #DCEDC8 {
+    card "create_event" as cal1
+    card "list_events" as cal2
+    card "export_ics" as cal3
+    card "import_ics" as cal4
+}
+
+package "Principals (4 tools)" as principals #D7CCC8 {
+    card "create_principal" as vc1
+    card "list_principals" as vc2
+    card "get_principal" as vc3
+    card "delete_principal" as vc4
+}
+
+package "Auth (2 tools)" as auth #CFD8DC {
+    card "auth_status" as a1
+    card "create_llm_credential" as a2
+}
+
+package "WebDAV + Backup (10 tools)" as webdav #B3E5FC {
+    card "webdav_list" as w1
+    card "webdav_get" as w2
+    card "webdav_put" as w3
+    card "webdav_delete" as w4
+    card "webdav_mkdir" as w5
+    card "webdav_sync" as w6
+    card "webdav_backup" as w7
+    card "webdav_list_backups" as w8
+    card "webdav_restore" as w9
+    card "webdav_working_copy" as w10
+}
+
+' ── Engines ──
+rectangle "InkEngine\n(GraalJS + inkjs)" as inkEngine #90EE90
+rectangle "InkDebugEngine" as debugEngine #90CAF9
+rectangle "InkEditEngine" as editEngine #FFCC80
+rectangle "InkMdEngine" as mdEngine #CE93D8
+rectangle "Ink2PumlEngine\n(PlantUML MIT)" as pumlEngine #80DEEA
+rectangle "LlmEngine\n(JLama)" as llmEngine #EF9A9A
+rectangle "LlmServiceConfig\n(11 providers)" as serviceConfig #FFF176
+rectangle "ColabEngine\n(Yjs WebSocket)" as colabEngine #E1BEE7
+rectangle "InkCalendarEngine\n(iCal4j)" as calendarEngine #C5E1A5
+rectangle "InkVCardEngine\n(ez-vcard)" as vcardEngine #BCAAA4
+rectangle "InkAuthEngine\n(Keycloak OIDC)" as authEngine #B0BEC5
+rectangle "InkWebDavEngine\n(Sardine + FS)" as webDavEngine #81D4FA
+
+' ── Wiring ──
+inkCore --> inkEngine
+debug --> debugEngine
+edit --> editEngine
+inkMd --> mdEngine
+puml --> pumlEngine
+llm --> llmEngine
+services --> serviceConfig
+collab --> colabEngine
+calendar --> calendarEngine
+principals --> vcardEngine
+auth --> authEngine
+webdav --> webDavEngine
+
+debugEngine --> inkEngine : wraps
+pumlEngine --> editEngine : parses ink
+vcardEngine --> authEngine : LLM credentials
+colabEngine --> authEngine : role gate
+webDavEngine --> vcardEngine : access control
+
+legend right
+  | Group | Count |
+  |<#C8E6C9>| Ink Core: 17 |
+  |<#BBDEFB>| Debug: 8 |
+  |<#FFE0B2>| Edit: 6 |
+  |<#E1BEE7>| Ink+MD: 3 |
+  |<#B2EBF2>| PlantUML+TOC: 5 |
+  |<#FFCDD2>| LLM: 8 |
+  |<#FFF9C4>| Services: 2 |
+  |<#F3E5F5>| Collab: 2 |
+  |<#DCEDC8>| Calendar: 4 |
+  |<#D7CCC8>| Principals: 4 |
+  |<#CFD8DC>| Auth: 2 |
+  |<#B3E5FC>| WebDAV+Backup: 10 |
+  | **Total** | **71** |
+endlegend
+
+@enduml

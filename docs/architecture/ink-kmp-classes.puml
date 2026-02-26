@@ -1,0 +1,171 @@
+@startuml ink-kmp-classes
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam classAttributeIconSize 0
+
+title Ink KMP + MCP Server — Class Diagram
+footer blade-ink-java | inkjs | InkEngine | MCP Tools
+
+' ───────── blade-ink-java API ─────────
+package "blade-ink-java (JVM)" #E3F2FD {
+    class "Story" as BStory {
+        +Story(jsonString: String)
+        +canContinue(): Boolean
+        +Continue(): String
+        +getCurrentChoices(): List<Choice>
+        +chooseChoiceIndex(idx: Int)
+        +getVariablesState(): VariablesState
+        +toJson(): String
+        +resetState()
+        +getGlobalTags(): List<String>
+        +evaluateFunction(name: String, args: Object[]): Object
+        +bindExternalFunction(name: String, fn: Function)
+    }
+
+    class "Choice" as BChoice {
+        +index: Int
+        +text: String
+        +tags: List<String>
+    }
+
+    class "Compiler" as BCompiler {
+        +Compiler(inkSource: String)
+        +compile(): Story
+    }
+
+    BStory --> BChoice : produces
+    BCompiler --> BStory : creates
+}
+
+' ───────── inkjs API (JS via GraalJS) ─────────
+package "inkjs (JS)" #E8F5E9 {
+    class "inkjs.Story" as JStory <<JavaScript>> {
+        +constructor(jsonString)
+        +canContinue: boolean
+        +Continue(): string
+        +currentChoices: Choice[]
+        +currentTags: string[]
+        +ChooseChoiceIndex(idx)
+        +variablesState[name]
+        +state.ToJson(): string
+        +state.LoadJson(json)
+        +ResetState()
+        +globalTags: string[]
+        +EvaluateFunction(name, args)
+        +BindExternalFunction(name, fn)
+        +HasFunction(name): boolean
+    }
+
+    class "inkjs.Compiler" as JCompiler <<JavaScript>> {
+        +constructor(source, options?, errorHandler?)
+        +Compile(): Story
+    }
+
+    class "inkjs.Choice" as JChoice <<JavaScript>> {
+        +index: number
+        +text: string
+        +tags: string[]
+    }
+
+    JStory --> JChoice
+    JCompiler --> JStory
+}
+
+' ───────── MCP Server (Kotlin) ─────────
+package "Inky MCP Server (Kotlin/JVM)" #FFEBEE {
+    class "InkEngine" {
+        -inkjsSource: String
+        -bidifySource: String?
+        -sessions: ConcurrentHashMap
+        +compile(source: String): CompileResult
+        +startSession(source: String): (String, ContinueResult)
+        +startSessionFromJson(json: String): (String, ContinueResult)
+        +continueStory(sessionId: String): ContinueResult
+        +choose(sessionId: String, idx: Int): ContinueResult
+        +getVariable(sessionId: String, name: String): Any?
+        +setVariable(sessionId: String, name: String, value: Any?)
+        +saveState(sessionId: String): String
+        +loadState(sessionId: String, stateJson: String)
+        +resetStory(sessionId: String): ContinueResult
+        +evaluateFunction(sessionId: String, name: String, args: List): Any?
+        +bidify(text: String): String
+        +stripBidi(text: String): String
+        +bidifyJson(json: String): String
+        +endSession(sessionId: String)
+    }
+
+    class "McpTools" {
+        -engine: InkEngine
+        +tools: List<McpToolInfo>
+        +callTool(name: String, args: JsonObject?): McpToolResult
+    }
+
+    class "McpRouter" <<Ktor>> {
+        +startServer(port: Int, inkjsPath: String, bidifyPath: String?)
+        -handleRpcRequest(req: JsonRpcRequest, tools: McpTools): JsonRpcResponse
+    }
+
+    class "StorySession" {
+        +id: String
+        +context: GraalJS Context
+        +source: String
+        +stateJson: String?
+    }
+
+    class "CompileResult" {
+        +success: Boolean
+        +json: String?
+        +errors: List<String>
+        +warnings: List<String>
+    }
+
+    class "ContinueResult" {
+        +text: String
+        +canContinue: Boolean
+        +choices: List<ChoiceInfo>
+        +tags: List<String>
+    }
+
+    InkEngine --> StorySession : manages
+    InkEngine --> CompileResult : produces
+    InkEngine --> ContinueResult : produces
+    McpTools --> InkEngine : delegates to
+    McpRouter --> McpTools : dispatches
+}
+
+' ───────── KMP Proposed Common API ─────────
+package "KMP Common API (Proposed)" #E0F7FA {
+    interface "InkRuntime" as IRuntime <<expect>> {
+        +compile(source: String): CompileResult
+        +createStory(json: String): InkStory
+    }
+
+    interface "InkStory" as IStory <<expect>> {
+        +canContinue: Boolean
+        +continueStory(): String
+        +currentChoices: List<InkChoice>
+        +chooseChoice(index: Int)
+        +getVariable(name: String): Any?
+        +setVariable(name: String, value: Any?)
+        +saveState(): String
+        +loadState(json: String)
+        +reset()
+    }
+
+    interface "InkChoice" as IChoice <<expect>> {
+        +index: Int
+        +text: String
+        +tags: List<String>
+    }
+
+    IRuntime --> IStory : creates
+    IStory --> IChoice : exposes
+}
+
+' ───────── Cross-package relations ─────────
+InkEngine ..> JCompiler : via GraalJS
+InkEngine ..> JStory : via GraalJS
+BStory ..|> IStory : JVM actual
+JStory ..|> IStory : JS actual
+
+@enduml

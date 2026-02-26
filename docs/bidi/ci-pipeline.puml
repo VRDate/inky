@@ -1,0 +1,63 @@
+@startuml ci-pipeline
+!theme plain
+title CI Pipeline — GitHub Actions
+
+|Push / PR|
+start
+:Trigger on push to fork;
+
+|Unit Tests|
+:node --test test/unit/;
+note right: ~80 tests, <5s
+:node --test --coverage test/unit/;
+if (Pass?) then (yes)
+else (no)
+    :Block merge;
+    stop
+endif
+
+|Integration Tests|
+:npx electron-mocha\n--renderer test/integration/;
+note right
+  ~25 tests, ~60s
+  Needs xvfb for headless
+  Electron on Linux CI
+end note
+if (Pass?) then (yes)
+else (no)
+    :Block merge;
+    stop
+endif
+
+|E2E Tests|
+:npx playwright test\ntest/e2e/;
+note right
+  ~10 tests, ~120s
+  Screenshot comparison
+  against golden images
+end note
+if (Pass?) then (yes)
+else (no)
+    :Block merge;
+    stop
+endif
+
+|ink-proof Conformance|
+:Run bidi fixtures through\ninkjs + inklecate;
+:Assert JSON identity\n(with markers == without);
+if (Pass?) then (yes)
+else (no)
+    :Block merge;
+    stop
+endif
+
+|Coverage Report|
+:Merge coverage from\nnode:test + electron-mocha;
+:Upload to Codecov;
+:Assert bidifier\nmodule >= 95% coverage;
+
+|All Green|
+:Allow merge;
+stop
+
+@enduml

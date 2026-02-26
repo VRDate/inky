@@ -1,0 +1,140 @@
+@startuml mcp-server-sequence
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title MCP Server — 71 Tool Session Sequences
+footer Inky MCP Server v0.3.1 (Ktor + GraalJS + inkjs + iCal4j + ez-vcard + Sardine + Keycloak)
+
+actor "LLM Agent" as LLM
+participant "MCP Client" as CLIENT
+participant "Ktor Server\n(McpRouter)" as ROUTER
+participant "McpTools\n(71 tools)" as TOOLS
+participant "InkEngine\n(GraalJS)" as ENGINE
+participant "inkjs\n(Compiler+Story)" as INKJS
+participant "InkAuthEngine\n(Keycloak)" as AUTH
+participant "InkVCardEngine\n(ez-vcard)" as VCARD
+participant "InkWebDavEngine\n(Sardine + FS)" as DAV
+participant "InkCalendarEngine\n(iCal4j)" as CAL
+database "ink-scripts/\n(filesystem)" as FS
+
+== Initialize ==
+LLM -> CLIENT : connect
+CLIENT -> ROUTER : GET /sse
+ROUTER --> CLIENT : event: endpoint\ndata: /message?sessionId=xxx
+CLIENT -> ROUTER : POST /message\n{"method":"initialize"}
+ROUTER --> CLIENT : SSE event: message\n{serverInfo, capabilities, tools}
+
+== List Tools ==
+CLIENT -> ROUTER : POST /message\n{"method":"tools/list"}
+ROUTER -> TOOLS : list tools
+TOOLS --> ROUTER : 71 tool definitions
+ROUTER --> CLIENT : SSE event: tools list
+
+== Compile & Start Story ==
+LLM -> CLIENT : "compile this ink"
+CLIENT -> ROUTER : POST /message\n{"method":"tools/call",\n"params":{"name":"start_story",\n"arguments":{"source":"...ink..."}}}
+ROUTER -> TOOLS : callTool("start_story")
+TOOLS -> ENGINE : startSession(ink)
+ENGINE -> INKJS : new Compiler(source)
+INKJS --> ENGINE : story object
+ENGINE -> INKJS : story.Continue()
+INKJS --> ENGINE : text + choices
+ENGINE --> TOOLS : (sessionId, ContinueResult)
+TOOLS --> ROUTER : McpToolResult
+ROUTER --> CLIENT : SSE event: result\n{session_id, text, choices}
+CLIENT --> LLM : "Story says: ...\nChoices: 1. ... 2. ..."
+
+== Make Choice ==
+LLM -> CLIENT : "choose option 1"
+CLIENT -> ROUTER : tools/call choose
+ROUTER -> TOOLS : callTool("choose")
+TOOLS -> ENGINE : choose("abc", 0)
+ENGINE -> INKJS : story.ChooseChoiceIndex(0)\nstory.Continue()
+INKJS --> ENGINE : new text + choices
+ENGINE --> TOOLS : ContinueResult
+TOOLS --> ROUTER : McpToolResult
+ROUTER --> CLIENT : SSE event: result
+CLIENT --> LLM : "Story continues: ..."
+
+== Auth: Create LLM Credential ==
+LLM -> CLIENT : "create credential for claude"
+CLIENT -> ROUTER : tools/call create_llm_credential
+ROUTER -> TOOLS : callTool("create_llm_credential")
+TOOLS -> AUTH : createLlmCredential("claude")
+AUTH --> TOOLS : {model_name, token, mcp_uri}
+TOOLS --> ROUTER : McpToolResult
+ROUTER --> CLIENT : mcp://claude:jwt@host:port
+
+== vCard: Create Principal ==
+LLM -> CLIENT : "register user alice@example.com"
+CLIENT -> ROUTER : tools/call create_principal
+ROUTER -> TOOLS : callTool("create_principal")
+TOOLS -> VCARD : createPrincipal(id, name, email)
+VCARD -> AUTH : createLlmCredential (if LLM)
+AUTH --> VCARD : jCard embedded in JWT
+VCARD --> TOOLS : {vcard, jcard, folder_path}
+TOOLS --> ROUTER : McpToolResult
+ROUTER --> CLIENT : principal created
+
+== WebDAV: Read Script (shared) ==
+LLM -> CLIENT : "list shared files"
+CLIENT -> ROUTER : GET /dav/example.com/alice/shared/
+ROUTER -> TOOLS : callTool("webdav_list")
+TOOLS -> DAV : canAccess(null, path, false)
+DAV --> TOOLS : true (shared = public read)
+TOOLS -> DAV : listFiles(path)
+DAV -> FS : list directory
+FS --> DAV : file entries
+DAV --> TOOLS : [{name, size, type}...]
+TOOLS --> ROUTER : JSON file list
+ROUTER --> CLIENT : file listing
+
+== WebDAV: Write Script (auth required) ==
+LLM -> CLIENT : "save my script"
+CLIENT -> ROUTER : PUT /dav/example.com/alice/script.ink
+ROUTER -> TOOLS : callTool("webdav_put")
+TOOLS -> DAV : canAccess("alice", path, true)
+DAV -> VCARD : resolveScriptRole("alice", path)
+VCARD --> DAV : "edit"
+DAV --> TOOLS : true
+TOOLS -> DAV : putFile(path, content)
+DAV -> FS : write file
+FS --> DAV : ok
+DAV --> TOOLS : {ok, path, size}
+TOOLS --> ROUTER : McpToolResult
+ROUTER --> CLIENT : file saved
+
+== WebDAV: Backup Script Set ==
+LLM -> CLIENT : "backup alice's scripts"
+CLIENT -> ROUTER : tools/call webdav_backup
+ROUTER -> TOOLS : callTool("webdav_backup")
+TOOLS -> DAV : createBackupSet("example.com/alice/script")
+DAV -> FS : copy script.ink -> script/timestamp.ink
+DAV -> FS : copy script.puml -> script/timestamp.puml
+DAV -> FS : copy script.svg -> script/timestamp.svg
+FS --> DAV : backed up 3 files
+DAV --> TOOLS : {timestamp, backed_up: [...]}
+TOOLS --> ROUTER : backup created
+ROUTER --> CLIENT : backup at 2026-02-26_14-30-00
+
+== WebDAV: LLM Working Copy ==
+LLM -> CLIENT : "create working copy for editing"
+CLIENT -> ROUTER : tools/call webdav_working_copy
+ROUTER -> TOOLS : callTool("webdav_working_copy")
+TOOLS -> DAV : createWorkingCopy("example.com/alice/", "claude")
+DAV -> FS : copy alice/ -> claude/alice/
+FS --> DAV : copied 3 files
+DAV --> TOOLS : {origin, working_copy, copied_files}
+TOOLS --> ROUTER : working copy ready
+ROUTER --> CLIENT : claude/alice/
+
+== Calendar: Create Event ==
+LLM -> CLIENT : "schedule a session"
+CLIENT -> ROUTER : tools/call create_event
+ROUTER -> TOOLS : callTool("create_event")
+TOOLS -> CAL : createEvent(calId, event)
+CAL --> TOOLS : {ok, event_uid, summary}
+TOOLS --> ROUTER : McpToolResult
+ROUTER --> CLIENT : event created
+
+@enduml
