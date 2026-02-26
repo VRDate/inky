@@ -3,20 +3,46 @@ package ink.mcp
 import kotlinx.serialization.json.*
 
 /**
- * MCP tool definitions and handlers for the Inky ink compiler + LLM tools.
- * Each tool maps to an InkEngine, LlmEngine, or CamelRoutes operation.
+ * MCP tool definitions and handlers for:
+ *   - Ink compilation & playback (17 tools)
+ *   - Ink debugging (8 tools)
+ *   - Ink section editing (6 tools)
+ *   - LLM model management (8 tools)
+ *   - LLM service providers (2 tools)
+ *   - Collaboration (2 tools)
+ *   - Ink+Markdown template processing (3 tools)
  */
 class McpTools(
     private val engine: InkEngine,
     private val llmEngine: LlmEngine? = null,
-    private val camelRoutes: CamelRoutes? = null
+    private val camelRoutes: CamelRoutes? = null,
+    private val debugEngine: InkDebugEngine = InkDebugEngine(engine),
+    private val editEngine: InkEditEngine = InkEditEngine(),
+    private val colabEngine: ColabEngine? = null,
+    private val inkMdEngine: InkMdEngine = InkMdEngine()
 ) {
 
-    /** All available MCP tools (ink + LLM) */
+    /** Currently connected external LLM service */
+    @Volatile
+    private var externalLlm: dev.langchain4j.model.chat.ChatLanguageModel? = null
+
+    @Volatile
+    private var externalServiceId: String? = null
+
+    /** All available MCP tools */
     val tools: List<McpToolInfo> = buildList {
         addAll(inkTools)
+        addAll(debugTools)
+        addAll(editTools)
+        addAll(inkMdTools)
         if (llmEngine != null) addAll(llmTools)
+        addAll(serviceTools)
+        if (colabEngine != null) addAll(colabTools)
     }
+
+    // ════════════════════════════════════════════════════════════════════
+    // INK TOOLS (17)
+    // ════════════════════════════════════════════════════════════════════
 
     private val inkTools: List<McpToolInfo> = listOf(
         McpToolInfo(
@@ -25,10 +51,7 @@ class McpTools(
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("source") {
-                        put("type", "string")
-                        put("description", "Ink source code to compile")
-                    }
+                    putJsonObject("source") { put("type", "string"); put("description", "Ink source code to compile") }
                 }
                 putJsonArray("required") { add("source") }
             }
@@ -39,14 +62,8 @@ class McpTools(
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("source") {
-                        put("type", "string")
-                        put("description", "Ink source code")
-                    }
-                    putJsonObject("session_id") {
-                        put("type", "string")
-                        put("description", "Optional session ID (auto-generated if omitted)")
-                    }
+                    putJsonObject("source") { put("type", "string"); put("description", "Ink source code") }
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Optional session ID (auto-generated if omitted)") }
                 }
                 putJsonArray("required") { add("source") }
             }
@@ -57,14 +74,8 @@ class McpTools(
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("json") {
-                        put("type", "string")
-                        put("description", "Compiled ink JSON")
-                    }
-                    putJsonObject("session_id") {
-                        put("type", "string")
-                        put("description", "Optional session ID")
-                    }
+                    putJsonObject("json") { put("type", "string"); put("description", "Compiled ink JSON") }
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Optional session ID") }
                 }
                 putJsonArray("required") { add("json") }
             }
@@ -75,14 +86,8 @@ class McpTools(
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("session_id") {
-                        put("type", "string")
-                        put("description", "Story session ID")
-                    }
-                    putJsonObject("choice_index") {
-                        put("type", "integer")
-                        put("description", "0-based index of the choice to select")
-                    }
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Story session ID") }
+                    putJsonObject("choice_index") { put("type", "integer"); put("description", "0-based index of the choice") }
                 }
                 putJsonArray("required") { add("session_id"); add("choice_index") }
             }
@@ -93,10 +98,7 @@ class McpTools(
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("session_id") {
-                        put("type", "string")
-                        put("description", "Story session ID")
-                    }
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Story session ID") }
                 }
                 putJsonArray("required") { add("session_id") }
             }
@@ -107,14 +109,8 @@ class McpTools(
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("session_id") {
-                        put("type", "string")
-                        put("description", "Story session ID")
-                    }
-                    putJsonObject("name") {
-                        put("type", "string")
-                        put("description", "Variable name")
-                    }
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Story session ID") }
+                    putJsonObject("name") { put("type", "string"); put("description", "Variable name") }
                 }
                 putJsonArray("required") { add("session_id"); add("name") }
             }
@@ -125,17 +121,9 @@ class McpTools(
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("session_id") {
-                        put("type", "string")
-                        put("description", "Story session ID")
-                    }
-                    putJsonObject("name") {
-                        put("type", "string")
-                        put("description", "Variable name")
-                    }
-                    putJsonObject("value") {
-                        put("description", "Value to set (string, number, or boolean)")
-                    }
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Story session ID") }
+                    putJsonObject("name") { put("type", "string"); put("description", "Variable name") }
+                    putJsonObject("value") { put("description", "Value to set (string, number, or boolean)") }
                 }
                 putJsonArray("required") { add("session_id"); add("name"); add("value") }
             }
@@ -146,10 +134,7 @@ class McpTools(
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("session_id") {
-                        put("type", "string")
-                        put("description", "Story session ID")
-                    }
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Story session ID") }
                 }
                 putJsonArray("required") { add("session_id") }
             }
@@ -160,14 +145,8 @@ class McpTools(
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("session_id") {
-                        put("type", "string")
-                        put("description", "Story session ID")
-                    }
-                    putJsonObject("state_json") {
-                        put("type", "string")
-                        put("description", "Previously saved state JSON")
-                    }
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Story session ID") }
+                    putJsonObject("state_json") { put("type", "string"); put("description", "Previously saved state JSON") }
                 }
                 putJsonArray("required") { add("session_id"); add("state_json") }
             }
@@ -178,10 +157,7 @@ class McpTools(
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("session_id") {
-                        put("type", "string")
-                        put("description", "Story session ID")
-                    }
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Story session ID") }
                 }
                 putJsonArray("required") { add("session_id") }
             }
@@ -192,18 +168,9 @@ class McpTools(
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("session_id") {
-                        put("type", "string")
-                        put("description", "Story session ID")
-                    }
-                    putJsonObject("function_name") {
-                        put("type", "string")
-                        put("description", "Name of the ink function")
-                    }
-                    putJsonObject("args") {
-                        put("type", "array")
-                        put("description", "Arguments to pass to the function")
-                    }
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Story session ID") }
+                    putJsonObject("function_name") { put("type", "string"); put("description", "Name of the ink function") }
+                    putJsonObject("args") { put("type", "array"); put("description", "Arguments to pass") }
                 }
                 putJsonArray("required") { add("session_id"); add("function_name") }
             }
@@ -214,10 +181,7 @@ class McpTools(
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("session_id") {
-                        put("type", "string")
-                        put("description", "Story session ID")
-                    }
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Story session ID") }
                 }
                 putJsonArray("required") { add("session_id") }
             }
@@ -236,10 +200,7 @@ class McpTools(
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("session_id") {
-                        put("type", "string")
-                        put("description", "Story session ID to end")
-                    }
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Story session ID to end") }
                 }
                 putJsonArray("required") { add("session_id") }
             }
@@ -250,10 +211,7 @@ class McpTools(
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("text") {
-                        put("type", "string")
-                        put("description", "Text to bidify")
-                    }
+                    putJsonObject("text") { put("type", "string"); put("description", "Text to bidify") }
                 }
                 putJsonArray("required") { add("text") }
             }
@@ -264,10 +222,7 @@ class McpTools(
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("text") {
-                        put("type", "string")
-                        put("description", "Text to strip bidi markers from")
-                    }
+                    putJsonObject("text") { put("type", "string"); put("description", "Text to strip bidi markers from") }
                 }
                 putJsonArray("required") { add("text") }
             }
@@ -278,17 +233,240 @@ class McpTools(
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("json") {
-                        put("type", "string")
-                        put("description", "Compiled ink JSON to bidify")
-                    }
+                    putJsonObject("json") { put("type", "string"); put("description", "Compiled ink JSON to bidify") }
                 }
                 putJsonArray("required") { add("json") }
             }
         )
     )
 
-    /** LLM-powered tools (available when LlmEngine is configured) */
+    // ════════════════════════════════════════════════════════════════════
+    // DEBUG TOOLS (8)
+    // ════════════════════════════════════════════════════════════════════
+
+    private val debugTools: List<McpToolInfo> = listOf(
+        McpToolInfo(
+            name = "start_debug",
+            description = "Start debugging an existing story session. Adds breakpoints, watches, step execution.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Story session ID to debug") }
+                }
+                putJsonArray("required") { add("session_id") }
+            }
+        ),
+        McpToolInfo(
+            name = "add_breakpoint",
+            description = "Add a breakpoint. Types: 'knot' (break at knot), 'pattern' (regex match on output), 'variable_change' (break when variable changes).",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Story session ID") }
+                    putJsonObject("type") { put("type", "string"); put("description", "Breakpoint type: knot, stitch, pattern, variable_change") }
+                    putJsonObject("target") { put("type", "string"); put("description", "Knot name, regex pattern, or variable name") }
+                }
+                putJsonArray("required") { add("session_id"); add("type"); add("target") }
+            }
+        ),
+        McpToolInfo(
+            name = "remove_breakpoint",
+            description = "Remove a breakpoint by ID.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Story session ID") }
+                    putJsonObject("breakpoint_id") { put("type", "string"); put("description", "Breakpoint ID to remove") }
+                }
+                putJsonArray("required") { add("session_id"); add("breakpoint_id") }
+            }
+        ),
+        McpToolInfo(
+            name = "debug_step",
+            description = "Step to the next story output, checking breakpoints and watching variables.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Story session ID") }
+                }
+                putJsonArray("required") { add("session_id") }
+            }
+        ),
+        McpToolInfo(
+            name = "debug_continue",
+            description = "Continue execution until a breakpoint is hit or the story ends.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Story session ID") }
+                    putJsonObject("max_steps") { put("type", "integer"); put("description", "Max steps before stopping (default 100)") }
+                }
+                putJsonArray("required") { add("session_id") }
+            }
+        ),
+        McpToolInfo(
+            name = "add_watch",
+            description = "Add an ink variable to the watch list. Changes are tracked between steps.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Story session ID") }
+                    putJsonObject("variable") { put("type", "string"); put("description", "Variable name to watch") }
+                }
+                putJsonArray("required") { add("session_id"); add("variable") }
+            }
+        ),
+        McpToolInfo(
+            name = "debug_inspect",
+            description = "Inspect the current debug state: step count, watches, breakpoints, recent visits.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Story session ID") }
+                }
+                putJsonArray("required") { add("session_id") }
+            }
+        ),
+        McpToolInfo(
+            name = "debug_trace",
+            description = "Get the execution trace log (list of steps, text, and variable changes).",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Story session ID") }
+                    putJsonObject("last_n") { put("type", "integer"); put("description", "Number of recent entries (default 50)") }
+                }
+                putJsonArray("required") { add("session_id") }
+            }
+        )
+    )
+
+    // ════════════════════════════════════════════════════════════════════
+    // EDIT TOOLS (6)
+    // ════════════════════════════════════════════════════════════════════
+
+    private val editTools: List<McpToolInfo> = listOf(
+        McpToolInfo(
+            name = "parse_ink",
+            description = "Parse ink source into sections (knots, stitches, functions), variables, includes, and diverts. Returns full structure.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("source") { put("type", "string"); put("description", "Ink source code to parse") }
+                }
+                putJsonArray("required") { add("source") }
+            }
+        ),
+        McpToolInfo(
+            name = "get_section",
+            description = "Get a specific knot, stitch, or function by name with its content.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("source") { put("type", "string"); put("description", "Ink source code") }
+                    putJsonObject("section_name") { put("type", "string"); put("description", "Name of the section to retrieve") }
+                }
+                putJsonArray("required") { add("source"); add("section_name") }
+            }
+        ),
+        McpToolInfo(
+            name = "replace_section",
+            description = "Replace a knot/stitch/function's content with new content.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("source") { put("type", "string"); put("description", "Full ink source code") }
+                    putJsonObject("section_name") { put("type", "string"); put("description", "Name of section to replace") }
+                    putJsonObject("new_content") { put("type", "string"); put("description", "New content for the section") }
+                }
+                putJsonArray("required") { add("source"); add("section_name"); add("new_content") }
+            }
+        ),
+        McpToolInfo(
+            name = "insert_section",
+            description = "Insert a new section after an existing one.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("source") { put("type", "string"); put("description", "Full ink source code") }
+                    putJsonObject("after_section") { put("type", "string"); put("description", "Name of section to insert after") }
+                    putJsonObject("new_content") { put("type", "string"); put("description", "Ink content to insert") }
+                }
+                putJsonArray("required") { add("source"); add("after_section"); add("new_content") }
+            }
+        ),
+        McpToolInfo(
+            name = "rename_section",
+            description = "Rename a knot/stitch and update all diverts that reference it.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("source") { put("type", "string"); put("description", "Full ink source code") }
+                    putJsonObject("old_name") { put("type", "string"); put("description", "Current section name") }
+                    putJsonObject("new_name") { put("type", "string"); put("description", "New section name") }
+                }
+                putJsonArray("required") { add("source"); add("old_name"); add("new_name") }
+            }
+        ),
+        McpToolInfo(
+            name = "ink_stats",
+            description = "Get ink script statistics: knot/stitch/function counts, dead ends, missing divert targets, word count.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("source") { put("type", "string"); put("description", "Ink source code to analyze") }
+                }
+                putJsonArray("required") { add("source") }
+            }
+        )
+    )
+
+    // ════════════════════════════════════════════════════════════════════
+    // INK+MARKDOWN TOOLS (3)
+    // ════════════════════════════════════════════════════════════════════
+
+    private val inkMdTools: List<McpToolInfo> = listOf(
+        McpToolInfo(
+            name = "parse_ink_md",
+            description = "Parse a Markdown template containing ```ink code blocks and tables. " +
+                "H1-H6 headers above code blocks define file names. Tables define variables/items used in ink blocks.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("markdown") { put("type", "string"); put("description", "Markdown content with ```ink blocks and tables") }
+                }
+                putJsonArray("required") { add("markdown") }
+            }
+        ),
+        McpToolInfo(
+            name = "render_ink_md",
+            description = "Render a Markdown template: extract ink blocks, resolve table data as variables, " +
+                "produce compilable ink files. Returns map of filename -> ink source.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("markdown") { put("type", "string"); put("description", "Markdown template with ```ink blocks") }
+                }
+                putJsonArray("required") { add("markdown") }
+            }
+        ),
+        McpToolInfo(
+            name = "compile_ink_md",
+            description = "Parse, render, and compile all ink blocks from a Markdown template. Returns compilation results per file.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("markdown") { put("type", "string"); put("description", "Markdown template with ```ink blocks") }
+                }
+                putJsonArray("required") { add("markdown") }
+            }
+        )
+    )
+
+    // ════════════════════════════════════════════════════════════════════
+    // LLM MODEL TOOLS (8)
+    // ════════════════════════════════════════════════════════════════════
+
     private val llmTools: List<McpToolInfo> = listOf(
         McpToolInfo(
             name = "list_models",
@@ -296,10 +474,7 @@ class McpTools(
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("vram_gb") {
-                        put("type", "integer")
-                        put("description", "Available VRAM in GB to filter compatible models (optional)")
-                    }
+                    putJsonObject("vram_gb") { put("type", "integer"); put("description", "Available VRAM in GB to filter compatible models") }
                 }
             }
         ),
@@ -309,14 +484,8 @@ class McpTools(
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("model_id") {
-                        put("type", "string")
-                        put("description", "Model ID (e.g. 'nemotron-12b-q4', 'thinking-24b-q5'). Use list_models to see options.")
-                    }
-                    putJsonObject("custom_repo") {
-                        put("type", "string")
-                        put("description", "HuggingFace repo name for a custom model (overrides model_id)")
-                    }
+                    putJsonObject("model_id") { put("type", "string"); put("description", "Model ID from list_models") }
+                    putJsonObject("custom_repo") { put("type", "string"); put("description", "HuggingFace repo name for custom model") }
                 }
             }
         ),
@@ -330,77 +499,120 @@ class McpTools(
         ),
         McpToolInfo(
             name = "llm_chat",
-            description = "Send a chat message to the loaded LLM. Requires a model to be loaded first.",
+            description = "Send a chat message to the loaded LLM or connected service.",
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("message") {
-                        put("type", "string")
-                        put("description", "Chat message to send to the LLM")
-                    }
+                    putJsonObject("message") { put("type", "string"); put("description", "Chat message to send") }
                 }
                 putJsonArray("required") { add("message") }
             }
         ),
         McpToolInfo(
             name = "generate_ink",
-            description = "Generate ink interactive fiction code from a natural language description using the loaded LLM.",
+            description = "Generate ink interactive fiction code from a natural language description.",
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("prompt") {
-                        put("type", "string")
-                        put("description", "Description of the story/scene to generate in ink format")
-                    }
+                    putJsonObject("prompt") { put("type", "string"); put("description", "Description of the story/scene to generate") }
                 }
                 putJsonArray("required") { add("prompt") }
             }
         ),
         McpToolInfo(
             name = "review_ink",
-            description = "Review ink code for syntax errors, logic issues, and improvements using the loaded LLM.",
+            description = "Review ink code for syntax errors, logic issues, and improvements.",
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("source") {
-                        put("type", "string")
-                        put("description", "Ink source code to review")
-                    }
+                    putJsonObject("source") { put("type", "string"); put("description", "Ink source code to review") }
                 }
                 putJsonArray("required") { add("source") }
             }
         ),
         McpToolInfo(
             name = "translate_ink_hebrew",
-            description = "Translate ink story text to Hebrew using DictaLM, preserving ink syntax. Uses Camel route pipeline.",
+            description = "Translate ink story text to Hebrew, preserving ink syntax.",
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("source") {
-                        put("type", "string")
-                        put("description", "Ink source code with text to translate")
-                    }
+                    putJsonObject("source") { put("type", "string"); put("description", "Ink source code to translate") }
                 }
                 putJsonArray("required") { add("source") }
             }
         ),
         McpToolInfo(
             name = "generate_compile_play",
-            description = "Full pipeline: generate ink from prompt → compile → start story session. Uses Camel route chain.",
+            description = "Full pipeline: generate ink from prompt → compile → start session.",
             inputSchema = buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("prompt") {
-                        put("type", "string")
-                        put("description", "Natural language description of the story to generate and play")
-                    }
+                    putJsonObject("prompt") { put("type", "string"); put("description", "Story description to generate and play") }
                 }
                 putJsonArray("required") { add("prompt") }
             }
         )
     )
 
-    /** Dispatch a tool call to the appropriate handler */
+    // ════════════════════════════════════════════════════════════════════
+    // SERVICE TOOLS (2)
+    // ════════════════════════════════════════════════════════════════════
+
+    private val serviceTools: List<McpToolInfo> = listOf(
+        McpToolInfo(
+            name = "list_services",
+            description = "List all available LLM service providers (Claude, Gemini, Copilot, Grok, Perplexity, Comet, OpenRouter, Together, Groq, LM Studio, Ollama).",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {}
+            }
+        ),
+        McpToolInfo(
+            name = "connect_service",
+            description = "Connect to an external LLM service provider. Once connected, llm_chat/generate_ink/review_ink will use this service.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("service_id") { put("type", "string"); put("description", "Service ID from list_services (e.g. 'claude', 'gemini', 'grok')") }
+                    putJsonObject("api_key") { put("type", "string"); put("description", "API key (or set via env var)") }
+                    putJsonObject("model") { put("type", "string"); put("description", "Model name override") }
+                    putJsonObject("base_url") { put("type", "string"); put("description", "Base URL override") }
+                }
+                putJsonArray("required") { add("service_id") }
+            }
+        )
+    )
+
+    // ════════════════════════════════════════════════════════════════════
+    // COLLABORATION TOOLS (2)
+    // ════════════════════════════════════════════════════════════════════
+
+    private val colabTools: List<McpToolInfo> = listOf(
+        McpToolInfo(
+            name = "collab_status",
+            description = "List active collaboration documents with connected client counts.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {}
+            }
+        ),
+        McpToolInfo(
+            name = "collab_info",
+            description = "Get collaboration details for a specific document.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("doc_id") { put("type", "string"); put("description", "Document ID") }
+                }
+                putJsonArray("required") { add("doc_id") }
+            }
+        )
+    )
+
+    // ════════════════════════════════════════════════════════════════════
+    // DISPATCH
+    // ════════════════════════════════════════════════════════════════════
+
     fun callTool(name: String, arguments: JsonObject?): McpToolResult {
         return try {
             when (name) {
@@ -422,6 +634,26 @@ class McpTools(
                 "bidify" -> handleBidify(arguments)
                 "strip_bidi" -> handleStripBidi(arguments)
                 "bidify_json" -> handleBidifyJson(arguments)
+                // Debug tools
+                "start_debug" -> handleStartDebug(arguments)
+                "add_breakpoint" -> handleAddBreakpoint(arguments)
+                "remove_breakpoint" -> handleRemoveBreakpoint(arguments)
+                "debug_step" -> handleDebugStep(arguments)
+                "debug_continue" -> handleDebugContinue(arguments)
+                "add_watch" -> handleAddWatch(arguments)
+                "debug_inspect" -> handleDebugInspect(arguments)
+                "debug_trace" -> handleDebugTrace(arguments)
+                // Edit tools
+                "parse_ink" -> handleParseInk(arguments)
+                "get_section" -> handleGetSection(arguments)
+                "replace_section" -> handleReplaceSection(arguments)
+                "insert_section" -> handleInsertSection(arguments)
+                "rename_section" -> handleRenameSection(arguments)
+                "ink_stats" -> handleInkStats(arguments)
+                // Ink+Markdown tools
+                "parse_ink_md" -> handleParseInkMd(arguments)
+                "render_ink_md" -> handleRenderInkMd(arguments)
+                "compile_ink_md" -> handleCompileInkMd(arguments)
                 // LLM tools
                 "list_models" -> handleListModels(arguments)
                 "load_model" -> handleLoadModel(arguments)
@@ -431,6 +663,12 @@ class McpTools(
                 "review_ink" -> handleReviewInk(arguments)
                 "translate_ink_hebrew" -> handleTranslateHebrew(arguments)
                 "generate_compile_play" -> handleGenerateCompilePlay(arguments)
+                // Service tools
+                "list_services" -> handleListServices()
+                "connect_service" -> handleConnectService(arguments)
+                // Collaboration tools
+                "collab_status" -> handleCollabStatus()
+                "collab_info" -> handleCollabInfo(arguments)
                 else -> errorResult("Unknown tool: $name")
             }
         } catch (e: Exception) {
@@ -438,18 +676,19 @@ class McpTools(
         }
     }
 
-    // -- Tool handlers --
+    // ════════════════════════════════════════════════════════════════════
+    // INK HANDLERS
+    // ════════════════════════════════════════════════════════════════════
 
     private fun handleCompile(args: JsonObject?): McpToolResult {
         val source = args.requireString("source")
         val result = engine.compile(source)
-        val response = buildJsonObject {
+        return textResult(buildJsonObject {
             put("success", result.success)
             if (result.json != null) put("json", result.json)
             if (result.errors.isNotEmpty()) putJsonArray("errors") { result.errors.forEach { add(it) } }
             if (result.warnings.isNotEmpty()) putJsonArray("warnings") { result.warnings.forEach { add(it) } }
-        }
-        return textResult(response.toString())
+        }.toString())
     }
 
     private fun handleStartStory(args: JsonObject?): McpToolResult {
@@ -486,14 +725,7 @@ class McpTools(
         val value = engine.getVariable(sessionId, name)
         return textResult(buildJsonObject {
             put("name", name)
-            when (value) {
-                null -> put("value", JsonNull)
-                is Boolean -> put("value", value)
-                is Int -> put("value", value)
-                is Double -> put("value", value)
-                is String -> put("value", value)
-                else -> put("value", value.toString())
-            }
+            putAny("value", value)
         }.toString())
     }
 
@@ -551,14 +783,7 @@ class McpTools(
         val result = engine.evaluateFunction(sessionId, funcName, fnArgs)
         return textResult(buildJsonObject {
             put("function", funcName)
-            when (result) {
-                null -> put("result", JsonNull)
-                is Boolean -> put("result", result)
-                is Int -> put("result", result)
-                is Double -> put("result", result)
-                is String -> put("result", result)
-                else -> put("result", result.toString())
-            }
+            putAny("result", result)
         }.toString())
     }
 
@@ -585,26 +810,289 @@ class McpTools(
 
     private fun handleBidify(args: JsonObject?): McpToolResult {
         val text = args.requireString("text")
-        return textResult(buildJsonObject {
-            put("result", engine.bidify(text))
-        }.toString())
+        return textResult(buildJsonObject { put("result", engine.bidify(text)) }.toString())
     }
 
     private fun handleStripBidi(args: JsonObject?): McpToolResult {
         val text = args.requireString("text")
-        return textResult(buildJsonObject {
-            put("result", engine.stripBidi(text))
-        }.toString())
+        return textResult(buildJsonObject { put("result", engine.stripBidi(text)) }.toString())
     }
 
     private fun handleBidifyJson(args: JsonObject?): McpToolResult {
         val json = args.requireString("json")
+        return textResult(buildJsonObject { put("result", engine.bidifyJson(json)) }.toString())
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // DEBUG HANDLERS
+    // ════════════════════════════════════════════════════════════════════
+
+    private fun handleStartDebug(args: JsonObject?): McpToolResult {
+        val sessionId = args.requireString("session_id")
+        val info = debugEngine.startDebug(sessionId)
+        return textResult(mapToJson(info).toString())
+    }
+
+    private fun handleAddBreakpoint(args: JsonObject?): McpToolResult {
+        val sessionId = args.requireString("session_id")
+        val type = args.requireString("type")
+        val target = args.requireString("target")
+        val bp = debugEngine.addBreakpoint(sessionId, type, target)
         return textResult(buildJsonObject {
-            put("result", engine.bidifyJson(json))
+            put("id", bp.id)
+            put("type", bp.type)
+            put("target", bp.target)
+            put("enabled", bp.enabled)
         }.toString())
     }
 
-    // -- LLM tool handlers --
+    private fun handleRemoveBreakpoint(args: JsonObject?): McpToolResult {
+        val sessionId = args.requireString("session_id")
+        val bpId = args.requireString("breakpoint_id")
+        val removed = debugEngine.removeBreakpoint(sessionId, bpId)
+        return textResult("""{"ok":$removed,"breakpoint_id":"$bpId"}""")
+    }
+
+    private fun handleDebugStep(args: JsonObject?): McpToolResult {
+        val sessionId = args.requireString("session_id")
+        val result = debugEngine.step(sessionId)
+        return textResult(buildJsonObject {
+            put("text", result.text)
+            put("can_continue", result.canContinue)
+            putJsonArray("choices") {
+                result.choices.forEach { c ->
+                    addJsonObject { put("index", c.index); put("text", c.text) }
+                }
+            }
+            putJsonArray("tags") { result.tags.forEach { add(it) } }
+            put("step_number", result.stepNumber)
+            put("is_paused", result.isPaused)
+            if (result.hitBreakpoint != null) {
+                putJsonObject("hit_breakpoint") {
+                    put("id", result.hitBreakpoint.id)
+                    put("type", result.hitBreakpoint.type)
+                    put("target", result.hitBreakpoint.target)
+                }
+            }
+            if (result.watchChanges.isNotEmpty()) {
+                putJsonObject("watch_changes") {
+                    result.watchChanges.forEach { (name, pair) ->
+                        putJsonObject(name) {
+                            putAny("old", pair.first)
+                            putAny("new", pair.second)
+                        }
+                    }
+                }
+            }
+        }.toString())
+    }
+
+    private fun handleDebugContinue(args: JsonObject?): McpToolResult {
+        val sessionId = args.requireString("session_id")
+        val maxSteps = args?.get("max_steps")?.jsonPrimitive?.intOrNull ?: 100
+        val result = debugEngine.continueDebug(sessionId, maxSteps)
+        return textResult(buildJsonObject {
+            put("text", result.text)
+            put("can_continue", result.canContinue)
+            putJsonArray("choices") {
+                result.choices.forEach { c ->
+                    addJsonObject { put("index", c.index); put("text", c.text) }
+                }
+            }
+            put("step_number", result.stepNumber)
+            put("is_paused", result.isPaused)
+            if (result.hitBreakpoint != null) {
+                putJsonObject("hit_breakpoint") {
+                    put("id", result.hitBreakpoint.id)
+                    put("type", result.hitBreakpoint.type)
+                    put("target", result.hitBreakpoint.target)
+                }
+            }
+        }.toString())
+    }
+
+    private fun handleAddWatch(args: JsonObject?): McpToolResult {
+        val sessionId = args.requireString("session_id")
+        val varName = args.requireString("variable")
+        val watch = debugEngine.addWatch(sessionId, varName)
+        return textResult(buildJsonObject {
+            put("variable", watch.name)
+            putAny("current_value", watch.lastValue)
+        }.toString())
+    }
+
+    private fun handleDebugInspect(args: JsonObject?): McpToolResult {
+        val sessionId = args.requireString("session_id")
+        val info = debugEngine.inspect(sessionId)
+        return textResult(mapToJson(info).toString())
+    }
+
+    private fun handleDebugTrace(args: JsonObject?): McpToolResult {
+        val sessionId = args.requireString("session_id")
+        val lastN = args?.get("last_n")?.jsonPrimitive?.intOrNull ?: 50
+        val trace = debugEngine.getTrace(sessionId, lastN)
+        return textResult(buildJsonObject {
+            putJsonArray("trace") {
+                trace.forEach { entry -> add(mapToJson(entry)) }
+            }
+        }.toString())
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // EDIT HANDLERS
+    // ════════════════════════════════════════════════════════════════════
+
+    private fun handleParseInk(args: JsonObject?): McpToolResult {
+        val source = args.requireString("source")
+        val structure = editEngine.parse(source)
+        return textResult(buildJsonObject {
+            putJsonArray("sections") {
+                structure.sections.forEach { s ->
+                    addJsonObject {
+                        put("name", s.name)
+                        put("type", s.type)
+                        put("start_line", s.startLine)
+                        put("end_line", s.endLine)
+                        put("line_count", s.endLine - s.startLine)
+                        if (s.parent != null) put("parent", s.parent)
+                        if (s.parameters.isNotEmpty()) putJsonArray("parameters") { s.parameters.forEach { add(it) } }
+                    }
+                }
+            }
+            putJsonArray("variables") {
+                structure.variables.forEach { v ->
+                    addJsonObject {
+                        put("name", v.name)
+                        put("type", v.type)
+                        put("initial_value", v.initialValue)
+                        put("line", v.line)
+                    }
+                }
+            }
+            putJsonArray("includes") { structure.includes.forEach { add(it) } }
+            put("total_lines", structure.totalLines)
+            put("divert_count", structure.diverts.size)
+        }.toString())
+    }
+
+    private fun handleGetSection(args: JsonObject?): McpToolResult {
+        val source = args.requireString("source")
+        val sectionName = args.requireString("section_name")
+        val section = editEngine.getSection(source, sectionName)
+            ?: return errorResult("Section not found: $sectionName")
+        return textResult(buildJsonObject {
+            put("name", section.name)
+            put("type", section.type)
+            put("start_line", section.startLine)
+            put("end_line", section.endLine)
+            put("content", section.content)
+            if (section.parent != null) put("parent", section.parent)
+        }.toString())
+    }
+
+    private fun handleReplaceSection(args: JsonObject?): McpToolResult {
+        val source = args.requireString("source")
+        val sectionName = args.requireString("section_name")
+        val newContent = args.requireString("new_content")
+        val result = editEngine.replaceSection(source, sectionName, newContent)
+        return textResult(buildJsonObject {
+            put("ok", true)
+            put("source", result)
+        }.toString())
+    }
+
+    private fun handleInsertSection(args: JsonObject?): McpToolResult {
+        val source = args.requireString("source")
+        val afterSection = args.requireString("after_section")
+        val newContent = args.requireString("new_content")
+        val result = editEngine.insertAfter(source, afterSection, newContent)
+        return textResult(buildJsonObject {
+            put("ok", true)
+            put("source", result)
+        }.toString())
+    }
+
+    private fun handleRenameSection(args: JsonObject?): McpToolResult {
+        val source = args.requireString("source")
+        val oldName = args.requireString("old_name")
+        val newName = args.requireString("new_name")
+        val result = editEngine.rename(source, oldName, newName)
+        return textResult(buildJsonObject {
+            put("ok", true)
+            put("source", result)
+        }.toString())
+    }
+
+    private fun handleInkStats(args: JsonObject?): McpToolResult {
+        val source = args.requireString("source")
+        val stats = editEngine.getStats(source)
+        return textResult(mapToJson(stats).toString())
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // INK+MARKDOWN HANDLERS
+    // ════════════════════════════════════════════════════════════════════
+
+    private fun handleParseInkMd(args: JsonObject?): McpToolResult {
+        val markdown = args.requireString("markdown")
+        val result = inkMdEngine.parse(markdown)
+        return textResult(buildJsonObject {
+            putJsonArray("files") {
+                result.files.forEach { f ->
+                    addJsonObject {
+                        put("name", f.name)
+                        put("ink_source", f.inkSource)
+                        put("header_level", f.headerLevel)
+                    }
+                }
+            }
+            putJsonArray("tables") {
+                result.tables.forEach { t ->
+                    addJsonObject {
+                        put("name", t.name)
+                        putJsonArray("columns") { t.columns.forEach { add(it) } }
+                        putJsonArray("rows") {
+                            t.rows.forEach { row ->
+                                addJsonObject { row.forEach { (k, v) -> put(k, v) } }
+                            }
+                        }
+                    }
+                }
+            }
+        }.toString())
+    }
+
+    private fun handleRenderInkMd(args: JsonObject?): McpToolResult {
+        val markdown = args.requireString("markdown")
+        val rendered = inkMdEngine.render(markdown)
+        return textResult(buildJsonObject {
+            putJsonObject("files") {
+                rendered.forEach { (name, source) -> put(name, source) }
+            }
+        }.toString())
+    }
+
+    private fun handleCompileInkMd(args: JsonObject?): McpToolResult {
+        val markdown = args.requireString("markdown")
+        val rendered = inkMdEngine.render(markdown)
+        return textResult(buildJsonObject {
+            putJsonArray("results") {
+                rendered.forEach { (name, source) ->
+                    val compileResult = engine.compile(source)
+                    addJsonObject {
+                        put("file", name)
+                        put("success", compileResult.success)
+                        if (compileResult.errors.isNotEmpty()) putJsonArray("errors") { compileResult.errors.forEach { add(it) } }
+                        if (compileResult.warnings.isNotEmpty()) putJsonArray("warnings") { compileResult.warnings.forEach { add(it) } }
+                    }
+                }
+            }
+        }.toString())
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // LLM HANDLERS
+    // ════════════════════════════════════════════════════════════════════
 
     private fun handleListModels(args: JsonObject?): McpToolResult {
         val vramGb = args?.get("vram_gb")?.jsonPrimitive?.intOrNull
@@ -614,14 +1102,10 @@ class McpTools(
             putJsonArray("models") {
                 models.forEach { m ->
                     addJsonObject {
-                        put("id", m.id)
-                        put("parameters", m.parameters)
-                        put("quantization", m.quantization)
-                        put("architecture", m.architecture)
-                        put("size_gb", m.sizeGb)
-                        put("min_vram_gb", m.minVramGb)
-                        put("jlama_compatible", m.jlamaCompatible)
-                        put("description", m.description)
+                        put("id", m.id); put("parameters", m.parameters)
+                        put("quantization", m.quantization); put("architecture", m.architecture)
+                        put("size_gb", m.sizeGb); put("min_vram_gb", m.minVramGb)
+                        put("jlama_compatible", m.jlamaCompatible); put("description", m.description)
                         put("url", m.url)
                     }
                 }
@@ -642,10 +1126,7 @@ class McpTools(
             val model = DictaLmConfig.findModel(modelId)
                 ?: return errorResult("Unknown model: $modelId. Use list_models to see options.")
             if (!model.jlamaCompatible) {
-                return errorResult(
-                    "Model '$modelId' uses ${model.architecture} arch — NOT JLama compatible. " +
-                    "Use Ollama/vLLM for Nemotron models."
-                )
+                return errorResult("Model '$modelId' uses ${model.architecture} — NOT JLama compatible. Use Ollama/vLLM.")
             }
             llm.loadModel(model)
         } else {
@@ -653,49 +1134,46 @@ class McpTools(
         }
 
         camelRoutes?.refreshChatModel()
-
         return textResult(buildJsonObject {
-            put("ok", true)
-            put("model_id", loadedId)
-            put("message", "Model loaded and ready")
+            put("ok", true); put("model_id", loadedId); put("message", "Model loaded and ready")
         }.toString())
     }
 
     private fun handleModelInfo(): McpToolResult {
         val llm = llmEngine ?: return errorResult("LLM engine not configured")
-        val info = llm.getModelInfo()
-        return textResult(buildJsonObject {
-            info.forEach { (k, v) ->
-                when (v) {
-                    null -> put(k, kotlinx.serialization.json.JsonNull)
-                    is Boolean -> put(k, v)
-                    is Int -> put(k, v)
-                    is Double -> put(k, v)
-                    is String -> put(k, v)
-                    else -> put(k, v.toString())
-                }
-            }
-        }.toString())
+        return textResult(mapToJson(llm.getModelInfo()).toString())
     }
 
     private fun handleLlmChat(args: JsonObject?): McpToolResult {
-        val llm = llmEngine ?: return errorResult("LLM engine not configured")
         val message = args.requireString("message")
-        val response = if (camelRoutes != null) {
-            camelRoutes.sendToRoute("llm-chat", message) as? String ?: llm.chat(message)
-        } else {
-            llm.chat(message)
+
+        // Prefer external service if connected, then local LLM
+        val response = when {
+            externalLlm != null -> externalLlm!!.generate(message)
+            llmEngine != null && camelRoutes != null -> {
+                camelRoutes.sendToRoute("llm-chat", message) as? String ?: llmEngine.chat(message)
+            }
+            llmEngine != null -> llmEngine.chat(message)
+            else -> return errorResult("No LLM connected. Use connect_service or load_model first.")
         }
         return textResult(buildJsonObject { put("response", response) }.toString())
     }
 
     private fun handleGenerateInk(args: JsonObject?): McpToolResult {
-        val llm = llmEngine ?: return errorResult("LLM engine not configured")
         val prompt = args.requireString("prompt")
-        val inkCode = if (camelRoutes != null) {
-            camelRoutes.sendToRoute("llm-generate-ink", prompt) as? String ?: llm.generateInk(prompt)
-        } else {
-            llm.generateInk(prompt)
+        val inkCode = when {
+            externalLlm != null -> {
+                val systemPrompt = """You are an expert ink (inkle's ink) script writer.
+Generate valid ink syntax. Use knots (===), stitches (=), choices (*,+),
+diverts (->), variables (VAR), conditionals, and other ink features as needed.
+Only output the ink code, no explanations."""
+                externalLlm!!.generate("$systemPrompt\n\nUser request: $prompt")
+            }
+            llmEngine != null && camelRoutes != null -> {
+                camelRoutes.sendToRoute("llm-generate-ink", prompt) as? String ?: llmEngine.generateInk(prompt)
+            }
+            llmEngine != null -> llmEngine.generateInk(prompt)
+            else -> return errorResult("No LLM connected.")
         }
         val compileResult = try { engine.compile(inkCode) } catch (_: Exception) { null }
         return textResult(buildJsonObject {
@@ -708,26 +1186,46 @@ class McpTools(
     }
 
     private fun handleReviewInk(args: JsonObject?): McpToolResult {
-        val llm = llmEngine ?: return errorResult("LLM engine not configured")
         val source = args.requireString("source")
-        return textResult(buildJsonObject { put("review", llm.reviewInk(source)) }.toString())
+        val review = when {
+            externalLlm != null -> {
+                val systemPrompt = """You are an expert ink script reviewer.
+Analyze for: syntax errors, dead ends, missing diverts, unused knots, RTL/bidi issues.
+Provide specific, actionable feedback."""
+                externalLlm!!.generate("$systemPrompt\n\nInk code:\n$source")
+            }
+            llmEngine != null -> llmEngine.reviewInk(source)
+            else -> return errorResult("No LLM connected.")
+        }
+        return textResult(buildJsonObject { put("review", review) }.toString())
     }
 
     private fun handleTranslateHebrew(args: JsonObject?): McpToolResult {
-        val llm = llmEngine ?: return errorResult("LLM engine not configured")
         val source = args.requireString("source")
-        val translated = if (camelRoutes != null) {
-            camelRoutes.sendToRoute("llm-translate-he", source) as? String ?: llm.translateToHebrew(source)
-        } else {
-            llm.translateToHebrew(source)
+        val translated = when {
+            externalLlm != null -> {
+                val systemPrompt = """Translate only story text to Hebrew. Keep all ink syntax unchanged."""
+                externalLlm!!.generate("$systemPrompt\n\nInk source:\n$source")
+            }
+            llmEngine != null && camelRoutes != null -> {
+                camelRoutes.sendToRoute("llm-translate-he", source) as? String ?: llmEngine.translateToHebrew(source)
+            }
+            llmEngine != null -> llmEngine.translateToHebrew(source)
+            else -> return errorResult("No LLM connected.")
         }
         return textResult(buildJsonObject { put("translated_ink", translated) }.toString())
     }
 
     private fun handleGenerateCompilePlay(args: JsonObject?): McpToolResult {
-        val llm = llmEngine ?: return errorResult("LLM engine not configured")
         val prompt = args.requireString("prompt")
-        val inkCode = llm.generateInk(prompt)
+        val inkCode = when {
+            externalLlm != null -> {
+                val systemPrompt = """Generate a complete ink interactive fiction story. Valid ink syntax only."""
+                externalLlm!!.generate("$systemPrompt\n\nStory: $prompt")
+            }
+            llmEngine != null -> llmEngine.generateInk(prompt)
+            else -> return errorResult("No LLM connected.")
+        }
         val compileResult = engine.compile(inkCode)
         if (!compileResult.success) {
             return textResult(buildJsonObject {
@@ -751,7 +1249,65 @@ class McpTools(
         }.toString())
     }
 
-    // -- Helpers --
+    // ════════════════════════════════════════════════════════════════════
+    // SERVICE HANDLERS
+    // ════════════════════════════════════════════════════════════════════
+
+    private fun handleListServices(): McpToolResult {
+        val services = LlmServiceConfig.listServices()
+        return textResult(buildJsonObject {
+            putJsonArray("services") {
+                services.forEach { s -> add(mapToJson(s)) }
+            }
+            if (externalServiceId != null) put("connected_service", externalServiceId)
+        }.toString())
+    }
+
+    private fun handleConnectService(args: JsonObject?): McpToolResult {
+        val serviceId = args.requireString("service_id")
+        val apiKey = args?.get("api_key")?.jsonPrimitive?.contentOrNull
+        val model = args?.get("model")?.jsonPrimitive?.contentOrNull
+        val baseUrl = args?.get("base_url")?.jsonPrimitive?.contentOrNull
+
+        val chatModel = LlmServiceConfig.connect(serviceId, apiKey, model, baseUrl)
+        externalLlm = chatModel
+        externalServiceId = serviceId
+
+        val service = LlmServiceConfig.findService(serviceId)!!
+        return textResult(buildJsonObject {
+            put("ok", true)
+            put("service", service.name)
+            put("model", model ?: service.defaultModel)
+            put("message", "Connected to ${service.name}. llm_chat/generate_ink/review_ink now use this service.")
+        }.toString())
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // COLLABORATION HANDLERS
+    // ════════════════════════════════════════════════════════════════════
+
+    private fun handleCollabStatus(): McpToolResult {
+        val colab = colabEngine ?: return errorResult("Collaboration not enabled")
+        val docs = colab.listDocuments()
+        return textResult(buildJsonObject {
+            putJsonArray("documents") {
+                docs.forEach { d -> add(mapToJson(d)) }
+            }
+            put("total_clients", colab.totalClients)
+        }.toString())
+    }
+
+    private fun handleCollabInfo(args: JsonObject?): McpToolResult {
+        val colab = colabEngine ?: return errorResult("Collaboration not enabled")
+        val docId = args.requireString("doc_id")
+        val info = colab.getDocumentInfo(docId)
+            ?: return errorResult("Document not found: $docId")
+        return textResult(mapToJson(info).toString())
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // HELPERS
+    // ════════════════════════════════════════════════════════════════════
 
     private fun continueResultJson(sessionId: String, result: InkEngine.ContinueResult) = buildJsonObject {
         put("session_id", sessionId)
@@ -760,8 +1316,7 @@ class McpTools(
         putJsonArray("choices") {
             result.choices.forEach { c ->
                 addJsonObject {
-                    put("index", c.index)
-                    put("text", c.text)
+                    put("index", c.index); put("text", c.text)
                     putJsonArray("tags") { c.tags.forEach { add(it) } }
                 }
             }
@@ -781,5 +1336,50 @@ class McpTools(
     private fun JsonObject?.requireString(key: String): String {
         return this?.get(key)?.jsonPrimitive?.contentOrNull
             ?: throw IllegalArgumentException("'$key' is required")
+    }
+
+    /** Put any value into a JsonObjectBuilder */
+    private fun JsonObjectBuilder.putAny(key: String, value: Any?) {
+        when (value) {
+            null -> put(key, JsonNull)
+            is Boolean -> put(key, value)
+            is Int -> put(key, value)
+            is Long -> put(key, value)
+            is Double -> put(key, value)
+            is String -> put(key, value)
+            else -> put(key, value.toString())
+        }
+    }
+
+    /** Convert a Map to JsonObject */
+    private fun mapToJson(map: Map<String, Any?>): JsonObject = buildJsonObject {
+        map.forEach { (k, v) ->
+            when (v) {
+                null -> put(k, JsonNull)
+                is Boolean -> put(k, v)
+                is Int -> put(k, v)
+                is Long -> put(k, v)
+                is Double -> put(k, v)
+                is String -> put(k, v)
+                is List<*> -> putJsonArray(k) {
+                    v.forEach { item ->
+                        when (item) {
+                            is String -> add(item)
+                            is Int -> add(item)
+                            is Map<*, *> -> {
+                                @Suppress("UNCHECKED_CAST")
+                                add(mapToJson(item as Map<String, Any?>))
+                            }
+                            else -> add(item.toString())
+                        }
+                    }
+                }
+                is Map<*, *> -> {
+                    @Suppress("UNCHECKED_CAST")
+                    put(k, mapToJson(v as Map<String, Any?>))
+                }
+                else -> put(k, v.toString())
+            }
+        }
     }
 }

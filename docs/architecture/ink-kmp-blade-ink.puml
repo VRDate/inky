@@ -1,0 +1,152 @@
+@startuml ink-kmp-blade-ink
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title Ink KMP Architecture with blade-ink-template Integration
+footer Based on bladecoder/blade-ink-template + inkle/inky + y-lohse/inkjs
+
+' ── Legend ──
+skinparam note {
+    BackgroundColor #FFFDE7
+}
+
+' ── KMP Shared Module ──
+package "shared (Kotlin Multiplatform)" as kmpShared #E8F5E9 {
+    interface InkRuntime {
+        +compile(source: String): CompileResult
+        +createStory(json: String): InkStory
+    }
+
+    interface InkStory {
+        +continueStory(): String
+        +canContinue: Boolean
+        +currentChoices: List<Choice>
+        +chooseChoiceIndex(index: Int)
+        +variablesState: VariableState
+        +state: StoryState
+    }
+
+    class InkSession {
+        +id: String
+        +story: InkStory
+        +saveState(): String
+        +loadState(json: String)
+    }
+
+    class InkParser {
+        +parse(source: String): InkStructure
+        +getSection(name: String): InkSection
+        +replaceSection(name: String, content: String)
+        +rename(old: String, new: String)
+    }
+
+    class BidiProcessor {
+        +bidify(text: String): String
+        +stripBidi(text: String): String
+    }
+}
+
+' ── JVM Target (blade-ink-java) ──
+package "jvm" as jvmTarget #C8E6C9 {
+    class JvmInkRuntime implements InkRuntime {
+        -- uses blade-ink --
+        +compile(): via inklecate CLI
+        +createStory(): Story(json)
+    }
+
+    note right of JvmInkRuntime
+        com.bladecoder.ink:blade-ink:1.2.1
+        Pure Java ink runtime
+        Android + Desktop + Server
+    end note
+}
+
+' ── JS Target (inkjs) ──
+package "js" as jsTarget #BBDEFB {
+    class JsInkRuntime implements InkRuntime {
+        -- uses inkjs --
+        +compile(): inkjs.Compiler
+        +createStory(): inkjs.Story
+    }
+
+    note right of JsInkRuntime
+        y-lohse/inkjs v2.4+
+        Full compiler + runtime
+        Browser + Node.js
+    end note
+}
+
+' ── Native Target (blade-ink-rs FFI) ──
+package "native" as nativeTarget #FFE0B2 {
+    class NativeInkRuntime implements InkRuntime {
+        -- uses blade-ink-rs via C FFI --
+        +compile(): via external
+        +createStory(): ffi::Story
+    }
+
+    note right of NativeInkRuntime
+        bladecoder/blade-ink-rs
+        Rust runtime with C FFI
+        iOS + macOS + Linux
+    end note
+}
+
+' ── WASM Target (inkjs via wasm) ──
+package "wasm" as wasmTarget #E1BEE7 {
+    class WasmInkRuntime implements InkRuntime {
+        -- uses inkjs via wasm-js --
+        +compile(): inkjs.Compiler
+        +createStory(): inkjs.Story
+    }
+}
+
+' ── Platform Apps ──
+package "Applications" as apps #F5F5F5 {
+    rectangle "Inky Desktop\n(Electron)" as inkyDesktop
+    rectangle "blade-ink-template\n(LibGDX)" as bladeTemplate
+    rectangle "Inky PWA\n(Browser)" as inkyPwa
+    rectangle "MCP Server\n(Ktor + GraalJS)" as mcpServer
+    rectangle "Android App\n(Jetpack Compose)" as androidApp
+    rectangle "iOS App\n(SwiftUI)" as iosApp
+}
+
+' ── Relationships ──
+inkyDesktop --> jsTarget : inkjs
+bladeTemplate --> jvmTarget : blade-ink
+inkyPwa --> jsTarget : inkjs
+mcpServer --> jvmTarget : blade-ink\n(or GraalJS)
+androidApp --> jvmTarget : blade-ink
+iosApp --> nativeTarget : blade-ink-rs
+
+' ── External Dependencies ──
+package "External Libraries" as extLibs #FFEBEE {
+    rectangle "vadimdemedes/ink\n(React for CLI)" as inkCli
+    rectangle "vadimdemedes/ink-ui\n(CLI components)" as inkUi
+    rectangle "inkle/ink\n(C# reference)" as inkRef
+}
+
+inkCli -[hidden]-> inkUi
+inkRef -[hidden]-> inkCli
+
+note bottom of extLibs
+  vadimdemedes/ink = React renderer for CLI
+  Not to be confused with inkle's ink language
+  Can be used to build TUI ink story players
+end note
+
+' ── KMP expect/actual ──
+kmpShared ..> jvmTarget : <<expect/actual>>
+kmpShared ..> jsTarget : <<expect/actual>>
+kmpShared ..> nativeTarget : <<expect/actual>>
+kmpShared ..> wasmTarget : <<expect/actual>>
+
+legend right
+  | Color | Platform |
+  |<#C8E6C9>| JVM (blade-ink-java) |
+  |<#BBDEFB>| JS (inkjs) |
+  |<#FFE0B2>| Native (blade-ink-rs) |
+  |<#E1BEE7>| WASM (inkjs) |
+  |<#FFEBEE>| External (reference only) |
+endlegend
+
+@enduml

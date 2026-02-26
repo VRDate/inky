@@ -7,6 +7,7 @@
 //DEPS io.ktor:ktor-server-cors:3.1.1
 //DEPS io.ktor:ktor-server-status-pages:3.1.1
 //DEPS io.ktor:ktor-server-sse:3.1.1
+//DEPS io.ktor:ktor-server-websockets:3.1.1
 //DEPS org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3
 //DEPS org.graalvm.polyglot:polyglot:25.0.2
 //DEPS org.graalvm.polyglot:js:25.0.2
@@ -28,6 +29,11 @@
 //SOURCES src/ink/mcp/LmStudioEngine.kt
 //SOURCES src/ink/mcp/CamelRoutes.kt
 //SOURCES src/ink/mcp/DictaLmConfig.kt
+//SOURCES src/ink/mcp/LlmServiceConfig.kt
+//SOURCES src/ink/mcp/ColabEngine.kt
+//SOURCES src/ink/mcp/InkDebugEngine.kt
+//SOURCES src/ink/mcp/InkEditEngine.kt
+//SOURCES src/ink/mcp/InkMdEngine.kt
 //JAVA_OPTIONS --add-modules jdk.incubator.vector --enable-preview
 //NATIVE_OPTIONS --no-fallback -H:+ReportExceptionStackTraces
 //JAVA 21
@@ -38,10 +44,10 @@ package ink.mcp
  * Inky MCP Server — JBang thin launcher with multi-mode support.
  *
  * Modes:
- *   mcp       — Full MCP server (default)
- *   jlama     — Local JLama inference
- *   lmstudio  — External LM Studio backend
- *   pwa       — Ink-only, no LLM
+ *   mcp       — Full MCP server (default): 46 tools, collab, debug, edit
+ *   jlama     — Local JLama inference + all ink tools
+ *   lmstudio  — External LM Studio backend + all ink tools
+ *   pwa       — Ink-only, no LLM (lightest mode)
  *
  * Usage:
  *   jbang InkyMcp.kt --mode mcp
@@ -66,16 +72,17 @@ fun main(args: Array<String>) {
     val lmStudioUrl = parsedArgs["lm-studio-url"] ?: "http://localhost:1234/v1"
     val lmStudioModel = parsedArgs["lm-studio-model"]
 
-    println("Inky MCP Server v0.2.0")
+    println("Inky MCP Server v0.3.0")
     println("  Mode:        $mode")
     println("  Port:        $port")
     println("  inkjs:       $inkjsPath")
     println("  bidify:      ${bidifyPath ?: "(not found)"}")
+    println("  Collab:      WebSocket /collab/:docId")
     when (mode) {
         "jlama" -> println("  LLM:         JLama (local)")
         "lmstudio" -> println("  LLM:         LM Studio ($lmStudioUrl)")
         "pwa" -> println("  LLM:         disabled")
-        else -> println("  LLM:         JLama + LM Studio available")
+        else -> println("  LLM:         JLama + LM Studio + 11 cloud services")
     }
     println()
 
@@ -111,7 +118,7 @@ private fun parseArgs(args: Array<String>): Map<String, String> {
                     Usage: jbang InkyMcp.kt [options]
 
                     Modes:
-                      --mode mcp          Full MCP server (default)
+                      --mode mcp          Full MCP server (default) — 46+ tools
                       --mode jlama        Local JLama inference
                       --mode lmstudio     External LM Studio
                       --mode pwa          Ink-only, no LLM
@@ -126,6 +133,9 @@ private fun parseArgs(args: Array<String>): Map<String, String> {
                       --lm-studio-model <name>      LM Studio model name
                       --no-llm                      Shortcut for --mode pwa
                       --help, -h                    Show this help
+
+                    Tools: ink (17) + debug (8) + edit (6) + ink-md (3) + llm (8) + services (2) + collab (2)
+                    Collab: Connect Yjs clients to ws://localhost:3001/collab/:docId
                 """.trimIndent())
                 kotlin.system.exitProcess(0)
             }

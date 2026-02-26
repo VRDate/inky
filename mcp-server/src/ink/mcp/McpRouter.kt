@@ -11,6 +11,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.sse.*
+import io.ktor.server.websocket.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.sse.*
 import kotlinx.coroutines.channels.Channel
@@ -29,10 +30,10 @@ class McpSession(val id: String) {
 }
 
 /**
- * Start the Ktor MCP server with ink engine and optional LLM backends.
+ * Start the Ktor MCP server with ink engine, LLM backends, collaboration, and debug.
  *
  * Modes:
- *   "mcp"      — Full MCP server (JLama available on-demand)
+ *   "mcp"      — Full MCP server (all features)
  *   "jlama"    — MCP server with local JLama inference
  *   "lmstudio" — MCP server using external LM Studio
  *   "pwa"      — Ink-only server (no LLM)
@@ -61,7 +62,20 @@ fun startServer(
     } else null
 
     val camelRoutes = if (enableLlm && llmEngine != null) CamelRoutes(inkEngine, llmEngine) else null
-    val tools = McpTools(inkEngine, llmEngine, camelRoutes)
+
+    // Initialize collaboration engine
+    val colabEngine = ColabEngine()
+
+    // Initialize tools with all engines
+    val tools = McpTools(
+        engine = inkEngine,
+        llmEngine = llmEngine,
+        camelRoutes = camelRoutes,
+        debugEngine = InkDebugEngine(inkEngine),
+        editEngine = InkEditEngine(),
+        colabEngine = colabEngine,
+        inkMdEngine = InkMdEngine()
+    )
     val mcpSessions = ConcurrentHashMap<String, McpSession>()
 
     // Auto-load model if specified
@@ -98,11 +112,15 @@ fun startServer(
             }
         }
         install(SSE)
+        install(WebSockets)
 
         routing {
             // Health check
             get("/health") {
-                call.respondText("""{"status":"ok","version":"0.1.0"}""", ContentType.Application.Json)
+                call.respondText(
+                    """{"status":"ok","version":"0.2.0","mode":"$mode","tools":${tools.tools.size}}""",
+                    ContentType.Application.Json
+                )
             }
 
             // MCP SSE endpoint — client connects here to receive events
@@ -111,7 +129,6 @@ fun startServer(
                 val session = McpSession(sessionId)
                 mcpSessions[sessionId] = session
 
-                // Send the endpoint URL as the first event
                 send(ServerSentEvent(
                     data = "/message?sessionId=$sessionId",
                     event = "endpoint"
@@ -120,7 +137,6 @@ fun startServer(
                 log.info("SSE session started: $sessionId")
 
                 try {
-                    // Forward events from the channel to the SSE stream
                     for (event in session.events) {
                         send(event)
                     }
@@ -152,7 +168,6 @@ fun startServer(
 
                 val response = handleRpcRequest(request, tools)
 
-                // Send response via SSE if session exists, otherwise inline
                 if (session != null) {
                     session.events.send(ServerSentEvent(
                         data = mcpJson.encodeToString(JsonRpcResponse.serializer(), response),
@@ -167,7 +182,16 @@ fun startServer(
                 }
             }
 
-            // Direct REST API (non-MCP, for simpler integrations)
+            // ── Yjs Collaboration WebSocket ──
+            installColabRoutes(colabEngine)
+
+            // Collaboration status REST endpoint
+            get("/api/collab") {
+                val result = tools.callTool("collab_status", null)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            // ── Direct REST API (non-MCP) ──
             post("/api/compile") {
                 val body = mcpJson.parseToJsonElement(call.receiveText()).jsonObject
                 val result = tools.callTool("compile_ink", body)
@@ -203,6 +227,56 @@ fun startServer(
                 val result = tools.callTool("list_sessions", null)
                 call.respondText(result.content.first().text, ContentType.Application.Json)
             }
+
+            get("/api/services") {
+                val result = tools.callTool("list_services", null)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            // Debug REST endpoints
+            post("/api/debug/start") {
+                val body = mcpJson.parseToJsonElement(call.receiveText()).jsonObject
+                val result = tools.callTool("start_debug", body)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            post("/api/debug/step") {
+                val body = mcpJson.parseToJsonElement(call.receiveText()).jsonObject
+                val result = tools.callTool("debug_step", body)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            // Ink+Markdown REST endpoints
+            post("/api/ink-md/parse") {
+                val body = mcpJson.parseToJsonElement(call.receiveText()).jsonObject
+                val result = tools.callTool("parse_ink_md", body)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            post("/api/ink-md/render") {
+                val body = mcpJson.parseToJsonElement(call.receiveText()).jsonObject
+                val result = tools.callTool("render_ink_md", body)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            post("/api/ink-md/compile") {
+                val body = mcpJson.parseToJsonElement(call.receiveText()).jsonObject
+                val result = tools.callTool("compile_ink_md", body)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            // Edit/parse REST endpoints
+            post("/api/parse") {
+                val body = mcpJson.parseToJsonElement(call.receiveText()).jsonObject
+                val result = tools.callTool("parse_ink", body)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            post("/api/stats") {
+                val body = mcpJson.parseToJsonElement(call.receiveText()).jsonObject
+                val result = tools.callTool("ink_stats", body)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
         }
     }.start(wait = true)
 }
@@ -212,7 +286,7 @@ private fun handleRpcRequest(request: JsonRpcRequest, tools: McpTools): JsonRpcR
     return when (request.method) {
         "initialize" -> {
             val result = McpInitializeResult(
-                serverInfo = McpServerInfo(name = "inky-mcp", version = "0.1.0")
+                serverInfo = McpServerInfo(name = "inky-mcp", version = "0.2.0")
             )
             JsonRpcResponse(
                 id = request.id,
@@ -221,7 +295,6 @@ private fun handleRpcRequest(request: JsonRpcRequest, tools: McpTools): JsonRpcR
         }
 
         "initialized" -> {
-            // Notification, no response needed but we send one anyway for consistency
             JsonRpcResponse(id = request.id, result = buildJsonObject {})
         }
 

@@ -1,0 +1,87 @@
+@startuml ink-collab-yjs
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title Ink Collaborative Editing — Yjs + Hocuspocus Architecture
+footer Ace (ink) + Remirror (markdown) + Yjs CRDT + WebSocket
+
+actor "User A\n(Editor)" as userA
+actor "User B\n(Editor)" as userB
+actor "User C\n(Reviewer)" as userC
+
+' ── Client Side ──
+package "Client A — Ace Editor" as clientA #C8E6C9 {
+    rectangle "Ace Editor\n(.ink files)" as aceA
+    rectangle "y-ace\n(Yjs binding)" as yaceA
+    rectangle "Yjs Doc A" as ydocA
+}
+
+package "Client B — Remirror Editor" as clientB #BBDEFB {
+    rectangle "Remirror/CodeMirror\n(.md templates)" as remirrorB
+    rectangle "y-prosemirror /\ny-codemirror" as ycmB
+    rectangle "Yjs Doc B" as ydocB
+}
+
+package "Client C — Browser Extension" as clientC #FFE0B2 {
+    rectangle "Inky PWA\nSide Panel" as pwaC
+    rectangle "y-websocket" as ywsC
+    rectangle "Yjs Doc C" as ydocC
+}
+
+' ── Server Side ──
+package "Inky MCP Server (Ktor)" as server #F5F5F5 {
+    rectangle "ColabEngine" as colabEngine
+    rectangle "Yjs Sync\nProtocol" as yjsSync
+    rectangle "WebSocket\n/collab/:docId" as wsEndpoint
+
+    rectangle "InkEngine\n(compile)" as inkEngine
+    rectangle "InkMdEngine\n(parse/render)" as inkMdEngine
+
+    database "Document\nState" as docState
+}
+
+' ── Connections ──
+aceA --> yaceA
+yaceA --> ydocA
+ydocA --> wsEndpoint : WebSocket\n(binary Yjs frames)
+
+remirrorB --> ycmB
+ycmB --> ydocB
+ydocB --> wsEndpoint : WebSocket
+
+pwaC --> ywsC
+ywsC --> ydocC
+ydocC --> wsEndpoint : WebSocket
+
+wsEndpoint --> colabEngine
+colabEngine --> yjsSync
+yjsSync --> docState
+
+colabEngine --> inkEngine : compile on save
+colabEngine --> inkMdEngine : parse MD templates
+
+' ── Protocol ──
+note right of yjsSync
+  Yjs Binary Protocol:
+  0x00 = sync-step-1 (state vector)
+  0x01 = sync-step-2 (missing updates)
+  0x02 = update (incremental)
+  Awareness: cursors, user names
+end note
+
+note bottom of server
+  Each document has:
+  • Accumulated Yjs updates
+  • Connected client list
+  • Awareness states (cursors)
+  • Auto-compile on change
+end note
+
+legend right
+  | Editor | File Type | Yjs Binding |
+  |<#C8E6C9>| Ace | .ink | y-ace |
+  |<#BBDEFB>| Remirror/CM | .md | y-prosemirror |
+  |<#FFE0B2>| PWA | .ink | y-websocket |
+endlegend
+
+@enduml
