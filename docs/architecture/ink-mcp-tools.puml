@@ -2,8 +2,8 @@
 !theme plain
 skinparam backgroundColor #FEFEFE
 
-title Inky MCP Server — 46 Tool Architecture
-footer v0.3.0 | Ktor + GraalJS + Camel + LangChain4j + Yjs
+title Inky MCP Server — 49 Tool Architecture
+footer v0.3.0 | Ktor + GraalJS + Camel + LangChain4j + PlantUML + Yjs
 
 ' ── Tool Groups ──
 package "Ink Core (17 tools)" as inkCore #C8E6C9 {
@@ -52,6 +52,12 @@ package "Ink+Markdown (3 tools)" as inkMd #E1BEE7 {
     card "compile_ink_md" as m3
 }
 
+package "PlantUML (3 tools)" as puml #B2EBF2 {
+    card "ink2puml" as p1
+    card "ink2svg" as p2
+    card "puml2svg" as p3
+}
+
 package "LLM Models (8 tools)" as llm #FFCDD2 {
     card "list_models" as l1
     card "load_model" as l2
@@ -78,6 +84,7 @@ rectangle "InkEngine\n(GraalJS + inkjs)" as inkEngine #90EE90
 rectangle "InkDebugEngine" as debugEngine #90CAF9
 rectangle "InkEditEngine" as editEngine #FFCC80
 rectangle "InkMdEngine" as mdEngine #CE93D8
+rectangle "Ink2PumlEngine\n(PlantUML MIT)" as pumlEngine #80DEEA
 rectangle "LlmEngine\n(JLama)" as llmEngine #EF9A9A
 rectangle "LlmServiceConfig\n(11 providers)" as serviceConfig #FFF176
 rectangle "ColabEngine\n(Yjs WebSocket)" as colabEngine #E1BEE7
@@ -87,11 +94,13 @@ inkCore --> inkEngine
 debug --> debugEngine
 edit --> editEngine
 inkMd --> mdEngine
+puml --> pumlEngine
 llm --> llmEngine
 services --> serviceConfig
 collab --> colabEngine
 
 debugEngine --> inkEngine : wraps
+pumlEngine --> editEngine : parses ink
 
 legend right
   | Group | Count |
@@ -99,10 +108,11 @@ legend right
   |<#BBDEFB>| Debug: 8 |
   |<#FFE0B2>| Edit: 6 |
   |<#E1BEE7>| Ink+MD: 3 |
+  |<#B2EBF2>| PlantUML: 3 |
   |<#FFCDD2>| LLM: 8 |
   |<#FFF9C4>| Services: 2 |
   |<#F3E5F5>| Collab: 2 |
-  | **Total** | **46** |
+  | **Total** | **49** |
 endlegend
 
 @enduml

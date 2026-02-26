@@ -66,15 +66,20 @@ fun startServer(
     // Initialize collaboration engine
     val colabEngine = ColabEngine()
 
+    // Initialize edit + puml engines (shared)
+    val editEngine = InkEditEngine()
+    val ink2PumlEngine = Ink2PumlEngine(editEngine)
+
     // Initialize tools with all engines
     val tools = McpTools(
         engine = inkEngine,
         llmEngine = llmEngine,
         camelRoutes = camelRoutes,
         debugEngine = InkDebugEngine(inkEngine),
-        editEngine = InkEditEngine(),
+        editEngine = editEngine,
         colabEngine = colabEngine,
-        inkMdEngine = InkMdEngine()
+        inkMdEngine = InkMdEngine(),
+        ink2PumlEngine = ink2PumlEngine
     )
     val mcpSessions = ConcurrentHashMap<String, McpSession>()
 
@@ -118,7 +123,7 @@ fun startServer(
             // Health check
             get("/health") {
                 call.respondText(
-                    """{"status":"ok","version":"0.2.0","mode":"$mode","tools":${tools.tools.size}}""",
+                    """{"status":"ok","version":"0.3.0","mode":"$mode","tools":${tools.tools.size}}""",
                     ContentType.Application.Json
                 )
             }
@@ -277,6 +282,25 @@ fun startServer(
                 val result = tools.callTool("ink_stats", body)
                 call.respondText(result.content.first().text, ContentType.Application.Json)
             }
+
+            // PlantUML diagram REST endpoints
+            post("/api/ink2puml") {
+                val body = mcpJson.parseToJsonElement(call.receiveText()).jsonObject
+                val result = tools.callTool("ink2puml", body)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            post("/api/ink2svg") {
+                val body = mcpJson.parseToJsonElement(call.receiveText()).jsonObject
+                val result = tools.callTool("ink2svg", body)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            post("/api/puml2svg") {
+                val body = mcpJson.parseToJsonElement(call.receiveText()).jsonObject
+                val result = tools.callTool("puml2svg", body)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
         }
     }.start(wait = true)
 }
@@ -286,7 +310,7 @@ private fun handleRpcRequest(request: JsonRpcRequest, tools: McpTools): JsonRpcR
     return when (request.method) {
         "initialize" -> {
             val result = McpInitializeResult(
-                serverInfo = McpServerInfo(name = "inky-mcp", version = "0.2.0")
+                serverInfo = McpServerInfo(name = "inky-mcp", version = "0.3.0")
             )
             JsonRpcResponse(
                 id = request.id,

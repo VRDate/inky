@@ -7,10 +7,11 @@ import kotlinx.serialization.json.*
  *   - Ink compilation & playback (17 tools)
  *   - Ink debugging (8 tools)
  *   - Ink section editing (6 tools)
+ *   - Ink+Markdown template processing (3 tools)
+ *   - Ink→PlantUML diagrams (3 tools)
  *   - LLM model management (8 tools)
  *   - LLM service providers (2 tools)
  *   - Collaboration (2 tools)
- *   - Ink+Markdown template processing (3 tools)
  */
 class McpTools(
     private val engine: InkEngine,
@@ -19,7 +20,8 @@ class McpTools(
     private val debugEngine: InkDebugEngine = InkDebugEngine(engine),
     private val editEngine: InkEditEngine = InkEditEngine(),
     private val colabEngine: ColabEngine? = null,
-    private val inkMdEngine: InkMdEngine = InkMdEngine()
+    private val inkMdEngine: InkMdEngine = InkMdEngine(),
+    private val ink2PumlEngine: Ink2PumlEngine = Ink2PumlEngine(editEngine)
 ) {
 
     /** Currently connected external LLM service */
@@ -35,6 +37,7 @@ class McpTools(
         addAll(debugTools)
         addAll(editTools)
         addAll(inkMdTools)
+        addAll(pumlTools)
         if (llmEngine != null) addAll(llmTools)
         addAll(serviceTools)
         if (colabEngine != null) addAll(colabTools)
@@ -464,6 +467,50 @@ class McpTools(
     )
 
     // ════════════════════════════════════════════════════════════════════
+    // PLANTUML DIAGRAM TOOLS (3)
+    // ════════════════════════════════════════════════════════════════════
+
+    private val pumlTools: List<McpToolInfo> = listOf(
+        McpToolInfo(
+            name = "ink2puml",
+            description = "Convert ink source to a PlantUML diagram showing story flow (knots, choices, diverts). Returns PlantUML source.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("source") { put("type", "string"); put("description", "Ink source code") }
+                    putJsonObject("mode") { put("type", "string"); put("description", "Diagram mode: 'activity' (default) or 'state'") }
+                    putJsonObject("title") { put("type", "string"); put("description", "Optional diagram title") }
+                }
+                putJsonArray("required") { add("source") }
+            }
+        ),
+        McpToolInfo(
+            name = "ink2svg",
+            description = "Convert ink source to an SVG diagram showing story flow. Uses PlantUML to render.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("source") { put("type", "string"); put("description", "Ink source code") }
+                    putJsonObject("mode") { put("type", "string"); put("description", "Diagram mode: 'activity' (default) or 'state'") }
+                    putJsonObject("title") { put("type", "string"); put("description", "Optional diagram title") }
+                }
+                putJsonArray("required") { add("source") }
+            }
+        ),
+        McpToolInfo(
+            name = "puml2svg",
+            description = "Render raw PlantUML source to SVG. Use for custom diagrams.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("puml") { put("type", "string"); put("description", "PlantUML source code") }
+                }
+                putJsonArray("required") { add("puml") }
+            }
+        )
+    )
+
+    // ════════════════════════════════════════════════════════════════════
     // LLM MODEL TOOLS (8)
     // ════════════════════════════════════════════════════════════════════
 
@@ -654,6 +701,10 @@ class McpTools(
                 "parse_ink_md" -> handleParseInkMd(arguments)
                 "render_ink_md" -> handleRenderInkMd(arguments)
                 "compile_ink_md" -> handleCompileInkMd(arguments)
+                // PlantUML diagram tools
+                "ink2puml" -> handleInk2Puml(arguments)
+                "ink2svg" -> handleInk2Svg(arguments)
+                "puml2svg" -> handlePuml2Svg(arguments)
                 // LLM tools
                 "list_models" -> handleListModels(arguments)
                 "load_model" -> handleLoadModel(arguments)
@@ -1087,6 +1138,44 @@ class McpTools(
                     }
                 }
             }
+        }.toString())
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // PLANTUML HANDLERS
+    // ════════════════════════════════════════════════════════════════════
+
+    private fun handleInk2Puml(args: JsonObject?): McpToolResult {
+        val source = args.requireString("source")
+        val modeStr = args?.get("mode")?.jsonPrimitive?.contentOrNull ?: "activity"
+        val title = args?.get("title")?.jsonPrimitive?.contentOrNull ?: "Ink Story Flow"
+        val mode = if (modeStr.lowercase() == "state") Ink2PumlEngine.DiagramMode.STATE else Ink2PumlEngine.DiagramMode.ACTIVITY
+        val puml = ink2PumlEngine.inkToPuml(source, mode, title)
+        return textResult(buildJsonObject {
+            put("puml", puml)
+            put("mode", modeStr)
+        }.toString())
+    }
+
+    private fun handleInk2Svg(args: JsonObject?): McpToolResult {
+        val source = args.requireString("source")
+        val modeStr = args?.get("mode")?.jsonPrimitive?.contentOrNull ?: "activity"
+        val title = args?.get("title")?.jsonPrimitive?.contentOrNull ?: "Ink Story Flow"
+        val mode = if (modeStr.lowercase() == "state") Ink2PumlEngine.DiagramMode.STATE else Ink2PumlEngine.DiagramMode.ACTIVITY
+        val puml = ink2PumlEngine.inkToPuml(source, mode, title)
+        val svg = ink2PumlEngine.pumlToSvg(puml)
+        return textResult(buildJsonObject {
+            put("svg", svg)
+            put("puml", puml)
+            put("mode", modeStr)
+        }.toString())
+    }
+
+    private fun handlePuml2Svg(args: JsonObject?): McpToolResult {
+        val puml = args.requireString("puml")
+        val svg = ink2PumlEngine.pumlToSvg(puml)
+        return textResult(buildJsonObject {
+            put("svg", svg)
         }.toString())
     }
 

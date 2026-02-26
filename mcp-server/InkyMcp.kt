@@ -20,6 +20,7 @@
 //DEPS dev.langchain4j:langchain4j-jlama:1.11.0-beta19
 //DEPS com.github.tjake:jlama-core:0.8.4
 //DEPS dev.langchain4j:langchain4j-open-ai:1.11.0
+//DEPS net.sourceforge.plantuml:plantuml-mit:1.2024.8
 //DEPS ch.qos.logback:logback-classic:1.5.15
 //SOURCES src/ink/mcp/InkEngine.kt
 //SOURCES src/ink/mcp/McpTypes.kt
@@ -35,6 +36,7 @@
 //SOURCES src/ink/mcp/InkEditEngine.kt
 //SOURCES src/ink/mcp/InkMdEngine.kt
 //SOURCES src/ink/mcp/SillyTavernConfig.kt
+//SOURCES src/ink/mcp/Ink2PumlEngine.kt
 //JAVA_OPTIONS --add-modules jdk.incubator.vector --enable-preview
 //NATIVE_OPTIONS --no-fallback -H:+ReportExceptionStackTraces
 //JAVA 21
@@ -119,7 +121,7 @@ private fun parseArgs(args: Array<String>): Map<String, String> {
                     Usage: jbang InkyMcp.kt [options]
 
                     Modes:
-                      --mode mcp          Full MCP server (default) — 46+ tools
+                      --mode mcp          Full MCP server (default) — 49 tools
                       --mode jlama        Local JLama inference
                       --mode lmstudio     External LM Studio
                       --mode pwa          Ink-only, no LLM
@@ -135,7 +137,7 @@ private fun parseArgs(args: Array<String>): Map<String, String> {
                       --no-llm                      Shortcut for --mode pwa
                       --help, -h                    Show this help
 
-                    Tools: ink (17) + debug (8) + edit (6) + ink-md (3) + llm (8) + services (2) + collab (2)
+                    Tools: ink (17) + debug (8) + edit (6) + ink-md (3) + puml (3) + llm (8) + services (2) + collab (2)
                     Collab: Connect Yjs clients to ws://localhost:3001/collab/:docId
                 """.trimIndent())
                 kotlin.system.exitProcess(0)

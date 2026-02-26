@@ -56,6 +56,9 @@ dependencies {
         }
     }
 
+    // PlantUML (MIT license) for diagram rendering
+    implementation("net.sourceforge.plantuml:plantuml-mit:1.2024.8")
+
     // Logging
     implementation("ch.qos.logback:logback-classic:1.5.15")
 
@@ -113,4 +116,44 @@ tasks.register<Jar>("fatJar") {
 
 kotlin {
     jvmToolchain(21)
+}
+
+// ── PlantUML → SVG build task ──────────────────────────────────────
+// Converts all .puml files in docs/architecture/ to .svg
+tasks.register("plantUml") {
+    description = "Convert PlantUML diagrams to SVG"
+    group = "documentation"
+
+    val pumlDir = file("${rootProject.projectDir}/docs/architecture")
+    val svgDir = file("${rootProject.projectDir}/docs/architecture/svg")
+
+    inputs.dir(pumlDir).include("*.puml")
+    outputs.dir(svgDir)
+
+    doLast {
+        svgDir.mkdirs()
+        pumlDir.listFiles()?.filter { it.extension == "puml" }?.forEach { pumlFile ->
+            val svgFile = File(svgDir, pumlFile.nameWithoutExtension + ".svg")
+            logger.lifecycle("PlantUML: ${pumlFile.name} → svg/${svgFile.name}")
+
+            try {
+                val readerClass = Class.forName("net.sourceforge.plantuml.SourceStringReader")
+                val fileFormatClass = Class.forName("net.sourceforge.plantuml.FileFormat")
+                val fileFormatOptionClass = Class.forName("net.sourceforge.plantuml.FileFormatOption")
+
+                val svgFormat = fileFormatClass.getField("SVG").get(null)
+                val formatOption = fileFormatOptionClass.getConstructor(fileFormatClass).newInstance(svgFormat)
+
+                val reader = readerClass.getConstructor(String::class.java).newInstance(pumlFile.readText())
+                val fos = java.io.FileOutputStream(svgFile)
+                val outputMethod = readerClass.getMethod(
+                    "outputImage", java.io.OutputStream::class.java, fileFormatOptionClass
+                )
+                outputMethod.invoke(reader, fos, formatOption)
+                fos.close()
+            } catch (e: Exception) {
+                logger.warn("Failed to render ${pumlFile.name}: ${e.message}")
+            }
+        }
+    }
 }
