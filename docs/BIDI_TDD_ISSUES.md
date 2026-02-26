@@ -255,115 +255,186 @@ VAR thread_result = ""
 -> END
 ```
 
-### Issue #502 — Tunnel to Parameterised Knot Crashes Export
+### Issue #502 — Tunnel to Parameterised Knot (syn_13 from bidi_and_tdd.ink)
 
 ```ink
-// TDD test: tunnel to parameterised knot round-trips correctly
-=== start ===
-Before tunnel.
--> greet("שלום") ->
-After tunnel.
+// 13. TUNNELS — -> tunnel ->, ->->
+// Source: bidi_and_tdd.ink syn_13 + syn_dream
+VAR lang = "both"
+VAR show_emoji = true
+
+=== function t(he_text, en_text) ===
+{
+  - lang == "he":
+    ~ return he_text
+  - lang == "en":
+    ~ return en_text
+  - else:
+    ~ return he_text + " — " + en_text
+}
+
+=== syn_13 ===
+{show_emoji: 🚇} 13/28 — {t("מנהרות", "Tunnels")}
+{t("לפני.", "Before.")}
+-> syn_dream ->
+{t("אחרי.", "After.")}
 -> END
 
-=== greet(msg) ===
-Greeting: {msg}
-->->
+=== syn_dream ===
+{show_emoji: 💭} {t("חלום.", "Dream.")}
+* [{show_emoji: ⏰} {t("התעורר", "Wake")}] ->->
+* [{show_emoji: 💤} {t("המשך", "Continue")}] {t("...ואז התעוררת.", "...then woke.")} ->->
 
 // ASSERT: Compiles without crash
-// ASSERT: Output contains "Before tunnel."
-// ASSERT: Output contains "Greeting: שלום"
-// ASSERT: Output contains "After tunnel."
-// ASSERT: Tunnel return (->->) resumes correctly
+// ASSERT: Output contains "Before" and "After" (tunnel round-trip)
+// ASSERT: Tunnel return (->->) resumes at syn_13 after syn_dream
+// ASSERT: Hebrew text renders correctly in tunnel context
 ```
 
-### Issue ink-950 / ink-923 — Conditional Branch Coverage
+### Issue ink-950 / ink-923 — Conditionals (syn_07 + syn_18 + syn_19 from bidi_and_tdd.ink)
 
 ```ink
-// TDD test: multi-line conditionals evaluate all branches
-VAR mood = "happy"
-VAR score = 75
+// 07. CONDITIONALS + 18. CONDITIONAL CHOICES + 19. MULTI-LINE CONDITIONALS
+// Source: bidi_and_tdd.ink syn_07, syn_18, syn_19
+VAR lang = "both"
+VAR show_emoji = true
+VAR health = 75
+VAR visited_market = true
+CONST MAX_HEALTH = 100
+LIST mood = neutral, happy, sad, angry, terrified
+LIST inventory = (nothing), sword, shield, potion, map, key
 
-=== start ===
+=== function t(he_text, en_text) ===
 {
-  - mood == "happy": You smile.
-  - mood == "sad": You frown.
-  - else: You shrug.
+  - lang == "he":
+    ~ return he_text
+  - lang == "en":
+    ~ return en_text
+  - else:
+    ~ return he_text + " — " + en_text
 }
-{score >= 90: A grade | score >= 70: B grade | C grade}
-* {score > 50} [Pass] -> passed
-* {score <= 50} [Fail] -> failed
 
-=== passed ===
-You passed!
--> END
+=== function clamp(value, min_val, max_val) ===
+{
+  - value < min_val:
+    ~ return min_val
+  - value > max_val:
+    ~ return max_val
+  - else:
+    ~ return value
+}
 
-=== failed ===
-Try again.
--> END
+=== syn_07 ===
+// 07. CONDITIONALS — {cond: a | b}
+{show_emoji: ❓} 07/28 — {t("תנאים", "Conditionals")}
+{visited_market: {show_emoji: ✅} {t("ביקרת בשוק.", "Visited market.")}}
+{health > 50: {show_emoji: 💪} {t("בריא", "Healthy")} | {show_emoji: 🤕} {t("פצוע", "Wounded")}}
+-> syn_18
 
-// ASSERT: Output contains "You smile." (mood == happy)
-// ASSERT: Output contains "B grade" (score == 75)
-// ASSERT: "Pass" choice is visible (score > 50)
-// ASSERT: "Fail" choice is NOT visible (score > 50)
-```
-
-### Issue — LIST Operations and Membership Coverage
-
-```ink
-// TDD test: LIST add/remove/query operations work correctly
-LIST inventory = (nothing), sword, shield, potion, map
-LIST mood = neutral, happy, sad
-
-=== start ===
+=== syn_18 ===
+// 18. CONDITIONAL CHOICES — * {cond} [text]
 ~ mood = happy
 ~ inventory += sword
 ~ inventory += potion
-~ inventory -= nothing
-{inventory ? sword: Armed | Unarmed}
-{inventory !? map: No map | Has map}
-{mood == happy: Smiling | Not smiling}
-Inventory: {inventory}
+{show_emoji: ❓} 18/28 — {t("בחירות מותנות", "Conditional choices")}
+* {inventory ? sword} [{show_emoji: ⚔️} {t("חרב", "Sword")}] {t("נפת!", "Swung!")} -> syn_19
+* {inventory ? potion} [{show_emoji: 🧪} {t("שיקוי", "Potion")}]
+    ~ health = clamp(health + 30, 0, MAX_HEALTH)
+    ~ inventory -= potion
+    {show_emoji: 💚} {health} -> syn_19
+* [{show_emoji: 🚶} {t("המשך", "Go")}] -> syn_19
+
+=== syn_19 ===
+// 19. MULTI-LINE CONDITIONALS — { - cond: }
+{show_emoji: 😊} 19/28 — {t("תנאים מרובי שורות", "Multi-line cond")}
+{
+  - mood == happy: {show_emoji: 😊} {t("מחייך.", "Smiling.")}
+  - mood == sad: {show_emoji: 😢} {t("עצוב.", "Sad.")}
+  - else: {show_emoji: 😐} {t("רגיל.", "Normal.")}
+}
 -> END
 
-// ASSERT: Compiles without errors
-// ASSERT: Output contains "Armed" (has sword)
-// ASSERT: Output contains "No map" (no map)
-// ASSERT: Output contains "Smiling" (mood is happy)
-// ASSERT: inventory contains sword and potion
+// ASSERT: Output contains "Visited market" (visited_market == true)
+// ASSERT: Output contains "Healthy" (health 75 > 50)
+// ASSERT: Conditional choice "Sword" visible (inventory ? sword)
+// ASSERT: Multi-line cond selects "Smiling" (mood == happy)
 ```
 
-### Issue #502+threads — Thread Merge with Tunnel Return
+### Issue — LIST Operations and Membership (syn_15 from bidi_and_tdd.ink)
 
 ```ink
-// TDD test: threads and tunnels coexist without corruption
-VAR thread_visited = false
+// 15. LISTS — LIST, ?, !?, +=, -=
+// Source: bidi_and_tdd.ink syn_15
+VAR lang = "both"
+VAR show_emoji = true
+LIST mood = neutral, happy, sad, angry, terrified
+LIST inventory = (nothing), sword, shield, potion, map, key
 
-=== start ===
-Town square.
-<- merchant_thread
-<- gossip_thread
-* [Leave town] -> journey
+=== function t(he_text, en_text) ===
+{
+  - lang == "he":
+    ~ return he_text
+  - lang == "en":
+    ~ return en_text
+  - else:
+    ~ return he_text + " — " + en_text
+}
 
-=== merchant_thread ===
-* [Buy sword] Bought! -> DONE
-
-=== gossip_thread ===
-* [Listen] Rumors of treasure. -> DONE
-
-=== journey ===
--> dream_tunnel ->
-~ thread_visited = true
-Back from dream.
+=== syn_15 ===
+// 15. LISTS — LIST, ?, !?, +=, -=
+{show_emoji: 🎒} 15/28 — {t("רשימות", "Lists")}
+~ mood = happy
+~ inventory += potion
+{inventory ? sword: {show_emoji: ⚔️} {t("יש חרב!", "Sword!")} | {show_emoji: ❌} {t("אין.", "None.")}}
+{inventory !? map: {show_emoji: ❌} {t("אין מפה.", "No map.")} | {show_emoji: 🗺️}}
+~ inventory -= nothing
+~ inventory += map
+{t("ציוד:", "Inv:")} {inventory}
 -> END
 
-=== dream_tunnel ===
-You dream of adventure.
-->->
+// ASSERT: Compiles without errors
+// ASSERT: LIST ? query works (sword check)
+// ASSERT: LIST !? query works (map check)
+// ASSERT: LIST += and -= modify inventory
+// ASSERT: Hebrew/English output renders correctly
+```
+
+### Issue #502+threads — Thread Merge (syn_14 from bidi_and_tdd.ink)
+
+```ink
+// 14. THREADS — <-
+// Source: bidi_and_tdd.ink syn_14 + syn_thread_a + syn_thread_b
+VAR lang = "both"
+VAR show_emoji = true
+
+=== function t(he_text, en_text) ===
+{
+  - lang == "he":
+    ~ return he_text
+  - lang == "en":
+    ~ return en_text
+  - else:
+    ~ return he_text + " — " + en_text
+}
+
+=== syn_14 ===
+{show_emoji: 🏛️} 14/28 — {t("חוטים", "Threads")}
+{t("כיכר העיר.", "Town square.")}
+<- syn_thread_a
+<- syn_thread_b
+* [{show_emoji: 🚪} {t("עזוב", "Leave")}] -> END
+
+=== syn_thread_a ===
+* [{show_emoji: 🍎} {t("פירות", "Fruit")}] {t("תפוחים.", "Apples.")} -> DONE
+
+=== syn_thread_b ===
+* [{show_emoji: 👂} {t("שמועות", "Gossip")}] {t("אוצר נסתר.", "Hidden treasure.")} -> DONE
 
 // ASSERT: Compiles without errors
-// ASSERT: "Buy sword" and "Listen" choices both appear at start
-// ASSERT: Tunnel return from dream_tunnel works correctly
-// ASSERT: thread_visited == true after journey
+// ASSERT: Thread merge <- brings choices from syn_thread_a and syn_thread_b
+// ASSERT: "Fruit", "Gossip", and "Leave" all appear as choices
+// ASSERT: Hebrew/English bilingual text renders correctly
+// ASSERT: -> DONE correctly returns from thread
 ```
 
 ---
