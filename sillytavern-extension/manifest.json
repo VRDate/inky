@@ -1,0 +1,12 @@
+{
+  "display_name": "Inky Interactive Fiction",
+  "loading_order": 1,
+  "requires": [],
+  "optional": ["translate"],
+  "js": "index.js",
+  "css": "style.css",
+  "author": "Inky MCP",
+  "version": "0.2.0",
+  "homePage": "https://github.com/inkle/inky",
+  "auto_update": true
+}

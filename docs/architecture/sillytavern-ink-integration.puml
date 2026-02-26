@@ -1,0 +1,84 @@
+@startuml sillytavern-ink-integration
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title SillyTavern + Inky MCP + LM Studio Integration
+footer Interactive Fiction via LLM-powered story narration
+
+actor "User" as user
+
+' ── SillyTavern ──
+package "SillyTavern\nlocalhost:8000" as st #FFE0B2 {
+    rectangle "Chat UI" as chatUI
+    rectangle "Character\nCards" as cards
+    rectangle "World Info\n/ Lore" as worldInfo
+    rectangle "Extension:\nInky IF" as stExtension
+}
+
+' ── LM Studio ──
+package "LM Studio\nlocalhost:1234" as lms #BBDEFB {
+    rectangle "OpenAI API\n/v1/chat" as lmsApi
+    rectangle "DictaLM 3.0\nGGUF Model" as lmsModel
+}
+
+' ── Inky MCP Server ──
+package "Inky MCP Server\nlocalhost:3001" as mcp #C8E6C9 {
+    rectangle "46 MCP Tools" as mcpTools
+    rectangle "InkEngine\n(GraalJS)" as inkEngine
+    rectangle "InkDebugEngine" as debugEngine
+    rectangle "InkEditEngine" as editEngine
+    rectangle "ColabEngine\n(Yjs WebSocket)" as colabEngine
+
+    rectangle "LlmServiceConfig\n(11 providers)" as serviceConfig
+}
+
+' ── Ollama (alternative) ──
+package "Ollama\nlocalhost:11434" as ollama #E1BEE7 {
+    rectangle "Nemotron 12B\n(Hybrid-SSM)" as ollamaModel
+}
+
+' ── Flows ──
+user --> chatUI : Play story
+chatUI --> stExtension : Ink commands
+stExtension --> mcpTools : REST/MCP API\n(compile, play, choose)
+stExtension --> lmsApi : Story narration\n(OpenAI-compat)
+
+chatUI --> lmsApi : Regular chat\n(OpenAI-compat)
+lmsApi --> lmsModel : Inference
+
+mcpTools --> inkEngine : Compile & play
+mcpTools --> debugEngine : Debug story
+mcpTools --> editEngine : Edit sections
+
+serviceConfig --> lmsApi : Connect via\nlangchain4j-open-ai
+serviceConfig --> ollama : Connect via\nOpenAI-compat
+
+cards <.. stExtension : Ink story →\ncharacter card
+worldInfo <.. stExtension : Ink knots →\nworld info entries
+
+' ── Data flow annotations ──
+note right of stExtension
+  SillyTavern Extension:
+  1. Fetches story state from MCP
+  2. Presents text + choices in chat
+  3. Maps ink to character cards
+  4. Injects story vars as lore
+end note
+
+note bottom of mcp
+  Integration pattern:
+  • ST uses LM Studio for narration
+  • Inky MCP manages story logic
+  • Ink stories = structured scenarios
+  • Choices = user interaction points
+end note
+
+legend right
+  | Service | Port | Purpose |
+  |<#FFE0B2>| SillyTavern | 8000 | Chat frontend |
+  |<#BBDEFB>| LM Studio | 1234 | LLM inference |
+  |<#C8E6C9>| Inky MCP | 3001 | Ink engine + tools |
+  |<#E1BEE7>| Ollama | 11434 | Alt. inference |
+endlegend
+
+@enduml

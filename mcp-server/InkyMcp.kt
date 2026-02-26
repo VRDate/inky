@@ -34,6 +34,7 @@
 //SOURCES src/ink/mcp/InkDebugEngine.kt
 //SOURCES src/ink/mcp/InkEditEngine.kt
 //SOURCES src/ink/mcp/InkMdEngine.kt
+//SOURCES src/ink/mcp/SillyTavernConfig.kt
 //JAVA_OPTIONS --add-modules jdk.incubator.vector --enable-preview
 //NATIVE_OPTIONS --no-fallback -H:+ReportExceptionStackTraces
 //JAVA 21
