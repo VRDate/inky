@@ -76,6 +76,9 @@ dependencies {
     // Testing
     testImplementation("io.ktor:ktor-server-test-host:$ktorVersion")
     testImplementation("org.jetbrains.kotlin:kotlin-test:2.1.0")
+
+    // Flexmark — CommonMark markdown parser for testing md+ink integration
+    testImplementation("com.vladsch.flexmark:flexmark-all:0.64.8")
 }
 
 fun osClassifier(): String {
