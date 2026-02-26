@@ -9,5 +9,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
     <PackageReference Include="xunit" Version="2.7.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.7" />
+    <!-- Markdig — CommonMark markdown parser (generic ```[info] fenced block routing) -->
+    <PackageReference Include="Markdig" Version="0.37.0" />
   </ItemGroup>
 </Project>

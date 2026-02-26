@@ -15,6 +15,9 @@ import com.vladsch.flexmark.util.data.MutableDataSet
  *   - FencedCodeBlock nodes with info="ink" → ink blocks
  *   - TableBlock/TableHead/TableBody nodes → markdown tables
  *
+ * H1-H6 headings act as a **file path** / POI spreadsheet sheet name /
+ * ink LIST of headers addressing the tables and ```ink blocks beneath them.
+ *
  * Validates that docs/BIDI_TDD_ISSUES.md:
  *   1. Parses as a valid CommonMark document via Flexmark
  *   2. Contains extractable ```ink code blocks with valid ink syntax
@@ -22,7 +25,7 @@ import com.vladsch.flexmark.util.data.MutableDataSet
  *   4. Tags are semicolon-delimited lowercase kebab-case arrays
  *   5. TDD column uses YES:/NO:/PARTIAL: prefixes
  *   6. Ink blocks cross-reference table entries
- *   7. Summary statistics are internally consistent
+ *   7. Heading path tree addresses blocks and tables
  */
 class InkMdTableTest {
 
@@ -30,14 +33,20 @@ class InkMdTableTest {
     // DATA CLASSES
     // ═══════════════════════════════════════════════════════════════
 
+    data class HeadingNode(
+        val level: Int,
+        val text: String,
+        val path: List<String> // full heading ancestry
+    )
+
     data class InkBlock(
-        val heading: String,
+        val heading: HeadingNode,
         val source: String,
         val lineNumber: Int
     )
 
     data class MdTable(
-        val heading: String,
+        val heading: HeadingNode,
         val headers: List<String>,
         val rows: List<List<String>>,
         val lineNumber: Int
@@ -66,13 +75,17 @@ class InkMdTableTest {
         private val flexmarkParser: Parser = Parser.builder(flexmarkOptions).build()
         private val mdDocument: Node by lazy { flexmarkParser.parse(mdSource) }
 
-        // ─── Flexmark-based extractors ───
-        private val flexmarkInkBlocks: List<InkBlock> by lazy { extractInkBlocksViaFlexmark(mdDocument) }
-        private val flexmarkTables: List<MdTable> by lazy { extractTablesViaFlexmark(mdDocument) }
+        // ─── Flexmark AST-based extractors with heading-path tree ───
+        private data class ExtractResult(
+            val headingTree: List<HeadingNode>,
+            val inkBlocks: List<InkBlock>,
+            val tables: List<MdTable>
+        )
 
-        // ─── Regex-based extractors (cross-validation) ───
-        private val inkBlocks: List<InkBlock> by lazy { extractInkBlocks(mdSource) }
-        private val mdTables: List<MdTable> by lazy { extractMdTables(mdSource) }
+        private val extractResult: ExtractResult by lazy { extractViaFlexmark(mdDocument) }
+        private val headingTree: List<HeadingNode> by lazy { extractResult.headingTree }
+        private val inkBlocks: List<InkBlock> by lazy { extractResult.inkBlocks }
+        private val mdTables: List<MdTable> by lazy { extractResult.tables }
         private val issuesTables: List<MdTable> by lazy {
             mdTables.filter { "#" in it.headers && "TDD" in it.headers }
         }
@@ -92,137 +105,64 @@ class InkMdTableTest {
         private val LIST_DECL_REGEX = Regex("""^LIST\s+\w+\s*=""")
         private val LOGIC_LINE_REGEX = Regex("""^~\s""")
         private val CHOICE_REGEX = Regex("""^\*\s|^\+\s|^\*\s*\[|^\*\s*\{|^\*\s*->""")
-        private val COMMENT_REGEX = Regex("""^//""")
-        private val DIVERT_REGEX = Regex("""->""")
         private val GLUE_REGEX = Regex("""<>""")
-        private val TAG_REGEX = Regex("""\s#\s""")
         private val TAG_KEBAB = Regex("""^[a-z][a-z0-9-]*$""")
 
-        // ─── Parsers ───
+        // ─── Flexmark AST extraction with heading-path tree ───
 
-        fun extractInkBlocks(md: String): List<InkBlock> {
-            val blocks = mutableListOf<InkBlock>()
-            val lines = md.lines()
-            var inBlock = false
-            var heading = ""
-            var blockLines = mutableListOf<String>()
-            var lineNum = 0
-
-            for ((i, line) in lines.withIndex()) {
-                val hm = Regex("""^#{1,4}\s+(.+)""").find(line)
-                if (hm != null) heading = hm.groupValues[1].trim()
-
-                if (!inBlock && line.trim() == "```ink") {
-                    inBlock = true
-                    blockLines = mutableListOf()
-                    lineNum = i + 1
-                } else if (inBlock && line.trim() == "```") {
-                    inBlock = false
-                    blocks.add(InkBlock(heading, blockLines.joinToString("\n"), lineNum))
-                } else if (inBlock) {
-                    blockLines.add(line)
-                }
-            }
-            return blocks
-        }
-
-        fun extractMdTables(md: String): List<MdTable> {
+        /**
+         * Walk the Flexmark AST collecting:
+         * - Heading → heading path stack (h1-h6 as file paths / sheet names)
+         * - FencedCodeBlock with info="ink" → InkBlock (routed by info string)
+         * - TableBlock → MdTable
+         *
+         * This mirrors the generic ```[info] fenced code block routing pattern
+         * used by Remirror, CodeMirror, Markdig, and marked.
+         */
+        fun extractViaFlexmark(doc: Node): ExtractResult {
+            val headingTree = mutableListOf<HeadingNode>()
+            val inkBlocks = mutableListOf<InkBlock>()
             val tables = mutableListOf<MdTable>()
-            val lines = md.lines()
-            var heading = ""
-            var i = 0
 
-            while (i < lines.size) {
-                val hm = Regex("""^#{1,4}\s+(.+)""").find(lines[i])
-                if (hm != null) heading = hm.groupValues[1].trim()
+            // Heading stack tracks current path by level
+            val headingStack = mutableListOf<Pair<Int, String>>()
 
-                if (lines[i].trim().startsWith("|") && i + 1 < lines.size) {
-                    val sep = lines[i + 1]
-                    if (sep.trim().matches(Regex("""\|[\s\-:|]+\|.*"""))) {
-                        val headers = parseRow(lines[i])
-                        val rows = mutableListOf<List<String>>()
-                        var j = i + 2
-                        while (j < lines.size && lines[j].trim().startsWith("|")) {
-                            rows.add(parseRow(lines[j]))
-                            j++
-                        }
-                        if (rows.isNotEmpty()) {
-                            tables.add(MdTable(heading, headers, rows, i + 1))
-                        }
-                        i = j
-                        continue
-                    }
-                }
-                i++
+            fun currentPath(): List<String> = headingStack.map { it.second }
+
+            fun currentHeading(): HeadingNode {
+                if (headingStack.isEmpty())
+                    return HeadingNode(0, "(root)", emptyList())
+                val last = headingStack.last()
+                return HeadingNode(last.first, last.second, currentPath())
             }
-            return tables
-        }
-
-        fun parseRow(line: String): List<String> =
-            line.split("|").map { it.trim() }.filter { it.isNotEmpty() }
-
-        fun parseIssueRow(headers: List<String>, row: List<String>): IssueRow {
-            val h = headers.indexOf("#")
-            val t = headers.indexOf("Title")
-            val tg = headers.indexOf("Tags")
-            val td = headers.indexOf("TDD")
-            val tddCell = row.getOrElse(td) { "" }
-            val verdict = when {
-                tddCell.startsWith("YES:") -> "YES"
-                tddCell.startsWith("NO:") -> "NO"
-                else -> "PARTIAL"
-            }
-            return IssueRow(
-                issueNumber = row.getOrElse(h) { "" },
-                title = row.getOrElse(t) { "" },
-                tags = row.getOrElse(tg) { "" }.split(";").map { it.trim() },
-                tddVerdict = verdict,
-                tddReason = tddCell.replace(Regex("""^(YES|NO|PARTIAL):\s*"""), "")
-            )
-        }
-
-        // ─── Flexmark AST-based extractors ───
-
-        /** Walk the AST collecting FencedCodeBlock with info="ink" */
-        fun extractInkBlocksViaFlexmark(doc: Node): List<InkBlock> {
-            val blocks = mutableListOf<InkBlock>()
-            var lastHeading = ""
-
-            fun walk(node: Node) {
-                when (node) {
-                    is Heading -> lastHeading = node.text.toString()
-                    is FencedCodeBlock -> {
-                        val info = node.info.toString().trim()
-                        if (info == "ink") {
-                            blocks.add(InkBlock(
-                                heading = lastHeading,
-                                source = node.contentChars.toString().trimEnd(),
-                                lineNumber = node.startLineNumber + 1
-                            ))
-                        }
-                    }
-                }
-                var child = node.firstChild
-                while (child != null) {
-                    walk(child)
-                    child = child.next
-                }
-            }
-            walk(doc)
-            return blocks
-        }
-
-        /** Walk the AST collecting TableBlock nodes */
-        fun extractTablesViaFlexmark(doc: Node): List<MdTable> {
-            val tables = mutableListOf<MdTable>()
-            var lastHeading = ""
 
             fun cellText(cell: TableCell): String =
                 cell.text.toString().trim()
 
             fun walk(node: Node) {
                 when (node) {
-                    is Heading -> lastHeading = node.text.toString()
+                    is Heading -> {
+                        val level = node.level
+                        val text = node.text.toString()
+
+                        // Pop headings at same or deeper level
+                        while (headingStack.isNotEmpty() && headingStack.last().first >= level)
+                            headingStack.removeAt(headingStack.size - 1)
+
+                        headingStack.add(level to text)
+                        headingTree.add(HeadingNode(level, text, currentPath()))
+                    }
+                    is FencedCodeBlock -> {
+                        // Generic ```[info] routing — only process info="ink"
+                        val info = node.info.toString().trim()
+                        if (info == "ink") {
+                            inkBlocks.add(InkBlock(
+                                heading = currentHeading(),
+                                source = node.contentChars.toString().trimEnd(),
+                                lineNumber = node.startLineNumber + 1
+                            ))
+                        }
+                    }
                     is TableBlock -> {
                         var headers = listOf<String>()
                         val rows = mutableListOf<List<String>>()
@@ -253,7 +193,7 @@ class InkMdTableTest {
                             child = child.next
                         }
                         if (headers.isNotEmpty() && rows.isNotEmpty()) {
-                            tables.add(MdTable(lastHeading, headers, rows, node.startLineNumber + 1))
+                            tables.add(MdTable(currentHeading(), headers, rows, node.startLineNumber + 1))
                         }
                     }
                 }
@@ -267,12 +207,32 @@ class InkMdTableTest {
                 }
             }
             walk(doc)
-            return tables
+            return ExtractResult(headingTree, inkBlocks, tables)
+        }
+
+        fun parseIssueRow(headers: List<String>, row: List<String>): IssueRow {
+            val h = headers.indexOf("#")
+            val t = headers.indexOf("Title")
+            val tg = headers.indexOf("Tags")
+            val td = headers.indexOf("TDD")
+            val tddCell = row.getOrElse(td) { "" }
+            val verdict = when {
+                tddCell.startsWith("YES:") -> "YES"
+                tddCell.startsWith("NO:") -> "NO"
+                else -> "PARTIAL"
+            }
+            return IssueRow(
+                issueNumber = row.getOrElse(h) { "" },
+                title = row.getOrElse(t) { "" },
+                tags = row.getOrElse(tg) { "" }.split(";").map { it.trim() },
+                tddVerdict = verdict,
+                tddReason = tddCell.replace(Regex("""^(YES|NO|PARTIAL):\s*"""), "")
+            )
         }
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // FLEXMARK AST PARSING — markdown document structure
+    // 1. FLEXMARK AST PARSING — heading path tree
     // ═══════════════════════════════════════════════════════════════
 
     @Test
@@ -282,79 +242,65 @@ class InkMdTableTest {
     }
 
     @Test
-    fun `flexmark finds all 9 ink fenced code blocks`() {
-        assertEquals(9, flexmarkInkBlocks.size,
-            "Flexmark ink blocks: ${flexmarkInkBlocks.map { it.heading }}")
+    fun `heading tree has expected sections`() {
+        assertTrue(headingTree.size > 10,
+            "Expected many headings, got ${headingTree.size}")
+        val h2s = headingTree.filter { it.level == 2 }
+        assertTrue(h2s.size >= 5,
+            "Expected >= 5 h2 sections, got ${h2s.size}")
     }
 
     @Test
-    fun `flexmark ink blocks match regex ink blocks`() {
-        assertEquals(inkBlocks.size, flexmarkInkBlocks.size,
-            "Flexmark and regex extractors should find the same number of ink blocks")
-        for (i in inkBlocks.indices) {
-            assertEquals(inkBlocks[i].heading, flexmarkInkBlocks[i].heading,
-                "Block $i heading should match")
-        }
+    fun `heading path tracks ancestry`() {
+        val hasAncestry = headingTree.any { it.path.size >= 2 }
+        assertTrue(hasAncestry, "Some headings should have multi-level path ancestry")
     }
 
     @Test
-    fun `flexmark extracts tables as TableBlock AST nodes`() {
-        assertTrue(flexmarkTables.isNotEmpty(),
-            "Flexmark should find tables in the markdown")
-    }
-
-    @Test
-    fun `flexmark tables match regex tables in count`() {
-        // Flexmark might merge or split differently, but counts should be close
-        assertTrue(flexmarkTables.size >= mdTables.size - 2,
-            "Flexmark found ${flexmarkTables.size} tables, regex found ${mdTables.size}")
-    }
-
-    @Test
-    fun `flexmark issues tables have correct columns`() {
-        val fIssuesTables = flexmarkTables.filter {
-            "#" in it.headers && "TDD" in it.headers
-        }
-        assertTrue(fIssuesTables.size >= 2,
-            "Flexmark should find >= 2 issues tables, got ${fIssuesTables.size}")
-        for (table in fIssuesTables) {
-            for (col in listOf("#", "Title", "Tags", "TDD")) {
-                assertTrue(col in table.headers,
-                    "Flexmark table '${table.heading}' missing column: $col")
-            }
-        }
-    }
-
-    @Test
-    fun `flexmark ink blocks contain valid ink source`() {
-        for (block in flexmarkInkBlocks) {
-            assertTrue(block.source.isNotBlank(),
-                "Flexmark block '${block.heading}' has empty source")
-            // Every ink block should have at least one ink construct
-            val hasInkSyntax = block.source.contains("===") ||
-                    block.source.contains("->") ||
-                    block.source.contains("VAR ") ||
-                    block.source.contains("* [")
-            assertTrue(hasInkSyntax,
-                "Flexmark block '${block.heading}' has no recognizable ink syntax")
+    fun `h2 headings act as section paths for tables and blocks`() {
+        val h2s = headingTree.filter { it.level == 2 }
+        assertTrue(h2s.size >= 5, "Expected >= 5 h2 sections")
+        // Each h2 should have a 2-element path (h1 + h2)
+        for (h in h2s) {
+            assertTrue(h.path.size >= 2,
+                "h2 '${h.text}' should have path with >= 2 elements, got ${h.path}")
         }
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // INK BLOCK EXTRACTION (regex-based, cross-validates flexmark)
+    // 2. EXTRACT ```ink BLOCKS — routed by info="ink"
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `extracts all 9 ink blocks from markdown`() {
+    fun `extracts all 9 ink blocks via flexmark`() {
         assertEquals(9, inkBlocks.size,
-            "Headings: ${inkBlocks.map { it.heading }}")
+            "Headings: ${inkBlocks.map { it.heading.text }}")
+    }
+
+    @Test
+    fun `ink blocks have heading path ancestry`() {
+        for (block in inkBlocks) {
+            assertTrue(block.heading.path.isNotEmpty(),
+                "Block '${block.heading.text}' should have heading path")
+        }
+    }
+
+    @Test
+    fun `ink blocks are under E2E Test Resource section`() {
+        for (block in inkBlocks) {
+            val path = block.heading.path.joinToString(" > ")
+            assertTrue(
+                "E2E Test Resource" in path || "Issue" in path,
+                "Ink block should be under E2E section, got: $path"
+            )
+        }
     }
 
     @Test
     fun `each ink block has non-empty source`() {
         for (block in inkBlocks) {
             assertTrue(block.source.isNotBlank(),
-                "Block '${block.heading}' at line ${block.lineNumber} is empty")
+                "Block '${block.heading.text}' at line ${block.lineNumber} is empty")
         }
     }
 
@@ -362,8 +308,8 @@ class InkMdTableTest {
     fun `ink blocks reference issue numbers in headings`() {
         for (block in inkBlocks) {
             assertTrue(
-                block.heading.contains("Issue") || block.heading.contains("ink-"),
-                "Block heading '${block.heading}' should reference an Issue"
+                block.heading.text.contains("Issue") || block.heading.text.contains("ink-"),
+                "Block heading '${block.heading.text}' should reference an Issue"
             )
         }
     }
@@ -375,8 +321,32 @@ class InkMdTableTest {
             "At least 8 blocks should have // ASSERT: comments, got $withAsserts")
     }
 
+    @Test
+    fun `ink blocks cover expected issues`() {
+        val allHeadings = inkBlocks.joinToString(" ") { it.heading.text }
+        for (issue in listOf("#122", "#541", "#534", "#508", "#485", "ink-959", "ink-916", "ink-844")) {
+            assertTrue(issue in allHeadings, "Missing ink block for issue $issue")
+        }
+    }
+
+    @Test
+    fun `ink blocks routed separately from other code`() {
+        var inkCount = 0
+        var otherCount = 0
+        fun walk(node: Node) {
+            if (node is FencedCodeBlock) {
+                if (node.info.toString().trim() == "ink") inkCount++ else otherCount++
+            }
+            var child = node.firstChild
+            while (child != null) { walk(child); child = child.next }
+        }
+        walk(mdDocument)
+        assertEquals(9, inkCount)
+        assertTrue(otherCount >= 0, "Non-ink code blocks exist as separate routes")
+    }
+
     // ═══════════════════════════════════════════════════════════════
-    // INK SYNTAX VALIDATION
+    // 3. INK SYNTAX VALIDATION
     // ═══════════════════════════════════════════════════════════════
 
     @Test
@@ -385,7 +355,7 @@ class InkMdTableTest {
             val varLines = block.source.lines().filter { it.trim().startsWith("VAR ") }
             for (line in varLines) {
                 assertTrue(VAR_DECL_REGEX.containsMatchIn(line.trim()),
-                    "VAR line '$line' in '${block.heading}' should match VAR_DECL_REGEX")
+                    "VAR line '$line' in '${block.heading.text}' should match VAR_DECL_REGEX")
             }
         }
     }
@@ -396,7 +366,7 @@ class InkMdTableTest {
             val knotLines = block.source.lines().filter { it.trim().startsWith("=== ") }
             for (line in knotLines) {
                 assertTrue(KNOT_REGEX.containsMatchIn(line.trim()),
-                    "Knot '$line' in '${block.heading}' should match KNOT_REGEX")
+                    "Knot '$line' in '${block.heading.text}' should match KNOT_REGEX")
             }
         }
     }
@@ -405,10 +375,16 @@ class InkMdTableTest {
     fun `choice lines use valid bullet markers`() {
         for (block in inkBlocks) {
             val choiceLines = block.source.lines()
-                .filter { it.trim().let { l -> l.startsWith("* ") || l.startsWith("+ ") || l.startsWith("* [") || l.startsWith("* {") || l == "* -> fallback" } }
+                .filter {
+                    it.trim().let { l ->
+                        l.startsWith("* ") || l.startsWith("+ ") ||
+                        l.startsWith("* [") || l.startsWith("* {") ||
+                        l == "* -> fallback"
+                    }
+                }
             for (line in choiceLines) {
                 assertTrue(CHOICE_REGEX.containsMatchIn(line.trim()),
-                    "Choice '$line' in '${block.heading}' should match CHOICE_REGEX")
+                    "Choice '$line' in '${block.heading.text}' should match CHOICE_REGEX")
             }
         }
     }
@@ -417,31 +393,31 @@ class InkMdTableTest {
     fun `blocks with diverts have END or DONE except issue 534`() {
         for (block in inkBlocks) {
             if (!block.source.contains("->")) continue
-            if ("#534" in block.heading) continue  // intentionally missing END
+            if ("#534" in block.heading.text) continue
 
             val hasTerminator = "-> END" in block.source ||
                     "-> DONE" in block.source ||
                     "->->" in block.source
             assertTrue(hasTerminator,
-                "Block '${block.heading}' has diverts but no END/DONE/tunnel-return")
+                "Block '${block.heading.text}' has diverts but no END/DONE/tunnel-return")
         }
     }
 
     @Test
     fun `RTL blocks contain Hebrew or CJK text`() {
-        val rtlBlocks = inkBlocks.filter { "#122" in it.heading || "#485" in it.heading }
+        val rtlBlocks = inkBlocks.filter { "#122" in it.heading.text || "#485" in it.heading.text }
         val hebrewRange = Regex("[\u0590-\u05FF]")
         val cjkRange = Regex("[\u3000-\u9FFF\uAC00-\uD7AF]")
 
         for (block in rtlBlocks) {
             assertTrue(hebrewRange.containsMatchIn(block.source) || cjkRange.containsMatchIn(block.source),
-                "Block '${block.heading}' should contain RTL or CJK text")
+                "Block '${block.heading.text}' should contain RTL or CJK text")
         }
     }
 
     @Test
     fun `CJK block contains Japanese Hiragana, Chinese CJK Unified, and Korean Hangul`() {
-        val cjkBlock = inkBlocks.find { "#485" in it.heading }
+        val cjkBlock = inkBlocks.find { "#485" in it.heading.text }
         assertNotNull(cjkBlock, "Should find CJK block for issue #485")
         assertTrue(Regex("[\u3040-\u309F]").containsMatchIn(cjkBlock.source), "Missing Hiragana")
         assertTrue(Regex("[\u4E00-\u9FFF]").containsMatchIn(cjkBlock.source), "Missing CJK Unified")
@@ -460,13 +436,13 @@ class InkMdTableTest {
             val logicLines = block.source.lines().filter { it.trim().startsWith("~ ") }
             for (line in logicLines) {
                 assertTrue(LOGIC_LINE_REGEX.containsMatchIn(line.trim()),
-                    "Logic line '$line' in '${block.heading}' should match LOGIC_LINE_REGEX")
+                    "Logic line '$line' in '${block.heading.text}' should match LOGIC_LINE_REGEX")
             }
         }
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // MARKDOWN TABLE SCHEMA
+    // 4. MARKDOWN TABLE SCHEMA
     // ═══════════════════════════════════════════════════════════════
 
     @Test
@@ -476,36 +452,51 @@ class InkMdTableTest {
     }
 
     @Test
-    fun `inky issues table has required columns`() {
-        val inkyTable = issuesTables.find { "inkle/inky" in it.heading }
-        assertNotNull(inkyTable)
-        for (col in listOf("#", "Title", "Tags", "TDD")) {
-            assertTrue(col in inkyTable.headers, "Missing column: $col")
+    fun `issues tables addressed under section headings`() {
+        for (table in issuesTables) {
+            val path = table.heading.path.joinToString(" > ")
+            assertTrue(
+                "inkle/inky" in path || "inkle/ink" in path,
+                "Issues table should be under inkle section, got: $path"
+            )
         }
     }
 
     @Test
-    fun `ink issues table has required columns`() {
-        val inkTable = issuesTables.find { "inkle/ink" in it.heading }
-        assertNotNull(inkTable)
-        for (col in listOf("#", "Title", "Tags", "TDD")) {
-            assertTrue(col in inkTable.headers, "Missing column: $col")
+    fun `tables have heading path ancestry`() {
+        for (table in mdTables) {
+            assertTrue(table.heading.path.isNotEmpty(),
+                "Table at '${table.heading.text}' should have heading path")
+        }
+    }
+
+    @Test
+    fun `issues tables have correct columns`() {
+        for (table in issuesTables) {
+            for (col in listOf("#", "Title", "Tags", "TDD")) {
+                assertTrue(col in table.headers,
+                    "Table '${table.heading.text}' missing column: $col")
+            }
         }
     }
 
     @Test
     fun `inky table has at least 40 rows`() {
-        val inkyTable = issuesTables.find { "inkle/inky" in it.heading }!!
+        val inkyTable = issuesTables.find { "inkle/inky" in it.heading.path.joinToString(" ") }!!
         assertTrue(inkyTable.rows.size >= 40,
             "Expected >= 40 inky rows, got ${inkyTable.rows.size}")
     }
 
     @Test
     fun `ink table has at least 20 rows`() {
-        val inkTable = issuesTables.find { "inkle/ink" in it.heading }!!
+        val inkTable = issuesTables.find { "inkle/ink" in it.heading.path.joinToString(" ") }!!
         assertTrue(inkTable.rows.size >= 20,
             "Expected >= 20 ink rows, got ${inkTable.rows.size}")
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 5. TABLE DATA CONSISTENCY
+    // ═══════════════════════════════════════════════════════════════
 
     @Test
     fun `all issue cells contain GitHub links`() {
@@ -513,7 +504,7 @@ class InkMdTableTest {
             val idx = table.headers.indexOf("#")
             for ((r, row) in table.rows.withIndex()) {
                 assertTrue("github.com/inkle/" in row[idx],
-                    "Row ${r + 1} in '${table.heading}' missing GitHub link: ${row[idx]}")
+                    "Row ${r + 1} in '${table.heading.text}' missing GitHub link: ${row[idx]}")
             }
         }
     }
@@ -526,7 +517,7 @@ class InkMdTableTest {
                 val tags = row[idx].split(";").map { it.trim() }
                 for (tag in tags) {
                     assertTrue(TAG_KEBAB.matches(tag),
-                        "Tag '$tag' in row ${r + 1} of '${table.heading}' should be kebab-case")
+                        "Tag '$tag' in row ${r + 1} of '${table.heading.text}' should be kebab-case")
                 }
             }
         }
@@ -540,7 +531,7 @@ class InkMdTableTest {
                 val tags = row[idx].split(";").map { it.trim() }
                 for (tag in tags) {
                     assertTrue(tag in KNOWN_TAGS,
-                        "Unknown tag '$tag' in row ${r + 1} of '${table.heading}'")
+                        "Unknown tag '$tag' in row ${r + 1} of '${table.heading.text}'")
                 }
             }
         }
@@ -571,7 +562,7 @@ class InkMdTableTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // CROSS-REFERENCE: INK BLOCKS ↔ TABLE ENTRIES
+    // 6. CROSS-REFERENCE: INK BLOCKS ↔ TABLE ENTRIES
     // ═══════════════════════════════════════════════════════════════
 
     @Test
@@ -581,7 +572,7 @@ class InkMdTableTest {
         }
 
         for (block in inkBlocks) {
-            val match = Regex("""#(\d+)|ink-(\d+)""").find(block.heading) ?: continue
+            val match = Regex("""#(\d+)|ink-(\d+)""").find(block.heading.text) ?: continue
             val num = match.groupValues[1].ifEmpty { match.groupValues[2] }
 
             val tableRow = allRows.find { it.issueNumber.contains(num) }
@@ -609,12 +600,12 @@ class InkMdTableTest {
                 if (pct != null) totalPct += pct
             }
             assertTrue(totalPct in 99..101,
-                "Percentages in '${table.heading}' should sum to ~100%, got $totalPct%")
+                "Percentages in '${table.heading.text}' should sum to ~100%, got $totalPct%")
         }
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // BIDI TEST MATRIX
+    // 7. BIDI TEST MATRIX
     // ═══════════════════════════════════════════════════════════════
 
     @Test

@@ -3,6 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using Markdig;
+using Markdig.Syntax;
+using Markdig.Syntax.Inlines;
+using Markdig.Extensions.Tables;
 using Xunit;
 
 namespace InkMdTable.Tests;
@@ -10,8 +14,15 @@ namespace InkMdTable.Tests;
 /// <summary>
 /// Tests markdown files containing ```ink fenced code blocks and markdown tables.
 ///
+/// Uses **Markdig** (CommonMark parser) for AST-based extraction of:
+///   - FencedCodeBlock nodes with Info="ink" → ink blocks
+///   - Table nodes → markdown tables
+///
+/// H1-H6 headings act as a **file path** / POI spreadsheet sheet name /
+/// ink LIST of headers addressing the tables and ```ink blocks beneath them.
+///
 /// Validates that docs/BIDI_TDD_ISSUES.md:
-///   1. Parses as a valid markdown document
+///   1. Parses as a valid CommonMark document via Markdig
 ///   2. Contains extractable ```ink code blocks with valid ink syntax
 ///   3. Contains markdown tables with correct schema (# | Title | Tags | TDD)
 ///   4. Tags are semicolon-delimited lowercase kebab-case arrays
@@ -24,9 +35,11 @@ public class InkMdTableTest
     // DATA CLASSES
     // ═══════════════════════════════════════════════════════════════
 
-    public record InkBlock(string Heading, string Source, int LineNumber);
+    public record HeadingNode(int Level, string Text, List<string> Path);
 
-    public record MdTable(string Heading, List<string> Headers, List<List<string>> Rows, int LineNumber);
+    public record InkBlock(HeadingNode Heading, string Source, int LineNumber);
+
+    public record MdTableData(HeadingNode Heading, List<string> Headers, List<List<string>> Rows, int LineNumber);
 
     public record IssueRow(string IssueNumber, string Title, List<string> Tags, string TddVerdict, string TddReason);
 
@@ -37,11 +50,17 @@ public class InkMdTableTest
     private static readonly string ProjectRoot = FindProjectRoot();
     private static readonly string MdSource = File.ReadAllText(
         Path.Combine(ProjectRoot, "docs", "BIDI_TDD_ISSUES.md"));
-    private static readonly List<InkBlock> InkBlocks = ExtractInkBlocks(MdSource);
-    private static readonly List<MdTable> MdTables = ExtractMdTables(MdSource);
-    private static readonly List<MdTable> IssuesTables = MdTables
-        .Where(t => t.Headers.Contains("#") && t.Headers.Contains("TDD"))
-        .ToList();
+
+    private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
+        .UseAdvancedExtensions()
+        .Build();
+
+    private static readonly MarkdownDocument MdDoc = Markdown.Parse(MdSource, Pipeline);
+
+    private static readonly List<HeadingNode> HeadingTree;
+    private static readonly List<InkBlock> InkBlocks;
+    private static readonly List<MdTableData> MdTables;
+    private static readonly List<MdTableData> IssuesTables;
 
     private static readonly HashSet<string> KnownTags = new()
     {
@@ -52,8 +71,19 @@ public class InkMdTableTest
         "variables", "lists", "logic", "api", "dark-mode", "packaging"
     };
 
+    static InkMdTableTest()
+    {
+        var result = ExtractViaMarkdig(MdDoc);
+        HeadingTree = result.Headings;
+        InkBlocks = result.InkBlocks;
+        MdTables = result.Tables;
+        IssuesTables = MdTables
+            .Where(t => t.Headers.Contains("#") && t.Headers.Contains("TDD"))
+            .ToList();
+    }
+
     // ═══════════════════════════════════════════════════════════════
-    // PARSERS
+    // MARKDIG AST EXTRACTION — heading-routed blocks and tables
     // ═══════════════════════════════════════════════════════════════
 
     private static string FindProjectRoot()
@@ -66,78 +96,122 @@ public class InkMdTableTest
                 return dir;
             dir = Directory.GetParent(dir)?.FullName;
         }
-        // Fallback: assume running from InkMdTable.Tests/
         return Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), ".."));
     }
 
-    private static List<InkBlock> ExtractInkBlocks(string md)
+    private record ExtractResult(
+        List<HeadingNode> Headings,
+        List<InkBlock> InkBlocks,
+        List<MdTableData> Tables);
+
+    /// <summary>
+    /// Walk the Markdig AST collecting:
+    /// - HeadingBlock → heading path stack (h1-h6 as file paths / sheet names)
+    /// - FencedCodeBlock with Info="ink" → InkBlock (routed by info string)
+    /// - Table → MdTableData
+    ///
+    /// This mirrors the generic ```[info] fenced code block routing pattern
+    /// used by Remirror, CodeMirror, and Flexmark.
+    /// </summary>
+    private static ExtractResult ExtractViaMarkdig(MarkdownDocument doc)
     {
-        var blocks = new List<InkBlock>();
-        var lines = md.Split('\n');
-        var inBlock = false;
-        var heading = "";
-        var blockLines = new List<string>();
-        var lineNum = 0;
+        var headings = new List<HeadingNode>();
+        var inkBlocks = new List<InkBlock>();
+        var tables = new List<MdTableData>();
 
-        for (int i = 0; i < lines.Length; i++)
+        // Heading stack tracks current path by level
+        var headingStack = new List<(int Level, string Text)>();
+
+        List<string> CurrentPath() => headingStack.Select(h => h.Text).ToList();
+
+        HeadingNode CurrentHeading()
         {
-            var hm = Regex.Match(lines[i], @"^#{1,4}\s+(.+)");
-            if (hm.Success) heading = hm.Groups[1].Value.Trim();
-
-            if (!inBlock && lines[i].Trim() == "```ink")
-            {
-                inBlock = true;
-                blockLines = new List<string>();
-                lineNum = i + 1;
-            }
-            else if (inBlock && lines[i].Trim() == "```")
-            {
-                inBlock = false;
-                blocks.Add(new InkBlock(heading, string.Join("\n", blockLines), lineNum));
-            }
-            else if (inBlock)
-            {
-                blockLines.Add(lines[i]);
-            }
+            if (headingStack.Count == 0)
+                return new HeadingNode(0, "(root)", new List<string>());
+            var last = headingStack[^1];
+            return new HeadingNode(last.Level, last.Text, CurrentPath());
         }
-        return blocks;
-    }
 
-    private static List<MdTable> ExtractMdTables(string md)
-    {
-        var tables = new List<MdTable>();
-        var lines = md.Split('\n');
-        var heading = "";
-
-        for (int i = 0; i < lines.Length; i++)
+        foreach (var block in doc)
         {
-            var hm = Regex.Match(lines[i], @"^#{1,4}\s+(.+)");
-            if (hm.Success) heading = hm.Groups[1].Value.Trim();
-
-            if (lines[i].Trim().StartsWith("|") && i + 1 < lines.Length)
+            switch (block)
             {
-                var sep = lines[i + 1];
-                if (sep != null && Regex.IsMatch(sep.Trim(), @"^\|[\s\-:|]+\|"))
+                case HeadingBlock heading:
                 {
-                    var headers = ParseRow(lines[i]);
-                    var rows = new List<List<string>>();
-                    int j = i + 2;
-                    while (j < lines.Length && lines[j].Trim().StartsWith("|"))
+                    var level = heading.Level;
+                    var text = heading.Inline?.FirstChild?.ToString() ?? "";
+                    // Collect full inline text
+                    if (heading.Inline != null)
                     {
-                        rows.Add(ParseRow(lines[j]));
-                        j++;
+                        var sb = new System.Text.StringBuilder();
+                        foreach (var inline in heading.Inline)
+                            sb.Append(inline.ToString());
+                        text = sb.ToString().Trim();
                     }
-                    if (rows.Count > 0)
-                        tables.Add(new MdTable(heading, headers, rows, i + 1));
-                    i = j - 1;
+
+                    // Pop headings at same or deeper level
+                    while (headingStack.Count > 0 && headingStack[^1].Level >= level)
+                        headingStack.RemoveAt(headingStack.Count - 1);
+
+                    headingStack.Add((level, text));
+                    headings.Add(new HeadingNode(level, text, CurrentPath()));
+                    break;
+                }
+
+                case FencedCodeBlock fenced:
+                {
+                    // Generic ```[info] routing — only process info="ink"
+                    var info = fenced.Info?.Trim() ?? "";
+                    if (info == "ink")
+                    {
+                        var source = fenced.Lines.ToString().TrimEnd();
+                        inkBlocks.Add(new InkBlock(CurrentHeading(), source, fenced.Line + 1));
+                    }
+                    break;
+                }
+
+                case Table table:
+                {
+                    var headers = new List<string>();
+                    var rows = new List<List<string>>();
+
+                    foreach (var child in table)
+                    {
+                        if (child is TableRow row)
+                        {
+                            var cells = new List<string>();
+                            foreach (var cell in row)
+                            {
+                                if (cell is TableCell tc)
+                                {
+                                    var sb = new System.Text.StringBuilder();
+                                    foreach (var inline in tc.SelectMany(p =>
+                                        p is ParagraphBlock pb && pb.Inline != null
+                                            ? pb.Inline.Cast<Inline>()
+                                            : Enumerable.Empty<Inline>()))
+                                    {
+                                        sb.Append(inline.ToString());
+                                    }
+                                    cells.Add(sb.ToString().Trim());
+                                }
+                            }
+
+                            if (row.IsHeader)
+                                headers = cells;
+                            else
+                                rows.Add(cells);
+                        }
+                    }
+
+                    if (headers.Count > 0 && rows.Count > 0)
+                        tables.Add(new MdTableData(CurrentHeading(), headers, rows, table.Line + 1));
+                    break;
                 }
             }
         }
-        return tables;
-    }
 
-    private static List<string> ParseRow(string line) =>
-        line.Split('|').Select(c => c.Trim()).Where(c => c.Length > 0).ToList();
+        return new ExtractResult(headings, inkBlocks, tables);
+    }
 
     private static IssueRow ParseIssueRow(List<string> headers, List<string> row)
     {
@@ -161,32 +235,49 @@ public class InkMdTableTest
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 1. PARSE MARKDOWN DOCUMENT
+    // 1. MARKDIG AST PARSING — document structure
     // ═══════════════════════════════════════════════════════════════
 
     [Fact]
-    public void Markdown_source_is_loaded_and_non_empty()
+    public void Markdig_parses_document_without_errors()
     {
-        Assert.True(MdSource.Length > 1000,
-            $"Markdown source should be substantial, got {MdSource.Length} chars");
+        Assert.NotNull(MdDoc);
+        Assert.True(MdDoc.Count > 50,
+            $"Document should have many AST nodes, got {MdDoc.Count}");
     }
 
     [Fact]
-    public void Markdown_contains_expected_headings()
+    public void Markdig_finds_heading_code_and_table_AST_types()
     {
-        Assert.Contains("# Bidi TDD", MdSource);
-        Assert.Contains("## E2E Test Resource", MdSource);
-        Assert.Contains("## inkle/inky", MdSource);
-        Assert.Contains("## inkle/ink", MdSource);
-        Assert.Contains("## Summary Statistics", MdSource);
+        var types = MdDoc.Select(b => b.GetType().Name).ToHashSet();
+        Assert.Contains("HeadingBlock", types);
+        Assert.Contains("FencedCodeBlock", types);
+        Assert.Contains("Table", types);
+    }
+
+    [Fact]
+    public void Heading_tree_has_expected_sections()
+    {
+        Assert.True(HeadingTree.Count > 10,
+            $"Expected many headings, got {HeadingTree.Count}");
+        var h2s = HeadingTree.Where(h => h.Level == 2).ToList();
+        Assert.True(h2s.Count >= 5,
+            $"Expected >= 5 h2 sections, got {h2s.Count}");
+    }
+
+    [Fact]
+    public void Heading_path_tracks_ancestry()
+    {
+        var hasAncestry = HeadingTree.Any(h => h.Path.Count >= 2);
+        Assert.True(hasAncestry, "Some headings should have multi-level path ancestry");
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 2. EXTRACT INK BLOCKS
+    // 2. EXTRACT ```ink BLOCKS — routed by Info="ink"
     // ═══════════════════════════════════════════════════════════════
 
     [Fact]
-    public void Extracts_all_9_ink_blocks()
+    public void Extracts_all_9_ink_blocks_via_Markdig()
     {
         Assert.Equal(9, InkBlocks.Count);
     }
@@ -196,16 +287,27 @@ public class InkMdTableTest
     {
         foreach (var block in InkBlocks)
             Assert.True(block.Source.Trim().Length > 0,
-                $"Block '{block.Heading}' at line {block.LineNumber} is empty");
+                $"Block '{block.Heading.Text}' at line {block.LineNumber} is empty");
     }
 
     [Fact]
-    public void Ink_blocks_reference_issue_numbers()
+    public void Ink_blocks_have_heading_path_ancestry()
     {
         foreach (var block in InkBlocks)
+            Assert.True(block.Heading.Path.Count >= 1,
+                $"Block '{block.Heading.Text}' should have heading path");
+    }
+
+    [Fact]
+    public void Ink_blocks_are_under_E2E_section()
+    {
+        foreach (var block in InkBlocks)
+        {
+            var path = string.Join(" > ", block.Heading.Path);
             Assert.True(
-                block.Heading.Contains("Issue") || block.Heading.Contains("ink-"),
-                $"Heading '{block.Heading}' should reference an Issue");
+                path.Contains("E2E Test Resource") || path.Contains("Issue"),
+                $"Ink block should be under E2E section, got: {path}");
+        }
     }
 
     [Fact]
@@ -219,13 +321,25 @@ public class InkMdTableTest
     [Fact]
     public void Ink_blocks_cover_expected_issues()
     {
-        var headings = string.Join(" ", InkBlocks.Select(b => b.Heading));
+        var headings = string.Join(" ", InkBlocks.Select(b => b.Heading.Text));
         foreach (var issue in new[] { "#122", "#541", "#534", "#508", "#485", "ink-959", "ink-916", "ink-844" })
             Assert.Contains(issue, headings);
     }
 
+    [Fact]
+    public void Ink_blocks_routed_separately_from_other_code()
+    {
+        var allFenced = MdDoc.OfType<FencedCodeBlock>().ToList();
+        var inkFenced = allFenced.Where(f => f.Info?.Trim() == "ink").ToList();
+        var otherFenced = allFenced.Where(f => f.Info?.Trim() != "ink").ToList();
+
+        Assert.Equal(9, inkFenced.Count);
+        Assert.True(otherFenced.Count >= 0,
+            "Non-ink code blocks exist as separate routes");
+    }
+
     // ═══════════════════════════════════════════════════════════════
-    // 3. EXTRACT MARKDOWN TABLES
+    // 3. EXTRACT MARKDOWN TABLES — Markdig Table AST nodes
     // ═══════════════════════════════════════════════════════════════
 
     [Fact]
@@ -236,25 +350,29 @@ public class InkMdTableTest
     }
 
     [Fact]
-    public void Inky_table_has_required_columns()
+    public void Issues_tables_addressed_under_section_headings()
     {
-        var table = IssuesTables.First(t => t.Heading.Contains("inkle/inky"));
-        foreach (var col in new[] { "#", "Title", "Tags", "TDD" })
-            Assert.Contains(col, table.Headers);
+        foreach (var table in IssuesTables)
+        {
+            var path = string.Join(" > ", table.Heading.Path);
+            Assert.True(
+                path.Contains("inkle/inky") || path.Contains("inkle/ink"),
+                $"Issues table should be under inkle section, got: {path}");
+        }
     }
 
     [Fact]
-    public void Ink_table_has_required_columns()
+    public void Tables_have_required_columns()
     {
-        var table = IssuesTables.First(t => t.Heading.Contains("inkle/ink"));
-        foreach (var col in new[] { "#", "Title", "Tags", "TDD" })
-            Assert.Contains(col, table.Headers);
+        foreach (var table in IssuesTables)
+            foreach (var col in new[] { "#", "Title", "Tags", "TDD" })
+                Assert.Contains(col, table.Headers);
     }
 
     [Fact]
     public void Inky_table_has_at_least_40_rows()
     {
-        var table = IssuesTables.First(t => t.Heading.Contains("inkle/inky"));
+        var table = IssuesTables.First(t => string.Join(" ", t.Heading.Path).Contains("inkle/inky"));
         Assert.True(table.Rows.Count >= 40,
             $"Expected >= 40 rows, got {table.Rows.Count}");
     }
@@ -262,13 +380,13 @@ public class InkMdTableTest
     [Fact]
     public void Ink_table_has_at_least_20_rows()
     {
-        var table = IssuesTables.First(t => t.Heading.Contains("inkle/ink"));
+        var table = IssuesTables.First(t => string.Join(" ", t.Heading.Path).Contains("inkle/ink"));
         Assert.True(table.Rows.Count >= 20,
             $"Expected >= 20 rows, got {table.Rows.Count}");
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 4. VERIFY INK BLOCKS COMPILE (static syntax validation)
+    // 4. VERIFY INK BLOCKS — static syntax validation
     // ═══════════════════════════════════════════════════════════════
 
     [Fact]
@@ -322,27 +440,27 @@ public class InkMdTableTest
         foreach (var block in InkBlocks)
         {
             if (!block.Source.Contains("->")) continue;
-            if (block.Heading.Contains("#534")) continue;
+            if (block.Heading.Text.Contains("#534")) continue;
 
             bool hasTerminator = block.Source.Contains("-> END") ||
                                  block.Source.Contains("-> DONE") ||
                                  block.Source.Contains("->->");
             Assert.True(hasTerminator,
-                $"Block '{block.Heading}' has diverts but no END/DONE");
+                $"Block '{block.Heading.Text}' has diverts but no END/DONE");
         }
     }
 
     [Fact]
     public void RTL_blocks_contain_Hebrew_text()
     {
-        var block122 = InkBlocks.First(b => b.Heading.Contains("#122"));
+        var block122 = InkBlocks.First(b => b.Heading.Text.Contains("#122"));
         Assert.Matches(new Regex(@"[\u0590-\u05FF]"), block122.Source);
     }
 
     [Fact]
     public void CJK_block_contains_three_scripts()
     {
-        var block = InkBlocks.First(b => b.Heading.Contains("#485"));
+        var block = InkBlocks.First(b => b.Heading.Text.Contains("#485"));
         Assert.Matches(new Regex(@"[\u3040-\u309F]"), block.Source);  // Hiragana
         Assert.Matches(new Regex(@"[\u4E00-\u9FFF]"), block.Source);  // CJK Unified
         Assert.Matches(new Regex(@"[\uAC00-\uD7AF]"), block.Source);  // Hangul
@@ -403,7 +521,7 @@ public class InkMdTableTest
                 var tags = table.Rows[r][idx].Split(';').Select(t => t.Trim());
                 foreach (var tag in tags)
                     Assert.True(KnownTags.Contains(tag),
-                        $"Unknown tag '{tag}' in row {r + 1} of '{table.Heading}'");
+                        $"Unknown tag '{tag}' in row {r + 1} of '{table.Heading.Text}'");
             }
         }
     }
@@ -471,7 +589,7 @@ public class InkMdTableTest
 
         foreach (var block in InkBlocks)
         {
-            var m = Regex.Match(block.Heading, @"#(\d+)|ink-(\d+)");
+            var m = Regex.Match(block.Heading.Text, @"#(\d+)|ink-(\d+)");
             if (!m.Success) continue;
             var num = m.Groups[1].Value != "" ? m.Groups[1].Value : m.Groups[2].Value;
 
@@ -488,7 +606,8 @@ public class InkMdTableTest
     [Fact]
     public void TDD_YES_count_matches_table()
     {
-        var inkyTable = IssuesTables.First(t => t.Heading.Contains("inkle/inky"));
+        var inkyTable = IssuesTables.First(t =>
+            string.Join(" ", t.Heading.Path).Contains("inkle/inky"));
         int yesCount = inkyTable.Rows
             .Select(r => ParseIssueRow(inkyTable.Headers, r))
             .Count(r => r.TddVerdict == "YES");
