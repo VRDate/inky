@@ -142,11 +142,8 @@ class BidiTddInkTest {
                     result = engine.continueStory(sessionId)
                 } else if (result.choices.isNotEmpty()) {
                     // Thread knots (syn_14) present thread choices (Fruit, Gossip)
-                    // alongside the main-flow "Leave" choice. Choosing a thread
-                    // choice (index 0) diverts to -> DONE, ending that thread but
-                    // stranding the story. We detect the thread stage by looking
-                    // for the "Leave"/"עזוב" choice and pick it to advance.
-                    // For all other stages, default to index 0.
+                    // alongside a "Leave" choice. Thread choices -> DONE strands the
+                    // story. For thread knots, pick "Leave"; otherwise pick first.
                     val leaveIdx = result.choices.indexOfFirst {
                         it.text.contains("Leave") || it.text.contains("עזוב")
                     }
