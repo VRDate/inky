@@ -1,0 +1,95 @@
+@startuml ink-kmp-architecture
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+
+title Ink Ecosystem — KMP + MCP Architecture
+footer Inky MCP Server • GraalJS • blade-ink • inkjs
+
+' ───────── Color palette ─────────
+skinparam component {
+    BackgroundColor<<js>> #E8F5E9
+    BackgroundColor<<kt>> #E3F2FD
+    BackgroundColor<<rs>> #FFF3E0
+    BackgroundColor<<cs>> #F3E5F5
+    BackgroundColor<<mcp>> #FFEBEE
+    BackgroundColor<<kmp>> #E0F7FA
+}
+
+' ───────── Top: Ink Language ─────────
+package "Ink Language (inkle)" as ink {
+    [ink syntax\n.ink files] as INK
+    [inklecate\n(C# compiler)] as INKLECATE <<cs>>
+    [ink JSON\nformat] as INKJSON
+    INK --> INKLECATE
+    INKLECATE --> INKJSON
+}
+
+' ───────── JS Runtime Ecosystem ─────────
+package "JavaScript Ecosystem" as jseco {
+    [inkjs\n(JS compiler+runtime)] as INKJS <<js>>
+    [bidify.js\n(RTL bidi markers)] as BIDIFY <<js>>
+    [Inky Editor\n(Electron app)] as INKY <<js>>
+
+    INKJS --> INKY : used by
+    BIDIFY --> INKY : used by
+}
+
+' ───────── JVM/KMP Ecosystem ─────────
+package "JVM / KMP Ecosystem" as jvmeco {
+    package "blade-ink-java\n(bladecoder)" as bladejava <<kt>> {
+        [Story.java\n(runtime)] as BIR
+        [Compiler.java\n(compiler)] as BIC
+        [Choice.java] as BICHOICE
+    }
+
+    package "blade-ink-rs\n(Rust + FFI)" as bladers <<rs>> {
+        [ink runtime\n(Rust)] as BIRS
+        [C FFI\nbindings] as BIRSFFI
+        BIRS --> BIRSFFI
+    }
+
+    package "Inky MCP Server\n(Ktor + GraalJS)" as mcpserver <<mcp>> {
+        [InkEngine.kt\n(GraalJS bridge)] as ENGINE
+        [McpTools.kt\n(17 tools)] as TOOLS
+        [McpRouter.kt\n(SSE transport)] as ROUTER
+        ENGINE --> TOOLS
+        TOOLS --> ROUTER
+    }
+}
+
+' ───────── KMP Target Layer ─────────
+package "KMP Targets (Proposed)" as kmp <<kmp>> {
+    [JVM\n(Android, Desktop)] as KMP_JVM
+    [JS\n(Browser, Node)] as KMP_JS
+    [Native\n(iOS, Linux, macOS)] as KMP_NATIVE
+    [WASM\n(WasmJS, WASI)] as KMP_WASM
+}
+
+' ───────── Consumers ─────────
+package "Consumers" as consumers {
+    [LLM / AI Agent\n(Claude, GPT)] as LLM
+    [Game Engine\n(LibGDX, Godot)] as GAME
+    [Web App\n(Browser)] as WEBAPP
+    [Mobile App\n(Android, iOS)] as MOBILE
+}
+
+' ───────── Connections ─────────
+INKJS ..> ENGINE : loaded via\nGraalJS
+BIDIFY ..> ENGINE : loaded via\nGraalJS
+INK --> INKJS : compiles
+INK --> BIC : compiles
+
+BIR --> KMP_JVM : direct use
+BIRS --> KMP_NATIVE : via FFI
+INKJS --> KMP_JS : via require()
+INKJS --> KMP_WASM : via wasm-bindgen\nor Javy
+
+ROUTER --> LLM : MCP SSE/stdio
+KMP_JVM --> GAME : blade-ink API
+KMP_JS --> WEBAPP : inkjs API
+KMP_NATIVE --> MOBILE : FFI bindings
+KMP_WASM --> WEBAPP : wasm module
+
+@enduml

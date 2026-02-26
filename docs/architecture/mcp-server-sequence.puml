@@ -1,0 +1,72 @@
+@startuml mcp-server-sequence
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title MCP Server — Story Session Sequence
+footer Inky MCP Server (Ktor + GraalJS + inkjs)
+
+actor "LLM Agent" as LLM
+participant "MCP Client" as CLIENT
+participant "Ktor Server\n(McpRouter)" as ROUTER
+participant "McpTools\n(17 tools)" as TOOLS
+participant "InkEngine\n(GraalJS)" as ENGINE
+participant "inkjs\n(Compiler+Story)" as INKJS
+
+== Initialize ==
+LLM -> CLIENT : connect
+CLIENT -> ROUTER : GET /sse
+ROUTER --> CLIENT : event: endpoint\ndata: /message?sessionId=xxx
+CLIENT -> ROUTER : POST /message\n{"method":"initialize"}
+ROUTER --> CLIENT : SSE event: message\n{serverInfo, capabilities, tools}
+
+== List Tools ==
+CLIENT -> ROUTER : POST /message\n{"method":"tools/list"}
+ROUTER -> TOOLS : list tools
+TOOLS --> ROUTER : 17 tool definitions
+ROUTER --> CLIENT : SSE event: tools list
+
+== Compile & Start Story ==
+LLM -> CLIENT : "compile this ink"
+CLIENT -> ROUTER : POST /message\n{"method":"tools/call",\n"params":{"name":"start_story",\n"arguments":{"source":"...ink..."}}}
+ROUTER -> TOOLS : callTool("start_story")
+TOOLS -> ENGINE : startSession(ink)
+ENGINE -> INKJS : new Compiler(source)
+INKJS --> ENGINE : story object
+ENGINE -> INKJS : story.Continue()
+INKJS --> ENGINE : text + choices
+ENGINE --> TOOLS : (sessionId, ContinueResult)
+TOOLS --> ROUTER : McpToolResult
+ROUTER --> CLIENT : SSE event: result\n{session_id, text, choices}
+CLIENT --> LLM : "Story says: ...\nChoices: 1. ... 2. ..."
+
+== Make Choice ==
+LLM -> CLIENT : "choose option 1"
+CLIENT -> ROUTER : POST /message\n{"method":"tools/call",\n"params":{"name":"choose",\n"arguments":{"session_id":"abc",\n"choice_index":0}}}
+ROUTER -> TOOLS : callTool("choose")
+TOOLS -> ENGINE : choose("abc", 0)
+ENGINE -> INKJS : story.ChooseChoiceIndex(0)\nstory.Continue()
+INKJS --> ENGINE : new text + choices
+ENGINE --> TOOLS : ContinueResult
+TOOLS --> ROUTER : McpToolResult
+ROUTER --> CLIENT : SSE event: result
+CLIENT --> LLM : "Story continues: ..."
+
+== Save & Restore ==
+LLM -> CLIENT : "save state"
+CLIENT -> ROUTER : tools/call save_state
+ROUTER -> ENGINE : saveState()
+ENGINE -> INKJS : story.state.ToJson()
+INKJS --> ENGINE : state JSON
+ENGINE --> ROUTER : state JSON
+ROUTER --> CLIENT : {state_json: "..."}
+
+== Bidify RTL ==
+LLM -> CLIENT : "bidify Arabic text"
+CLIENT -> ROUTER : tools/call bidify
+ROUTER -> ENGINE : bidify(text)
+ENGINE -> INKJS : bidifyModule.bidify(text)
+INKJS --> ENGINE : bidified text
+ENGINE --> ROUTER : result
+ROUTER --> CLIENT : {result: "⁦text⁩"}
+
+@enduml
