@@ -48,7 +48,11 @@ package "Inky MCP Server (Ktor)" as server #F5F5F5 {
 
     rectangle "InkVCardEngine\n(ez-vcard)" as vcardEngine #BCAAA4
 
+    rectangle "InkWebDavEngine\n(Sardine + FS)" as webDavEngine #81D4FA
+    rectangle "WebDAV Routes\n/dav/{path}" as davEndpoint #81D4FA
+
     database "Document\nState" as docState
+    database "ink-scripts/\n(filesystem)" as inkScripts
 }
 
 ' ── Auth Flow ──
@@ -84,6 +88,11 @@ colabEngine --> inkMdEngine : parse MD templates
 
 vcardEngine --> authEngine : LLM credentials
 
+davEndpoint --> authEngine : "check access\n(domain/user rules)"
+davEndpoint --> webDavEngine
+webDavEngine --> vcardEngine : "resolve role\n(shared vs private)"
+webDavEngine --> inkScripts : "read/write\n.ink .puml .svg"
+
 ' ── Protocol ──
 note right of yjsSync
   Yjs Binary Protocol:
@@ -106,6 +115,11 @@ note bottom of authEngine
   • BasicAuth: model_name:jwt_token
   • MCP URI: mcp://model:token@host:port
   • vCard with folder mapping
+
+  WebDAV access rules:
+  • domain/user/shared/* → public read
+  • domain/user/* → private to user+org
+  • Write requires edit role
 end note
 
 legend right

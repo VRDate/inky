@@ -12,6 +12,7 @@ import kotlinx.serialization.json.*
  *   - LLM model management (8 tools)
  *   - LLM service providers (2 tools)
  *   - Collaboration (2 tools)
+ *   - WebDAV + Backup (10 tools)
  */
 class McpTools(
     private val engine: InkEngine,
@@ -24,7 +25,8 @@ class McpTools(
     private val ink2PumlEngine: Ink2PumlEngine = Ink2PumlEngine(editEngine),
     private val calendarEngine: InkCalendarEngine? = null,
     private val vcardEngine: InkVCardEngine? = null,
-    private val authEngine: InkAuthEngine? = null
+    private val authEngine: InkAuthEngine? = null,
+    private val webDavEngine: InkWebDavEngine? = null
 ) {
 
     /** Currently connected external LLM service */
@@ -48,6 +50,7 @@ class McpTools(
             if (calendarEngine != null) addAll(calendarTools)
             if (vcardEngine != null) addAll(vcardTools)
             if (authEngine != null) addAll(authTools)
+            if (webDavEngine != null) addAll(webDavTools)
         }
     }
 
@@ -829,6 +832,139 @@ class McpTools(
     )
 
     // ════════════════════════════════════════════════════════════════════
+    // WEBDAV TOOLS (6)
+    // ════════════════════════════════════════════════════════════════════
+
+    private val webDavTools: List<McpToolInfo> = listOf(
+        McpToolInfo(
+            name = "webdav_list",
+            description = "List files and directories at a WebDAV path. domain/user/shared/ is publicly readable, other paths require auth.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("path") { put("type", "string"); put("description", "Path under ink-scripts/ (e.g. 'example.com/alice/shared/')") }
+                    putJsonObject("principal_id") { put("type", "string"); put("description", "Principal ID for access control (optional for shared paths)") }
+                }
+                putJsonArray("required") { add("path") }
+            }
+        ),
+        McpToolInfo(
+            name = "webdav_get",
+            description = "Get file content from a WebDAV path. Shared files are publicly readable.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("path") { put("type", "string"); put("description", "File path under ink-scripts/ (e.g. 'example.com/alice/script.ink')") }
+                    putJsonObject("principal_id") { put("type", "string"); put("description", "Principal ID for access control") }
+                }
+                putJsonArray("required") { add("path") }
+            }
+        ),
+        McpToolInfo(
+            name = "webdav_put",
+            description = "Write file content to a WebDAV path. Requires edit role. Creates parent directories.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("path") { put("type", "string"); put("description", "File path under ink-scripts/") }
+                    putJsonObject("content") { put("type", "string"); put("description", "File content to write") }
+                    putJsonObject("principal_id") { put("type", "string"); put("description", "Principal ID (must have edit role)") }
+                }
+                putJsonArray("required") { add("path"); add("content"); add("principal_id") }
+            }
+        ),
+        McpToolInfo(
+            name = "webdav_delete",
+            description = "Delete a file or directory at a WebDAV path. Requires edit role.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("path") { put("type", "string"); put("description", "Path to delete") }
+                    putJsonObject("principal_id") { put("type", "string"); put("description", "Principal ID (must have edit role)") }
+                }
+                putJsonArray("required") { add("path"); add("principal_id") }
+            }
+        ),
+        McpToolInfo(
+            name = "webdav_mkdir",
+            description = "Create a directory at a WebDAV path. Requires edit role.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("path") { put("type", "string"); put("description", "Directory path to create") }
+                    putJsonObject("principal_id") { put("type", "string"); put("description", "Principal ID (must have edit role)") }
+                }
+                putJsonArray("required") { add("path"); add("principal_id") }
+            }
+        ),
+        McpToolInfo(
+            name = "webdav_sync",
+            description = "Sync files from a remote WebDAV server to a local path using Sardine client. Downloads .ink, .puml, .svg files.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("remote_url") { put("type", "string"); put("description", "Remote WebDAV URL to sync from") }
+                    putJsonObject("local_path") { put("type", "string"); put("description", "Local path under ink-scripts/ to sync to") }
+                    putJsonObject("username") { put("type", "string"); put("description", "Remote WebDAV username (optional)") }
+                    putJsonObject("password") { put("type", "string"); put("description", "Remote WebDAV password (optional)") }
+                    putJsonObject("principal_id") { put("type", "string"); put("description", "Principal ID for local write access") }
+                }
+                putJsonArray("required") { add("remote_url"); add("local_path"); add("principal_id") }
+            }
+        ),
+        McpToolInfo(
+            name = "webdav_backup",
+            description = "Create timestamped backup of master script files (.ink, .puml, .svg). Master = no timestamp (main merged copy). Backup = timestamp prefix.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("script_path") { put("type", "string"); put("description", "Script base path without extension (e.g. 'example.com/alice/script')") }
+                    putJsonObject("principal_id") { put("type", "string"); put("description", "Principal ID (must have edit role)") }
+                }
+                putJsonArray("required") { add("script_path"); add("principal_id") }
+            }
+        ),
+        McpToolInfo(
+            name = "webdav_list_backups",
+            description = "List timestamped backups for a master file, newest first.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("path") { put("type", "string"); put("description", "Master file path (e.g. 'example.com/alice/script.ink')") }
+                    putJsonObject("principal_id") { put("type", "string"); put("description", "Principal ID for access control") }
+                }
+                putJsonArray("required") { add("path") }
+            }
+        ),
+        McpToolInfo(
+            name = "webdav_restore",
+            description = "Restore a timestamped backup to the master file (main merged copy).",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("backup_path") { put("type", "string"); put("description", "Backup file path (e.g. 'example.com/alice/script/2026-02-26_14-30-00.000000000.ink')") }
+                    putJsonObject("master_path") { put("type", "string"); put("description", "Master file path (e.g. 'example.com/alice/script.ink')") }
+                    putJsonObject("principal_id") { put("type", "string"); put("description", "Principal ID (must have edit role)") }
+                }
+                putJsonArray("required") { add("backup_path"); add("master_path"); add("principal_id") }
+            }
+        ),
+        McpToolInfo(
+            name = "webdav_working_copy",
+            description = "Create an LLM working copy of a user's files. Origin = user's master files. Working copy = LLM's local edit copy. Yjs sync merges back if enabled.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("origin_path") { put("type", "string"); put("description", "Origin directory path (e.g. 'example.com/alice/')") }
+                    putJsonObject("model_id") { put("type", "string"); put("description", "LLM model ID for the working copy") }
+                    putJsonObject("principal_id") { put("type", "string"); put("description", "Principal ID (the LLM model)") }
+                }
+                putJsonArray("required") { add("origin_path"); add("model_id"); add("principal_id") }
+            }
+        )
+    )
+
+    // ════════════════════════════════════════════════════════════════════
     // DISPATCH
     // ════════════════════════════════════════════════════════════════════
 
@@ -907,6 +1043,17 @@ class McpTools(
                 // Auth tools
                 "auth_status" -> handleAuthStatus()
                 "create_llm_credential" -> handleCreateLlmCredential(arguments)
+                // WebDAV tools
+                "webdav_list" -> handleWebDavList(arguments)
+                "webdav_get" -> handleWebDavGet(arguments)
+                "webdav_put" -> handleWebDavPut(arguments)
+                "webdav_delete" -> handleWebDavDelete(arguments)
+                "webdav_mkdir" -> handleWebDavMkDir(arguments)
+                "webdav_sync" -> handleWebDavSync(arguments)
+                "webdav_backup" -> handleWebDavBackup(arguments)
+                "webdav_list_backups" -> handleWebDavListBackups(arguments)
+                "webdav_restore" -> handleWebDavRestore(arguments)
+                "webdav_working_copy" -> handleWebDavWorkingCopy(arguments)
                 else -> errorResult("Unknown tool: $name")
             }
         } catch (e: Exception) {
@@ -1702,6 +1849,153 @@ Provide specific, actionable feedback."""
             port = args?.get("port")?.jsonPrimitive?.intOrNull ?: 3001,
             jcard = args?.get("jcard")?.jsonPrimitive?.contentOrNull
         )
+        return textResult(mapToJson(result).toString())
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // WEBDAV HANDLERS
+    // ════════════════════════════════════════════════════════════════════
+
+    private fun handleWebDavList(args: JsonObject?): McpToolResult {
+        val dav = webDavEngine ?: return errorResult("WebDAV engine not enabled")
+        val path = args.requireString("path")
+        val principalId = args?.get("principal_id")?.jsonPrimitive?.contentOrNull
+
+        if (!dav.canAccess(principalId, path, write = false)) {
+            return errorResult("Access denied: $path")
+        }
+
+        val files = dav.listFiles(path)
+        return textResult(buildJsonObject {
+            put("path", path)
+            put("is_shared", dav.isSharedPath(path))
+            putJsonArray("files") { files.forEach { add(mapToJson(it)) } }
+        }.toString())
+    }
+
+    private fun handleWebDavGet(args: JsonObject?): McpToolResult {
+        val dav = webDavEngine ?: return errorResult("WebDAV engine not enabled")
+        val path = args.requireString("path")
+        val principalId = args?.get("principal_id")?.jsonPrimitive?.contentOrNull
+
+        if (!dav.canAccess(principalId, path, write = false)) {
+            return errorResult("Access denied: $path")
+        }
+
+        val file = dav.getFile(path) ?: return errorResult("Not found: $path")
+        return textResult(mapToJson(file).toString())
+    }
+
+    private fun handleWebDavPut(args: JsonObject?): McpToolResult {
+        val dav = webDavEngine ?: return errorResult("WebDAV engine not enabled")
+        val path = args.requireString("path")
+        val content = args.requireString("content")
+        val principalId = args.requireString("principal_id")
+
+        if (!dav.canAccess(principalId, path, write = true)) {
+            return errorResult("Write access denied: $path")
+        }
+
+        val result = dav.putFile(path, content)
+        return textResult(mapToJson(result).toString())
+    }
+
+    private fun handleWebDavDelete(args: JsonObject?): McpToolResult {
+        val dav = webDavEngine ?: return errorResult("WebDAV engine not enabled")
+        val path = args.requireString("path")
+        val principalId = args.requireString("principal_id")
+
+        if (!dav.canAccess(principalId, path, write = true)) {
+            return errorResult("Delete access denied: $path")
+        }
+
+        val result = dav.deleteFile(path)
+        return textResult(mapToJson(result).toString())
+    }
+
+    private fun handleWebDavMkDir(args: JsonObject?): McpToolResult {
+        val dav = webDavEngine ?: return errorResult("WebDAV engine not enabled")
+        val path = args.requireString("path")
+        val principalId = args.requireString("principal_id")
+
+        if (!dav.canAccess(principalId, path, write = true)) {
+            return errorResult("Mkdir access denied: $path")
+        }
+
+        val result = dav.mkDir(path)
+        return textResult(mapToJson(result).toString())
+    }
+
+    private fun handleWebDavSync(args: JsonObject?): McpToolResult {
+        val dav = webDavEngine ?: return errorResult("WebDAV engine not enabled")
+        val remoteUrl = args.requireString("remote_url")
+        val localPath = args.requireString("local_path")
+        val principalId = args.requireString("principal_id")
+        val username = args?.get("username")?.jsonPrimitive?.contentOrNull
+        val password = args?.get("password")?.jsonPrimitive?.contentOrNull
+
+        if (!dav.canAccess(principalId, localPath, write = true)) {
+            return errorResult("Write access denied for sync target: $localPath")
+        }
+
+        val result = dav.syncFromRemote(remoteUrl, localPath, username, password)
+        return textResult(mapToJson(result).toString())
+    }
+
+    private fun handleWebDavBackup(args: JsonObject?): McpToolResult {
+        val dav = webDavEngine ?: return errorResult("WebDAV engine not enabled")
+        val scriptPath = args.requireString("script_path")
+        val principalId = args.requireString("principal_id")
+
+        if (!dav.canAccess(principalId, scriptPath, write = true)) {
+            return errorResult("Backup access denied: $scriptPath")
+        }
+
+        val result = dav.createBackupSet(scriptPath)
+        return textResult(mapToJson(result).toString())
+    }
+
+    private fun handleWebDavListBackups(args: JsonObject?): McpToolResult {
+        val dav = webDavEngine ?: return errorResult("WebDAV engine not enabled")
+        val path = args.requireString("path")
+        val principalId = args?.get("principal_id")?.jsonPrimitive?.contentOrNull
+
+        if (!dav.canAccess(principalId, path, write = false)) {
+            return errorResult("Access denied: $path")
+        }
+
+        val backups = dav.listBackups(path)
+        return textResult(buildJsonObject {
+            put("path", path)
+            putJsonArray("backups") { backups.forEach { add(mapToJson(it)) } }
+        }.toString())
+    }
+
+    private fun handleWebDavRestore(args: JsonObject?): McpToolResult {
+        val dav = webDavEngine ?: return errorResult("WebDAV engine not enabled")
+        val backupPath = args.requireString("backup_path")
+        val masterPath = args.requireString("master_path")
+        val principalId = args.requireString("principal_id")
+
+        if (!dav.canAccess(principalId, masterPath, write = true)) {
+            return errorResult("Restore access denied: $masterPath")
+        }
+
+        val result = dav.restoreBackup(backupPath, masterPath)
+        return textResult(mapToJson(result).toString())
+    }
+
+    private fun handleWebDavWorkingCopy(args: JsonObject?): McpToolResult {
+        val dav = webDavEngine ?: return errorResult("WebDAV engine not enabled")
+        val originPath = args.requireString("origin_path")
+        val modelId = args.requireString("model_id")
+        val principalId = args.requireString("principal_id")
+
+        if (!dav.canAccess(principalId, originPath, write = false)) {
+            return errorResult("Read access denied for working copy: $originPath")
+        }
+
+        val result = dav.createWorkingCopy(originPath, modelId)
         return textResult(mapToJson(result).toString())
     }
 

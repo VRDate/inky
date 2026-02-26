@@ -54,12 +54,13 @@ fun main(args: Array<String>) {
 
     val keycloakUrl = System.getenv("KEYCLOAK_REALM_URL")
 
-    println("Inky MCP Server v0.3.0")
+    println("Inky MCP Server v0.3.1")
     println("  Mode:        $mode")
     println("  Port:        $port")
     println("  inkjs:       $inkjsPath")
     println("  bidify:      ${bidifyPath ?: "(not found)"}")
     println("  Auth:        ${if (keycloakUrl != null) "Keycloak ($keycloakUrl)" else "disabled (open access)"}")
+    println("  WebDAV:      /dav/ (ink-scripts filesystem)")
     println("  Collab:      WebSocket /collab/:docId")
     when (mode) {
         "jlama" -> {

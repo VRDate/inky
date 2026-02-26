@@ -67,10 +67,11 @@ fun startServer(
     // Initialize collaboration engine
     val colabEngine = ColabEngine()
 
-    // Initialize auth, calendar, vcard engines
+    // Initialize auth, calendar, vcard, webdav engines
     val authEngine = InkAuthEngine()
     val calendarEngine = InkCalendarEngine()
     val vcardEngine = InkVCardEngine(authEngine)
+    val webDavEngine = InkWebDavEngine(vcardEngine)
 
     // Initialize edit + puml engines (shared)
     val editEngine = InkEditEngine()
@@ -88,7 +89,8 @@ fun startServer(
         ink2PumlEngine = ink2PumlEngine,
         calendarEngine = calendarEngine,
         vcardEngine = vcardEngine,
-        authEngine = authEngine
+        authEngine = authEngine,
+        webDavEngine = webDavEngine
     )
     val mcpSessions = ConcurrentHashMap<String, McpSession>()
 
@@ -140,7 +142,7 @@ fun startServer(
             // Health check
             get("/health") {
                 call.respondText(
-                    """{"status":"ok","version":"0.3.0","mode":"$mode","tools":${tools.tools.size}}""",
+                    """{"status":"ok","version":"0.3.1","mode":"$mode","tools":${tools.tools.size}}""",
                     ContentType.Application.Json
                 )
             }
@@ -289,6 +291,69 @@ fun startServer(
                 call.respondText(result.content.first().text, ContentType.Application.Json)
             }
 
+            // ── WebDAV REST API ──
+            // GET — list directory or get file content
+            get("/dav/{path...}") {
+                val path = call.parameters.getAll("path")?.joinToString("/") ?: ""
+                val principalId = call.request.queryParameters["principal_id"]
+                val args = buildJsonObject {
+                    put("path", path)
+                    principalId?.let { put("principal_id", it) }
+                }
+                val file = java.io.File("./ink-scripts", path)
+                if (file.isDirectory) {
+                    val result = tools.callTool("webdav_list", args)
+                    call.respondText(result.content.first().text, ContentType.Application.Json)
+                } else {
+                    val result = tools.callTool("webdav_get", args)
+                    if (result.isError == true) {
+                        call.respondText(result.content.first().text, ContentType.Application.Json, HttpStatusCode.Forbidden)
+                    } else {
+                        call.respondText(result.content.first().text, ContentType.Application.Json)
+                    }
+                }
+            }
+
+            // PUT — write file
+            put("/dav/{path...}") {
+                val path = call.parameters.getAll("path")?.joinToString("/") ?: ""
+                val principalId = call.request.queryParameters["principal_id"] ?: ""
+                val content = call.receiveText()
+                val args = buildJsonObject {
+                    put("path", path)
+                    put("content", content)
+                    put("principal_id", principalId)
+                }
+                val result = tools.callTool("webdav_put", args)
+                val status = if (result.isError == true) HttpStatusCode.Forbidden else HttpStatusCode.Created
+                call.respondText(result.content.first().text, ContentType.Application.Json, status)
+            }
+
+            // DELETE — delete file
+            delete("/dav/{path...}") {
+                val path = call.parameters.getAll("path")?.joinToString("/") ?: ""
+                val principalId = call.request.queryParameters["principal_id"] ?: ""
+                val args = buildJsonObject {
+                    put("path", path)
+                    put("principal_id", principalId)
+                }
+                val result = tools.callTool("webdav_delete", args)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            // POST — create directory (MKCOL)
+            post("/dav/{path...}") {
+                val path = call.parameters.getAll("path")?.joinToString("/") ?: ""
+                val principalId = call.request.queryParameters["principal_id"] ?: ""
+                val args = buildJsonObject {
+                    put("path", path)
+                    put("principal_id", principalId)
+                }
+                val result = tools.callTool("webdav_mkdir", args)
+                val status = if (result.isError == true) HttpStatusCode.Forbidden else HttpStatusCode.Created
+                call.respondText(result.content.first().text, ContentType.Application.Json, status)
+            }
+
             // ── Direct REST API (non-MCP) ──
             post("/api/compile") {
                 val body = mcpJson.parseToJsonElement(call.receiveText()).jsonObject
@@ -415,7 +480,7 @@ private fun handleRpcRequest(request: JsonRpcRequest, tools: McpTools): JsonRpcR
     return when (request.method) {
         "initialize" -> {
             val result = McpInitializeResult(
-                serverInfo = McpServerInfo(name = "inky-mcp", version = "0.3.0")
+                serverInfo = McpServerInfo(name = "inky-mcp", version = "0.3.1")
             )
             JsonRpcResponse(
                 id = request.id,

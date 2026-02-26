@@ -25,6 +25,7 @@
 //DEPS net.sourceforge.plantuml:plantuml-mit:1.2024.8
 //DEPS org.mnode.ical4j:ical4j:4.0.7
 //DEPS com.googlecode.ez-vcard:ez-vcard:0.12.1
+//DEPS com.github.lookfirst:sardine:5.12
 //DEPS ch.qos.logback:logback-classic:1.5.15
 //SOURCES src/ink/mcp/InkEngine.kt
 //SOURCES src/ink/mcp/McpTypes.kt
@@ -44,6 +45,7 @@
 //SOURCES src/ink/mcp/InkAuthEngine.kt
 //SOURCES src/ink/mcp/InkCalendarEngine.kt
 //SOURCES src/ink/mcp/InkVCardEngine.kt
+//SOURCES src/ink/mcp/InkWebDavEngine.kt
 //JAVA_OPTIONS --add-modules jdk.incubator.vector --enable-preview
 //NATIVE_OPTIONS --no-fallback -H:+ReportExceptionStackTraces
 //JAVA 21

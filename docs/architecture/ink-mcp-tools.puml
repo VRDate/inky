@@ -2,8 +2,8 @@
 !theme plain
 skinparam backgroundColor #FEFEFE
 
-title Inky MCP Server — 61 Tool Architecture
-footer v0.3.0 | Ktor + GraalJS + Camel + LangChain4j + PlantUML + Yjs + iCal4j + ez-vcard + Keycloak
+title Inky MCP Server — 71 Tool Architecture
+footer v0.3.0 | Ktor + GraalJS + Camel + LangChain4j + PlantUML + Yjs + iCal4j + ez-vcard + Keycloak + Sardine
 
 ' ── Tool Groups ──
 package "Ink Core (17 tools)" as inkCore #C8E6C9 {
@@ -100,6 +100,19 @@ package "Auth (2 tools)" as auth #CFD8DC {
     card "create_llm_credential" as a2
 }
 
+package "WebDAV + Backup (10 tools)" as webdav #B3E5FC {
+    card "webdav_list" as w1
+    card "webdav_get" as w2
+    card "webdav_put" as w3
+    card "webdav_delete" as w4
+    card "webdav_mkdir" as w5
+    card "webdav_sync" as w6
+    card "webdav_backup" as w7
+    card "webdav_list_backups" as w8
+    card "webdav_restore" as w9
+    card "webdav_working_copy" as w10
+}
+
 ' ── Engines ──
 rectangle "InkEngine\n(GraalJS + inkjs)" as inkEngine #90EE90
 rectangle "InkDebugEngine" as debugEngine #90CAF9
@@ -112,6 +125,7 @@ rectangle "ColabEngine\n(Yjs WebSocket)" as colabEngine #E1BEE7
 rectangle "InkCalendarEngine\n(iCal4j)" as calendarEngine #C5E1A5
 rectangle "InkVCardEngine\n(ez-vcard)" as vcardEngine #BCAAA4
 rectangle "InkAuthEngine\n(Keycloak OIDC)" as authEngine #B0BEC5
+rectangle "InkWebDavEngine\n(Sardine + FS)" as webDavEngine #81D4FA
 
 ' ── Wiring ──
 inkCore --> inkEngine
@@ -125,11 +139,13 @@ collab --> colabEngine
 calendar --> calendarEngine
 principals --> vcardEngine
 auth --> authEngine
+webdav --> webDavEngine
 
 debugEngine --> inkEngine : wraps
 pumlEngine --> editEngine : parses ink
 vcardEngine --> authEngine : LLM credentials
 colabEngine --> authEngine : role gate
+webDavEngine --> vcardEngine : access control
 
 legend right
   | Group | Count |
@@ -144,7 +160,8 @@ legend right
   |<#DCEDC8>| Calendar: 4 |
   |<#D7CCC8>| Principals: 4 |
   |<#CFD8DC>| Auth: 2 |
-  | **Total** | **61** |
+  |<#B3E5FC>| WebDAV+Backup: 10 |
+  | **Total** | **71** |
 endlegend
 
 @enduml

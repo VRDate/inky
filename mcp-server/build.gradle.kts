@@ -67,6 +67,9 @@ dependencies {
     // ez-vcard for vCard principal management
     implementation("com.googlecode.ez-vcard:ez-vcard:0.12.1")
 
+    // Sardine WebDAV client
+    implementation("com.github.lookfirst:sardine:5.12")
+
     // Logging
     implementation("ch.qos.logback:logback-classic:1.5.15")
 
