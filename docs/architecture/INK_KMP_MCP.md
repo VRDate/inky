@@ -168,11 +168,37 @@ See: [`ink-kmp-classes.puml`](ink-kmp-classes.puml)
 | Web framework | Ktor | 3.1.1 |
 | JS engine | GraalJS (Oracle) | 25.0.2 |
 | Serialization | kotlinx-serialization | 1.7.3 |
+| LLM inference | JLama + LangChain4j | 0.8.4 / 1.11 |
+| Diagram | PlantUML (MIT) | latest |
+| Calendar | iCal4j | 4.0.7 |
+| Contacts | ez-vcard | 0.12.1 |
+| Auth | Keycloak OIDC + JWT | via Ktor |
+| WebDAV client | Sardine | 5.12 |
+| Collab | Yjs (HocusPocus) | via WebSocket |
+| Pipeline | Apache Camel | 4.18 |
 | Build | Gradle | 9.3.1 |
 | Launcher | JBang | latest |
 | JDK | Oracle GraalVM 21 | via SDKMAN |
 
-### 17 MCP Tools
+### 71 MCP Tools
+
+| Group | Count | Engine |
+|-------|-------|--------|
+| Ink Core | 17 | InkEngine (GraalJS + inkjs) |
+| Debug | 8 | InkDebugEngine |
+| Edit | 6 | InkEditEngine |
+| Ink+Markdown | 3 | InkMdEngine |
+| PlantUML+TOC | 5 | Ink2PumlEngine (PlantUML MIT) |
+| LLM Models | 8 | LlmEngine (JLama + LangChain4j) |
+| Services | 2 | LlmServiceConfig (11 providers) |
+| Collaboration | 2 | ColabEngine (Yjs WebSocket) |
+| Calendar | 4 | InkCalendarEngine (iCal4j) |
+| Principals | 4 | InkVCardEngine (ez-vcard) |
+| Auth | 2 | InkAuthEngine (Keycloak OIDC) |
+| WebDAV+Backup | 10 | InkWebDavEngine (Sardine + FS) |
+| **Total** | **71** | |
+
+#### Ink Core (17 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -181,18 +207,70 @@ See: [`ink-kmp-classes.puml`](ink-kmp-classes.puml)
 | `start_story_json` | Start session from pre-compiled JSON |
 | `continue_story` | Get next text segment |
 | `choose` | Make a choice in the story |
-| `get_variable` | Read an ink variable |
-| `set_variable` | Set an ink variable |
-| `save_state` | Save story state as JSON |
-| `load_state` | Restore saved state |
+| `get_variable` / `set_variable` | Read/write story variables |
+| `save_state` / `load_state` | Save/restore story state |
 | `reset_story` | Reset to beginning |
 | `evaluate_function` | Call an ink function |
 | `get_global_tags` | Get global ink tags |
-| `list_sessions` | List active sessions |
-| `end_session` | Close a session |
-| `bidify` | Add bidi markers for RTL |
-| `strip_bidi` | Remove bidi markers |
-| `bidify_json` | Bidify compiled JSON |
+| `list_sessions` / `end_session` | Session management |
+| `bidify` / `strip_bidi` / `bidify_json` | RTL bidi markers |
+
+#### Debug (8 tools)
+
+| Tool | Description |
+|------|-------------|
+| `start_debug` | Begin debugging a story session |
+| `add_breakpoint` / `remove_breakpoint` | Manage breakpoints |
+| `debug_step` / `debug_continue` | Step/continue execution |
+| `add_watch` | Watch variable changes |
+| `debug_inspect` | Inspect current debug state |
+| `debug_trace` | Get execution trace log |
+
+#### Edit (6 tools)
+
+| Tool | Description |
+|------|-------------|
+| `parse_ink` | Parse ink into sections |
+| `get_section` / `replace_section` | Read/write sections |
+| `insert_section` / `rename_section` | Add/rename sections |
+| `ink_stats` | Script statistics + dead-end analysis |
+
+#### Ink+Markdown (3), PlantUML+TOC (5), LLM (8), Services (2), Collab (2)
+
+See [INK_SKILL_FOR_LLMS.md](../INK_SKILL_FOR_LLMS.md) for full tool descriptions.
+
+#### Calendar (4 tools) — iCal4j
+
+| Tool | Description |
+|------|-------------|
+| `create_event` | Create calendar event (milestone, session, deadline, quest) |
+| `list_events` | List events with date range filter |
+| `export_ics` / `import_ics` | ICS import/export |
+
+#### Principals (4 tools) — ez-vcard
+
+| Tool | Description |
+|------|-------------|
+| `create_principal` | Register user/LLM with vCard |
+| `list_principals` / `get_principal` | Query principals |
+| `delete_principal` | Remove a principal |
+
+#### Auth (2 tools) — Keycloak OIDC
+
+| Tool | Description |
+|------|-------------|
+| `auth_status` | Check auth config |
+| `create_llm_credential` | Create LLM BasicAuth credential |
+
+#### WebDAV + Backup (10 tools) — Sardine + FS
+
+| Tool | Description |
+|------|-------------|
+| `webdav_list` / `webdav_get` / `webdav_put` / `webdav_delete` | CRUD operations |
+| `webdav_mkdir` | Create directory |
+| `webdav_sync` | Sync from remote WebDAV (Sardine) |
+| `webdav_backup` / `webdav_list_backups` / `webdav_restore` | Timestamp backup sets |
+| `webdav_working_copy` | LLM working copy for edit |
 
 ### Transport
 
@@ -251,15 +329,29 @@ mcp-server/
 └── src/ink/mcp/
     ├── Main.kt                  # Gradle entry point
     ├── InkEngine.kt             # GraalJS ↔ inkjs bridge
+    ├── InkDebugEngine.kt        # Breakpoints, step, trace
+    ├── InkEditEngine.kt         # Ink section parser + editor
+    ├── InkMdEngine.kt           # Ink+Markdown processor
+    ├── Ink2PumlEngine.kt        # Ink → PlantUML/SVG converter
+    ├── LlmEngine.kt             # JLama + LangChain4j chat models
+    ├── ColabEngine.kt           # Yjs/HocusPocus WebSocket collab
+    ├── InkCalendarEngine.kt     # iCal4j calendar events
+    ├── InkVCardEngine.kt        # ez-vcard principal management
+    ├── InkAuthEngine.kt         # Keycloak OIDC + LLM BasicAuth
+    ├── InkWebDavEngine.kt       # Sardine WebDAV + FS + backups
     ├── McpTypes.kt              # MCP JSON-RPC types
-    ├── McpTools.kt              # 17 tool definitions + handlers
-    └── McpRouter.kt             # Ktor SSE + REST routing
+    ├── McpTools.kt              # 71 tool definitions + handlers
+    └── McpRouter.kt             # Ktor SSE + REST + WebDAV routing
 
 docs/architecture/
 ├── INK_KMP_MCP.md               # This document
-├── ink-kmp-architecture.puml    # Component diagram
-├── ink-kmp-classes.puml         # Class diagram
-└── mcp-server-sequence.puml     # Sequence diagram
+├── ink-mcp-tools.puml           # 71-tool architecture diagram
+├── mcp-server-sequence.puml     # Session sequence diagram
+├── camel-llm-pipeline.puml      # Camel + JLama pipeline
+├── ink-collab-yjs.puml          # Yjs collaboration + auth
+├── sillytavern-ink-integration.puml  # SillyTavern integration
+├── ink-kmp-architecture.puml    # KMP component diagram
+└── ink-kmp-classes.puml         # KMP class diagram
 ```
 
 ## References

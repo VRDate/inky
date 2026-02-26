@@ -1,6 +1,6 @@
 # Ink Scripting Language — MCP Skill Reference
 
-> **For MCP-capable LLMs**: This document teaches you the complete ink scripting language so you can write, debug, review, and play interactive fiction stories through the Inky MCP Server tools.
+> **For MCP-capable LLMs**: This document teaches you the complete ink scripting language so you can write, debug, review, and play interactive fiction stories through the Inky MCP Server's 71 tools.
 
 ## What is Ink?
 
@@ -371,17 +371,43 @@ She asks about your journey.
 | `strip_bidi` | Remove bidi markers |
 | `bidify_json` | Bidify compiled story JSON |
 
+### PlantUML + TOC
+
+| Tool | Description |
+|------|-------------|
+| `ink2puml` | Convert ink story to PlantUML flowchart |
+| `ink2svg` | Convert ink story directly to SVG diagram |
+| `puml2svg` | Render PlantUML source to SVG |
+| `ink_toc` | Generate table of contents from ink knots/stitches |
+| `ink_toc_puml` | Generate TOC as PlantUML diagram |
+
+### Ink + Markdown
+
+| Tool | Description |
+|------|-------------|
+| `parse_ink_md` | Parse markdown with embedded \`\`\`ink code blocks |
+| `render_ink_md` | Render ink+markdown to playable format |
+| `compile_ink_md` | Compile ink extracted from markdown document |
+
+### LLM Models (JLama)
+
+| Tool | Description |
+|------|-------------|
+| `list_models` | List JLama-compatible models (filtered by VRAM) |
+| `load_model` | Download and load a GGUF model |
+| `model_info` | Get info about the currently loaded model |
+| `llm_chat` | Send chat message to loaded model |
+| `generate_ink` | Generate ink code from a description |
+| `review_ink` | Review ink code for issues |
+| `translate_ink_hebrew` | Translate ink story to Hebrew (DictaLM 3.0) |
+| `generate_compile_play` | Full pipeline: generate → compile → play |
+
 ### LLM Services
 
 | Tool | Description |
 |------|-------------|
-| `list_services` | List available LLM providers |
+| `list_services` | List available LLM providers (11 supported) |
 | `connect_service` | Connect to an LLM service |
-| `llm_chat` | Send chat message to connected LLM |
-| `generate_ink` | Generate ink code from description |
-| `review_ink` | Review ink code for issues |
-| `translate_ink_hebrew` | Translate ink story to Hebrew |
-| `generate_compile_play` | Full pipeline: generate → compile → play |
 
 ### Collaboration
 
@@ -389,6 +415,61 @@ She asks about your journey.
 |------|-------------|
 | `collab_status` | List active collaboration documents |
 | `collab_info` | Get document collaboration details |
+
+### Calendar (iCal4j)
+
+| Tool | Description |
+|------|-------------|
+| `create_event` | Create calendar event (milestone, session, deadline, quest) |
+| `list_events` | List events with optional date range filter |
+| `export_ics` | Export calendar as .ics file |
+| `import_ics` | Import events from .ics file |
+
+### Principals (ez-vcard)
+
+| Tool | Description |
+|------|-------------|
+| `create_principal` | Register user or LLM model with vCard |
+| `list_principals` | List all registered principals |
+| `get_principal` | Get principal details (vCard, jCard, folder) |
+| `delete_principal` | Remove a principal |
+
+### Auth (Keycloak OIDC)
+
+| Tool | Description |
+|------|-------------|
+| `auth_status` | Check authentication status and config |
+| `create_llm_credential` | Create BasicAuth credential for LLM model |
+
+### WebDAV + Backup (10 tools)
+
+| Tool | Description |
+|------|-------------|
+| `webdav_list` | List files in a WebDAV directory |
+| `webdav_get` | Read a file from WebDAV storage |
+| `webdav_put` | Write a file to WebDAV storage |
+| `webdav_delete` | Delete a file from WebDAV |
+| `webdav_mkdir` | Create a directory |
+| `webdav_sync` | Sync files from remote WebDAV server (Sardine) |
+| `webdav_backup` | Create timestamped backup set (.ink + .puml + .svg) |
+| `webdav_list_backups` | List backups for a script |
+| `webdav_restore` | Restore a backup to the master copy |
+| `webdav_working_copy` | Create LLM working copy of user's files |
+
+## Access Control Model
+
+The WebDAV filesystem follows domain/user/path conventions:
+
+| Path Pattern | Read | Write |
+|-------------|------|-------|
+| `domain/user/shared/` | Anyone (public) | Owner only |
+| `domain/user/*` | Owner + org members | Owner only |
+| `domain/model_workdir/user/` | LLM model | LLM model |
+
+- **LLM access**: An LLM model needs `domain/model.vcf` to get read access to domain users' files
+- **Working copies**: LLMs edit via `domain/model_workdir/user/` with Yjs sync back to origin
+- **Backups**: Stored as `domain/user/script/yyyy-MM-dd_HH-mm-ss.SSSSSSSSS.[ext]` with 14-day default retention
+- **Master file**: The script file without timestamp prefix is the main/merged copy
 
 ## Writing Tips for LLMs
 

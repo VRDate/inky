@@ -2,8 +2,8 @@
 !theme plain
 skinparam backgroundColor #FEFEFE
 
-title SillyTavern + Inky MCP + LM Studio Integration
-footer Interactive Fiction via LLM-powered story narration
+title SillyTavern + Inky MCP (71 tools) + LM Studio Integration
+footer Interactive Fiction via LLM-powered story narration | v0.3.1
 
 actor "User" as user
 
@@ -23,13 +23,18 @@ package "LM Studio\nlocalhost:1234" as lms #BBDEFB {
 
 ' ── Inky MCP Server ──
 package "Inky MCP Server\nlocalhost:3001" as mcp #C8E6C9 {
-    rectangle "46 MCP Tools" as mcpTools
+    rectangle "71 MCP Tools" as mcpTools
     rectangle "InkEngine\n(GraalJS)" as inkEngine
     rectangle "InkDebugEngine" as debugEngine
     rectangle "InkEditEngine" as editEngine
     rectangle "ColabEngine\n(Yjs WebSocket)" as colabEngine
+    rectangle "InkAuthEngine\n(Keycloak OIDC)" as authEngine #B0BEC5
+    rectangle "InkVCardEngine\n(ez-vcard)" as vcardEngine #BCAAA4
+    rectangle "InkCalendarEngine\n(iCal4j)" as calendarEngine #C5E1A5
+    rectangle "InkWebDavEngine\n(Sardine + FS)" as webDavEngine #81D4FA
 
     rectangle "LlmServiceConfig\n(11 providers)" as serviceConfig
+    database "ink-scripts/\n(WebDAV FS)" as inkScripts
 }
 
 ' ── Ollama (alternative) ──
@@ -49,6 +54,11 @@ lmsApi --> lmsModel : Inference
 mcpTools --> inkEngine : Compile & play
 mcpTools --> debugEngine : Debug story
 mcpTools --> editEngine : Edit sections
+mcpTools --> authEngine : Auth & credentials
+mcpTools --> vcardEngine : User/LLM principals
+mcpTools --> calendarEngine : Story events
+mcpTools --> webDavEngine : File management
+webDavEngine --> inkScripts : Read/write\n.ink .puml .svg
 
 serviceConfig --> lmsApi : Connect via\nlangchain4j-open-ai
 serviceConfig --> ollama : Connect via\nOpenAI-compat
@@ -66,11 +76,15 @@ note right of stExtension
 end note
 
 note bottom of mcp
-  Integration pattern:
+  Integration pattern (71 tools):
   • ST uses LM Studio for narration
-  • Inky MCP manages story logic
+  • Inky MCP manages story logic + auth + WebDAV
   • Ink stories = structured scenarios
   • Choices = user interaction points
+  • WebDAV serves .ink .puml .svg files
+  • domain/user/shared/ = public read
+  • Keycloak OIDC + LLM BasicAuth
+  • Timestamped backups + working copies
 end note
 
 legend right

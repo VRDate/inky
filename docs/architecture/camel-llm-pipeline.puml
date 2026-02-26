@@ -3,12 +3,12 @@
 skinparam backgroundColor #FEFEFE
 
 title Inky MCP Server — Camel + LangChain4j + JLama Pipeline
-footer Apache Camel 4.18 | LangChain4j 1.11 | JLama 0.8.4 | DictaLM 3.0
+footer Apache Camel 4.18 | LangChain4j 1.11 | JLama 0.8.4 | DictaLM 3.0 | 71 tools
 
 ' ───────── Components ─────────
 actor "LLM Agent\n(Claude/GPT)" as LLM
 participant "MCP SSE\n(Ktor)" as MCP
-participant "McpTools\n(25 tools)" as TOOLS
+participant "McpTools\n(71 tools)" as TOOLS
 participant "Camel Routes\n(8 routes)" as CAMEL
 participant "LlmEngine\n(JLama)" as JLAMA
 participant "InkEngine\n(GraalJS)" as INK
