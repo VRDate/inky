@@ -15,3 +15,5 @@ AppImage
 .DS_Store
 build/
 .gradle/
+bin/
+obj/
