@@ -9,7 +9,7 @@ const mainScript = path.join(__dirname, '..', 'main-process', 'main.js');
 async function launchApp() {
     const electronApp = await electron.launch({
         executablePath: electronBinary,
-        args: [mainScript],
+        args: ['--no-sandbox', mainScript],
         env: { ...process.env, NODE_ENV: 'test' }
     });
 

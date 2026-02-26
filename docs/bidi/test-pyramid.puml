@@ -1,0 +1,35 @@
+@startuml test-pyramid
+!theme plain
+title Test Pyramid — bidifier
+
+rectangle "E2E\n(Playwright + Electron)\n~10 tests" as e2e #ffcccc
+rectangle "Integration\n(electron-mocha in renderer)\n~25 tests" as integration #ffffcc
+rectangle "Unit\n(node:test, pure Node.js)\n~80 tests" as unit #ccffcc
+
+e2e -[hidden]down- integration
+integration -[hidden]down- unit
+
+note right of e2e
+  Full Inky app: load .ink file,
+  type Hebrew, verify display,
+  compile, check JSON output.
+  Slow (~30s per test).
+end note
+
+note right of integration
+  Ace editor + bidify() wired
+  together in real Chromium DOM.
+  Verify .ace_line dir attributes,
+  cursor position, selection range.
+  Medium (~2s per test).
+end note
+
+note right of unit
+  Pure function tests.
+  No DOM, no Electron, no Ace.
+  scriptRuns(), bidify(),
+  stripBidi(), baseDirection().
+  Fast (~5ms per test).
+end note
+
+@enduml
