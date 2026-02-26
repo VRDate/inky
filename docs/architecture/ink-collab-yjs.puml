@@ -2,12 +2,13 @@
 !theme plain
 skinparam backgroundColor #FEFEFE
 
-title Ink Collaborative Editing — Yjs + Hocuspocus Architecture
-footer Ace (ink) + Remirror (markdown) + Yjs CRDT + WebSocket
+title Ink Collaborative Editing — Yjs + Auth Architecture
+footer Ace (ink) + Remirror (markdown) + Yjs CRDT + WebSocket + Keycloak OIDC
 
 actor "User A\n(Editor)" as userA
 actor "User B\n(Editor)" as userB
 actor "User C\n(Reviewer)" as userC
+actor "LLM Model\n(AI Agent)" as llmAgent
 
 ' ── Client Side ──
 package "Client A — Ace Editor" as clientA #C8E6C9 {
@@ -28,8 +29,16 @@ package "Client C — Browser Extension" as clientC #FFE0B2 {
     rectangle "Yjs Doc C" as ydocC
 }
 
+package "Client D — LLM Agent" as clientD #FFCDD2 {
+    rectangle "MCP Client\n(model_name:jwt)" as mcpClient
+    rectangle "BasicAuth\nWebSocket" as llmWs
+    rectangle "Yjs Doc D" as ydocD
+}
+
 ' ── Server Side ──
 package "Inky MCP Server (Ktor)" as server #F5F5F5 {
+    rectangle "InkAuthEngine\n(Keycloak OIDC +\nLLM BasicAuth)" as authEngine #B0BEC5
+
     rectangle "ColabEngine" as colabEngine
     rectangle "Yjs Sync\nProtocol" as yjsSync
     rectangle "WebSocket\n/collab/:docId" as wsEndpoint
@@ -37,8 +46,16 @@ package "Inky MCP Server (Ktor)" as server #F5F5F5 {
     rectangle "InkEngine\n(compile)" as inkEngine
     rectangle "InkMdEngine\n(parse/render)" as inkMdEngine
 
+    rectangle "InkVCardEngine\n(ez-vcard)" as vcardEngine #BCAAA4
+
     database "Document\nState" as docState
 }
+
+' ── Auth Flow ──
+userA --> aceA : Keycloak JWT\n(role: edit)
+userB --> remirrorB : Keycloak JWT\n(role: edit)
+userC --> pwaC : Keycloak JWT\n(role: view)
+llmAgent --> mcpClient : BasicAuth\n(model:jwt)
 
 ' ── Connections ──
 aceA --> yaceA
@@ -51,14 +68,21 @@ ydocB --> wsEndpoint : WebSocket
 
 pwaC --> ywsC
 ywsC --> ydocC
-ydocC --> wsEndpoint : WebSocket
+ydocC --> wsEndpoint : "read-only\n(view role — rejected)"
 
-wsEndpoint --> colabEngine
+mcpClient --> llmWs
+llmWs --> ydocD
+ydocD --> wsEndpoint : WebSocket\n(BasicAuth)
+
+wsEndpoint --> authEngine : "check role\n(edit required)"
+authEngine --> colabEngine : "principal\nauthenticated"
 colabEngine --> yjsSync
 yjsSync --> docState
 
 colabEngine --> inkEngine : compile on save
 colabEngine --> inkMdEngine : parse MD templates
+
+vcardEngine --> authEngine : LLM credentials
 
 ' ── Protocol ──
 note right of yjsSync
@@ -69,19 +93,27 @@ note right of yjsSync
   Awareness: cursors, user names
 end note
 
-note bottom of server
-  Each document has:
-  • Accumulated Yjs updates
-  • Connected client list
-  • Awareness states (cursors)
-  • Auto-compile on change
+note bottom of authEngine
+  Auth is opt-in:
+  • KEYCLOAK_REALM_URL set → full auth
+  • Not set → open access (backward compat)
+
+  Roles:
+  • "edit" → full Yjs collab access
+  • "view" → ink.js player read-only
+
+  LLM principals:
+  • BasicAuth: model_name:jwt_token
+  • MCP URI: mcp://model:token@host:port
+  • vCard with folder mapping
 end note
 
 legend right
-  | Editor | File Type | Yjs Binding |
-  |<#C8E6C9>| Ace | .ink | y-ace |
-  |<#BBDEFB>| Remirror/CM | .md | y-prosemirror |
-  |<#FFE0B2>| PWA | .ink | y-websocket |
+  | Client | Auth | Role | Access |
+  |<#C8E6C9>| Ace Editor | Keycloak JWT | edit | Full collab |
+  |<#BBDEFB>| Remirror | Keycloak JWT | edit | Full collab |
+  |<#FFE0B2>| PWA | Keycloak JWT | view | Read-only |
+  |<#FFCDD2>| LLM Agent | BasicAuth | edit | Full collab |
 endlegend
 
 @enduml

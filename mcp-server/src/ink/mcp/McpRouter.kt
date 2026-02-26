@@ -12,6 +12,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.sse.*
 import io.ktor.server.websocket.*
+import io.ktor.server.auth.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.sse.*
 import kotlinx.coroutines.channels.Channel
@@ -66,6 +67,11 @@ fun startServer(
     // Initialize collaboration engine
     val colabEngine = ColabEngine()
 
+    // Initialize auth, calendar, vcard engines
+    val authEngine = InkAuthEngine()
+    val calendarEngine = InkCalendarEngine()
+    val vcardEngine = InkVCardEngine(authEngine)
+
     // Initialize edit + puml engines (shared)
     val editEngine = InkEditEngine()
     val ink2PumlEngine = Ink2PumlEngine(editEngine)
@@ -79,7 +85,10 @@ fun startServer(
         editEngine = editEngine,
         colabEngine = colabEngine,
         inkMdEngine = InkMdEngine(),
-        ink2PumlEngine = ink2PumlEngine
+        ink2PumlEngine = ink2PumlEngine,
+        calendarEngine = calendarEngine,
+        vcardEngine = vcardEngine,
+        authEngine = authEngine
     )
     val mcpSessions = ConcurrentHashMap<String, McpSession>()
 
@@ -118,6 +127,14 @@ fun startServer(
         }
         install(SSE)
         install(WebSockets)
+
+        // Install auth plugins when Keycloak is configured
+        if (authEngine.isConfigured()) {
+            authEngine.installAuth(this)
+            mcpLog.info("Auth enabled: Keycloak={}, LLM basic=enabled", authEngine.keycloakRealmUrl)
+        } else {
+            mcpLog.info("Auth disabled: KEYCLOAK_REALM_URL not set (open access)")
+        }
 
         routing {
             // Health check
@@ -188,11 +205,87 @@ fun startServer(
             }
 
             // ── Yjs Collaboration WebSocket ──
-            installColabRoutes(colabEngine)
+            installColabRoutes(colabEngine, authEngine)
 
             // Collaboration status REST endpoint
             get("/api/collab") {
                 val result = tools.callTool("collab_status", null)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            // ── Calendar REST API ──
+            post("/api/calendar/event") {
+                val body = mcpJson.parseToJsonElement(call.receiveText()).jsonObject
+                val result = tools.callTool("create_event", body)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            get("/api/calendar/{calendarId}/events") {
+                val calendarId = call.parameters["calendarId"] ?: "default"
+                val category = call.request.queryParameters["category"]
+                val args = buildJsonObject {
+                    put("calendar_id", calendarId)
+                    category?.let { put("category", it) }
+                }
+                val result = tools.callTool("list_events", args)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            get("/api/calendar/{calendarId}/export") {
+                val calendarId = call.parameters["calendarId"] ?: "default"
+                val result = tools.callTool("export_ics", buildJsonObject {
+                    put("calendar_id", calendarId)
+                })
+                call.respondText(result.content.first().text, ContentType("text", "calendar"))
+            }
+
+            post("/api/calendar/import") {
+                val body = mcpJson.parseToJsonElement(call.receiveText()).jsonObject
+                val result = tools.callTool("import_ics", body)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            // ── Principal REST API ──
+            post("/api/principals") {
+                val body = mcpJson.parseToJsonElement(call.receiveText()).jsonObject
+                val result = tools.callTool("create_principal", body)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            get("/api/principals") {
+                val isLlm = call.request.queryParameters["is_llm"]
+                val args = isLlm?.let {
+                    buildJsonObject { put("is_llm", it.toBoolean()) }
+                }
+                val result = tools.callTool("list_principals", args)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            get("/api/principals/{id}") {
+                val id = call.parameters["id"] ?: ""
+                val result = tools.callTool("get_principal", buildJsonObject {
+                    put("id", id)
+                })
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            delete("/api/principals/{id}") {
+                val id = call.parameters["id"] ?: ""
+                val result = tools.callTool("delete_principal", buildJsonObject {
+                    put("id", id)
+                })
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            // ── Auth REST API ──
+            get("/api/auth/status") {
+                val result = tools.callTool("auth_status", null)
+                call.respondText(result.content.first().text, ContentType.Application.Json)
+            }
+
+            post("/api/auth/llm-credential") {
+                val body = mcpJson.parseToJsonElement(call.receiveText()).jsonObject
+                val result = tools.callTool("create_llm_credential", body)
                 call.respondText(result.content.first().text, ContentType.Application.Json)
             }
 

@@ -52,11 +52,15 @@ fun main(args: Array<String>) {
     val lmStudioUrl = parsedArgs["lm-studio-url"] ?: "http://localhost:1234/v1"
     val lmStudioModel = parsedArgs["lm-studio-model"]
 
-    println("Inky MCP Server v0.2.0")
+    val keycloakUrl = System.getenv("KEYCLOAK_REALM_URL")
+
+    println("Inky MCP Server v0.3.0")
     println("  Mode:        $mode")
     println("  Port:        $port")
     println("  inkjs:       $inkjsPath")
     println("  bidify:      ${bidifyPath ?: "(not found)"}")
+    println("  Auth:        ${if (keycloakUrl != null) "Keycloak ($keycloakUrl)" else "disabled (open access)"}")
+    println("  Collab:      WebSocket /collab/:docId")
     when (mode) {
         "jlama" -> {
             println("  LLM:         JLama (local)")

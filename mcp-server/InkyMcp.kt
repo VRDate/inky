@@ -8,6 +8,8 @@
 //DEPS io.ktor:ktor-server-status-pages:3.1.1
 //DEPS io.ktor:ktor-server-sse:3.1.1
 //DEPS io.ktor:ktor-server-websockets:3.1.1
+//DEPS io.ktor:ktor-server-auth:3.1.1
+//DEPS io.ktor:ktor-server-auth-jwt:3.1.1
 //DEPS org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3
 //DEPS org.graalvm.polyglot:polyglot:25.0.2
 //DEPS org.graalvm.polyglot:js:25.0.2
@@ -21,6 +23,8 @@
 //DEPS com.github.tjake:jlama-core:0.8.4
 //DEPS dev.langchain4j:langchain4j-open-ai:1.11.0
 //DEPS net.sourceforge.plantuml:plantuml-mit:1.2024.8
+//DEPS org.mnode.ical4j:ical4j:4.0.7
+//DEPS com.googlecode.ez-vcard:ez-vcard:0.12.1
 //DEPS ch.qos.logback:logback-classic:1.5.15
 //SOURCES src/ink/mcp/InkEngine.kt
 //SOURCES src/ink/mcp/McpTypes.kt
@@ -37,6 +41,9 @@
 //SOURCES src/ink/mcp/InkMdEngine.kt
 //SOURCES src/ink/mcp/SillyTavernConfig.kt
 //SOURCES src/ink/mcp/Ink2PumlEngine.kt
+//SOURCES src/ink/mcp/InkAuthEngine.kt
+//SOURCES src/ink/mcp/InkCalendarEngine.kt
+//SOURCES src/ink/mcp/InkVCardEngine.kt
 //JAVA_OPTIONS --add-modules jdk.incubator.vector --enable-preview
 //NATIVE_OPTIONS --no-fallback -H:+ReportExceptionStackTraces
 //JAVA 21
@@ -121,7 +128,7 @@ private fun parseArgs(args: Array<String>): Map<String, String> {
                     Usage: jbang InkyMcp.kt [options]
 
                     Modes:
-                      --mode mcp          Full MCP server (default) — 51 tools
+                      --mode mcp          Full MCP server (default) — 61 tools
                       --mode jlama        Local JLama inference
                       --mode lmstudio     External LM Studio
                       --mode pwa          Ink-only, no LLM
@@ -137,7 +144,7 @@ private fun parseArgs(args: Array<String>): Map<String, String> {
                       --no-llm                      Shortcut for --mode pwa
                       --help, -h                    Show this help
 
-                    Tools: ink (17) + debug (8) + edit (6) + ink-md (3) + puml (5) + llm (8) + services (2) + collab (2)
+                    Tools: ink (17) + debug (8) + edit (6) + ink-md (3) + puml (5) + llm (8) + services (2) + collab (2) + calendar (4) + vcard (4) + auth (2)
                     Collab: Connect Yjs clients to ws://localhost:3001/collab/:docId
                 """.trimIndent())
                 kotlin.system.exitProcess(0)

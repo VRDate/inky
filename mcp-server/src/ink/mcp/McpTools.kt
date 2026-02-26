@@ -21,7 +21,10 @@ class McpTools(
     private val editEngine: InkEditEngine = InkEditEngine(),
     private val colabEngine: ColabEngine? = null,
     private val inkMdEngine: InkMdEngine = InkMdEngine(),
-    private val ink2PumlEngine: Ink2PumlEngine = Ink2PumlEngine(editEngine)
+    private val ink2PumlEngine: Ink2PumlEngine = Ink2PumlEngine(editEngine),
+    private val calendarEngine: InkCalendarEngine? = null,
+    private val vcardEngine: InkVCardEngine? = null,
+    private val authEngine: InkAuthEngine? = null
 ) {
 
     /** Currently connected external LLM service */
@@ -42,6 +45,9 @@ class McpTools(
             if (llmEngine != null) addAll(llmTools)
             addAll(serviceTools)
             if (colabEngine != null) addAll(colabTools)
+            if (calendarEngine != null) addAll(calendarTools)
+            if (vcardEngine != null) addAll(vcardTools)
+            if (authEngine != null) addAll(authTools)
         }
     }
 
@@ -682,6 +688,147 @@ class McpTools(
     )
 
     // ════════════════════════════════════════════════════════════════════
+    // CALENDAR TOOLS (4)
+    // ════════════════════════════════════════════════════════════════════
+
+    private val calendarTools: List<McpToolInfo> = listOf(
+        McpToolInfo(
+            name = "create_event",
+            description = "Create a story/game event in an ICS calendar. Categories: milestone, session, deadline, quest.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("calendar_id") { put("type", "string"); put("description", "Calendar ID (e.g. story name or doc ID)") }
+                    putJsonObject("summary") { put("type", "string"); put("description", "Event title") }
+                    putJsonObject("description") { put("type", "string"); put("description", "Event description") }
+                    putJsonObject("dt_start") { put("type", "string"); put("description", "Start datetime (ISO-8601)") }
+                    putJsonObject("dt_end") { put("type", "string"); put("description", "End datetime (ISO-8601, optional)") }
+                    putJsonObject("category") { put("type", "string"); put("description", "Event category: milestone, session, deadline, quest") }
+                }
+                putJsonArray("required") { add("calendar_id"); add("summary"); add("dt_start") }
+            }
+        ),
+        McpToolInfo(
+            name = "list_events",
+            description = "List events in a calendar, optionally filtered by category.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("calendar_id") { put("type", "string"); put("description", "Calendar ID") }
+                    putJsonObject("category") { put("type", "string"); put("description", "Filter by category (optional)") }
+                }
+                putJsonArray("required") { add("calendar_id") }
+            }
+        ),
+        McpToolInfo(
+            name = "export_ics",
+            description = "Export a calendar as ICS (iCalendar) format string.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("calendar_id") { put("type", "string"); put("description", "Calendar ID") }
+                }
+                putJsonArray("required") { add("calendar_id") }
+            }
+        ),
+        McpToolInfo(
+            name = "import_ics",
+            description = "Import events from ICS content into a calendar.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("calendar_id") { put("type", "string"); put("description", "Calendar ID") }
+                    putJsonObject("ics_content") { put("type", "string"); put("description", "ICS file content to import") }
+                }
+                putJsonArray("required") { add("calendar_id"); add("ics_content") }
+            }
+        )
+    )
+
+    // ════════════════════════════════════════════════════════════════════
+    // VCARD PRINCIPAL TOOLS (4)
+    // ════════════════════════════════════════════════════════════════════
+
+    private val vcardTools: List<McpToolInfo> = listOf(
+        McpToolInfo(
+            name = "create_principal",
+            description = "Create a user or LLM principal with vCard, folder mapping, and optional MCP URI credentials.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("id") { put("type", "string"); put("description", "Principal ID (username or model name)") }
+                    putJsonObject("name") { put("type", "string"); put("description", "Display name") }
+                    putJsonObject("email") { put("type", "string"); put("description", "Email (for human users)") }
+                    putJsonObject("role") { put("type", "string"); put("description", "Role: 'edit' or 'view'") }
+                    putJsonObject("is_llm") { put("type", "boolean"); put("description", "True for LLM model principals") }
+                    putJsonObject("folder_path") { put("type", "string"); put("description", "Path to ink scripts folder (optional)") }
+                }
+                putJsonArray("required") { add("id"); add("name"); add("role") }
+            }
+        ),
+        McpToolInfo(
+            name = "list_principals",
+            description = "List all user and LLM principals.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("is_llm") { put("type", "boolean"); put("description", "Filter: true for LLM only, false for human only") }
+                }
+            }
+        ),
+        McpToolInfo(
+            name = "get_principal",
+            description = "Get full details of a principal including vCard data.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("id") { put("type", "string"); put("description", "Principal ID") }
+                }
+                putJsonArray("required") { add("id") }
+            }
+        ),
+        McpToolInfo(
+            name = "delete_principal",
+            description = "Delete a principal and its folder mapping.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("id") { put("type", "string"); put("description", "Principal ID to delete") }
+                }
+                putJsonArray("required") { add("id") }
+            }
+        )
+    )
+
+    // ════════════════════════════════════════════════════════════════════
+    // AUTH TOOLS (2)
+    // ════════════════════════════════════════════════════════════════════
+
+    private val authTools: List<McpToolInfo> = listOf(
+        McpToolInfo(
+            name = "auth_status",
+            description = "Get authentication system status: Keycloak config, LLM credential count, auth mode.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {}
+            }
+        ),
+        McpToolInfo(
+            name = "create_llm_credential",
+            description = "Create basicauth credentials for an LLM model. Returns model_name:token pair and MCP URI.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("model_name") { put("type", "string"); put("description", "LLM model name (e.g. 'claude-sonnet', 'gpt-4o')") }
+                    putJsonObject("host") { put("type", "string"); put("description", "MCP server host (default: localhost)") }
+                    putJsonObject("port") { put("type", "integer"); put("description", "MCP server port (default: 3001)") }
+                }
+                putJsonArray("required") { add("model_name") }
+            }
+        )
+    )
+
+    // ════════════════════════════════════════════════════════════════════
     // DISPATCH
     // ════════════════════════════════════════════════════════════════════
 
@@ -747,6 +894,19 @@ class McpTools(
                 // Collaboration tools
                 "collab_status" -> handleCollabStatus()
                 "collab_info" -> handleCollabInfo(arguments)
+                // Calendar tools
+                "create_event" -> handleCreateEvent(arguments)
+                "list_events" -> handleListEvents(arguments)
+                "export_ics" -> handleExportIcs(arguments)
+                "import_ics" -> handleImportIcs(arguments)
+                // vCard tools
+                "create_principal" -> handleCreatePrincipal(arguments)
+                "list_principals" -> handleListPrincipals(arguments)
+                "get_principal" -> handleGetPrincipal(arguments)
+                "delete_principal" -> handleDeletePrincipal(arguments)
+                // Auth tools
+                "auth_status" -> handleAuthStatus()
+                "create_llm_credential" -> handleCreateLlmCredential(arguments)
                 else -> errorResult("Unknown tool: $name")
             }
         } catch (e: Exception) {
@@ -1441,6 +1601,108 @@ Provide specific, actionable feedback."""
         val info = colab.getDocumentInfo(docId)
             ?: return errorResult("Document not found: $docId")
         return textResult(mapToJson(info).toString())
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // CALENDAR HANDLERS
+    // ════════════════════════════════════════════════════════════════════
+
+    private fun handleCreateEvent(args: JsonObject?): McpToolResult {
+        val cal = calendarEngine ?: return errorResult("Calendar engine not enabled")
+        val event = InkCalendarEngine.InkEvent(
+            summary = args.requireString("summary"),
+            description = args?.get("description")?.jsonPrimitive?.contentOrNull,
+            dtStart = args.requireString("dt_start"),
+            dtEnd = args?.get("dt_end")?.jsonPrimitive?.contentOrNull,
+            category = args?.get("category")?.jsonPrimitive?.contentOrNull
+        )
+        val result = cal.createEvent(args.requireString("calendar_id"), event)
+        return textResult(mapToJson(result).toString())
+    }
+
+    private fun handleListEvents(args: JsonObject?): McpToolResult {
+        val cal = calendarEngine ?: return errorResult("Calendar engine not enabled")
+        val events = cal.listEvents(
+            args.requireString("calendar_id"),
+            args?.get("category")?.jsonPrimitive?.contentOrNull
+        )
+        return textResult(buildJsonObject {
+            putJsonArray("events") { events.forEach { add(mapToJson(it)) } }
+        }.toString())
+    }
+
+    private fun handleExportIcs(args: JsonObject?): McpToolResult {
+        val cal = calendarEngine ?: return errorResult("Calendar engine not enabled")
+        val ics = cal.exportIcs(args.requireString("calendar_id"))
+        return textResult(buildJsonObject { put("ics", ics) }.toString())
+    }
+
+    private fun handleImportIcs(args: JsonObject?): McpToolResult {
+        val cal = calendarEngine ?: return errorResult("Calendar engine not enabled")
+        val result = cal.importIcs(
+            args.requireString("calendar_id"),
+            args.requireString("ics_content")
+        )
+        return textResult(mapToJson(result).toString())
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // VCARD HANDLERS
+    // ════════════════════════════════════════════════════════════════════
+
+    private fun handleCreatePrincipal(args: JsonObject?): McpToolResult {
+        val vc = vcardEngine ?: return errorResult("vCard engine not enabled")
+        val result = vc.createPrincipal(
+            id = args.requireString("id"),
+            name = args.requireString("name"),
+            email = args?.get("email")?.jsonPrimitive?.contentOrNull,
+            role = args.requireString("role"),
+            isLlm = args?.get("is_llm")?.jsonPrimitive?.booleanOrNull ?: false,
+            folderPath = args?.get("folder_path")?.jsonPrimitive?.contentOrNull
+        )
+        return textResult(mapToJson(result).toString())
+    }
+
+    private fun handleListPrincipals(args: JsonObject?): McpToolResult {
+        val vc = vcardEngine ?: return errorResult("vCard engine not enabled")
+        val isLlm = args?.get("is_llm")?.jsonPrimitive?.booleanOrNull
+        val principals = vc.listPrincipals(isLlm)
+        return textResult(buildJsonObject {
+            putJsonArray("principals") { principals.forEach { add(mapToJson(it)) } }
+        }.toString())
+    }
+
+    private fun handleGetPrincipal(args: JsonObject?): McpToolResult {
+        val vc = vcardEngine ?: return errorResult("vCard engine not enabled")
+        val info = vc.getPrincipal(args.requireString("id"))
+            ?: return errorResult("Principal not found")
+        return textResult(mapToJson(info).toString())
+    }
+
+    private fun handleDeletePrincipal(args: JsonObject?): McpToolResult {
+        val vc = vcardEngine ?: return errorResult("vCard engine not enabled")
+        val result = vc.deletePrincipal(args.requireString("id"))
+        return textResult(mapToJson(result).toString())
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // AUTH HANDLERS
+    // ════════════════════════════════════════════════════════════════════
+
+    private fun handleAuthStatus(): McpToolResult {
+        val auth = authEngine ?: return errorResult("Auth engine not enabled")
+        return textResult(mapToJson(auth.getAuthStatus()).toString())
+    }
+
+    private fun handleCreateLlmCredential(args: JsonObject?): McpToolResult {
+        val auth = authEngine ?: return errorResult("Auth engine not enabled")
+        val result = auth.createLlmCredential(
+            modelName = args.requireString("model_name"),
+            host = args?.get("host")?.jsonPrimitive?.contentOrNull ?: "localhost",
+            port = args?.get("port")?.jsonPrimitive?.intOrNull ?: 3001,
+            jcard = args?.get("jcard")?.jsonPrimitive?.contentOrNull
+        )
+        return textResult(mapToJson(result).toString())
     }
 
     // ════════════════════════════════════════════════════════════════════

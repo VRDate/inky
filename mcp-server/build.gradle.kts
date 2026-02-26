@@ -27,6 +27,8 @@ dependencies {
     implementation("io.ktor:ktor-server-status-pages:$ktorVersion")
     implementation("io.ktor:ktor-server-sse:$ktorVersion")
     implementation("io.ktor:ktor-server-websockets:$ktorVersion")
+    implementation("io.ktor:ktor-server-auth:$ktorVersion")
+    implementation("io.ktor:ktor-server-auth-jwt:$ktorVersion")
 
     // Kotlinx serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
@@ -58,6 +60,12 @@ dependencies {
 
     // PlantUML (MIT license) for diagram rendering
     implementation("net.sourceforge.plantuml:plantuml-mit:1.2024.8")
+
+    // iCal4j for calendar/event management
+    implementation("org.mnode.ical4j:ical4j:4.0.7")
+
+    // ez-vcard for vCard principal management
+    implementation("com.googlecode.ez-vcard:ez-vcard:0.12.1")
 
     // Logging
     implementation("ch.qos.logback:logback-classic:1.5.15")

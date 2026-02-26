@@ -1,5 +1,6 @@
 package ink.mcp
 
+import io.ktor.server.auth.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
@@ -258,17 +259,31 @@ class ColabClient(
 /**
  * Install Yjs collaboration WebSocket routes into Ktor routing.
  *
+ * When authEngine is configured (Keycloak), WebSocket connections require
+ * either "edit" role (full collab) or are rejected with VIOLATED_POLICY.
+ * When auth is not configured, all connections are allowed (backward compatible).
+ *
  * Endpoints:
  *   GET /collab/:docId     — WebSocket for Yjs sync
- *   GET /collab/status     — List active documents
  */
-fun Route.installColabRoutes(colabEngine: ColabEngine) {
+fun Route.installColabRoutes(colabEngine: ColabEngine, authEngine: InkAuthEngine? = null) {
     val log = LoggerFactory.getLogger("ink.mcp.ColabRoutes")
 
     webSocket("/collab/{docId}") {
         val docId = call.parameters["docId"] ?: run {
             close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Missing docId"))
             return@webSocket
+        }
+
+        // Auth gate: require "edit" role when auth is configured
+        if (authEngine != null && authEngine.isConfigured()) {
+            val principal = call.principal<InkPrincipal>()
+            if (principal == null || "edit" !in principal.roles) {
+                log.warn("WebSocket rejected: no edit role for doc={}", docId)
+                close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Requires edit role"))
+                return@webSocket
+            }
+            log.info("WebSocket auth: principal={} roles={} doc={}", principal.name, principal.roles, docId)
         }
 
         val clientId = java.util.UUID.randomUUID().toString().take(8)

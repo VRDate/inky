@@ -2,8 +2,8 @@
 !theme plain
 skinparam backgroundColor #FEFEFE
 
-title Inky MCP Server — 51 Tool Architecture
-footer v0.3.0 | Ktor + GraalJS + Camel + LangChain4j + PlantUML + Yjs
+title Inky MCP Server — 61 Tool Architecture
+footer v0.3.0 | Ktor + GraalJS + Camel + LangChain4j + PlantUML + Yjs + iCal4j + ez-vcard + Keycloak
 
 ' ── Tool Groups ──
 package "Ink Core (17 tools)" as inkCore #C8E6C9 {
@@ -81,6 +81,25 @@ package "Collab (2 tools)" as collab #F3E5F5 {
     card "collab_info" as c2
 }
 
+package "Calendar (4 tools)" as calendar #DCEDC8 {
+    card "create_event" as cal1
+    card "list_events" as cal2
+    card "export_ics" as cal3
+    card "import_ics" as cal4
+}
+
+package "Principals (4 tools)" as principals #D7CCC8 {
+    card "create_principal" as vc1
+    card "list_principals" as vc2
+    card "get_principal" as vc3
+    card "delete_principal" as vc4
+}
+
+package "Auth (2 tools)" as auth #CFD8DC {
+    card "auth_status" as a1
+    card "create_llm_credential" as a2
+}
+
 ' ── Engines ──
 rectangle "InkEngine\n(GraalJS + inkjs)" as inkEngine #90EE90
 rectangle "InkDebugEngine" as debugEngine #90CAF9
@@ -90,6 +109,9 @@ rectangle "Ink2PumlEngine\n(PlantUML MIT)" as pumlEngine #80DEEA
 rectangle "LlmEngine\n(JLama)" as llmEngine #EF9A9A
 rectangle "LlmServiceConfig\n(11 providers)" as serviceConfig #FFF176
 rectangle "ColabEngine\n(Yjs WebSocket)" as colabEngine #E1BEE7
+rectangle "InkCalendarEngine\n(iCal4j)" as calendarEngine #C5E1A5
+rectangle "InkVCardEngine\n(ez-vcard)" as vcardEngine #BCAAA4
+rectangle "InkAuthEngine\n(Keycloak OIDC)" as authEngine #B0BEC5
 
 ' ── Wiring ──
 inkCore --> inkEngine
@@ -100,9 +122,14 @@ puml --> pumlEngine
 llm --> llmEngine
 services --> serviceConfig
 collab --> colabEngine
+calendar --> calendarEngine
+principals --> vcardEngine
+auth --> authEngine
 
 debugEngine --> inkEngine : wraps
 pumlEngine --> editEngine : parses ink
+vcardEngine --> authEngine : LLM credentials
+colabEngine --> authEngine : role gate
 
 legend right
   | Group | Count |
@@ -114,7 +141,10 @@ legend right
   |<#FFCDD2>| LLM: 8 |
   |<#FFF9C4>| Services: 2 |
   |<#F3E5F5>| Collab: 2 |
-  | **Total** | **51** |
+  |<#DCEDC8>| Calendar: 4 |
+  |<#D7CCC8>| Principals: 4 |
+  |<#CFD8DC>| Auth: 2 |
+  | **Total** | **61** |
 endlegend
 
 @enduml
