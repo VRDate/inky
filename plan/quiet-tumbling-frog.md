@@ -1,154 +1,114 @@
-# RTL Language Support for Inky (Issue #122)
+# iCal4j + ical.js + ez-vcard + Keycloak Auth Integration
 
 ## Context
 
-Inky cannot properly display RTL languages (Arabic, Persian, Hebrew, etc.). The fix uses Unicode directional isolates (LRI U+2066, RLI U+2067, PDI U+2069) **for display only** — the document content, saved files, and compiler input remain clean. Markers are only applied at the view layer.
+The Inky MCP server (51 tools, Ktor/Kotlin) needs authentication, calendar event management, and user/LLM principal management. Currently ColabEngine has no auth (anyone can connect), and there's no calendar or vCard support. This adds 10 new MCP tools (51→61), 3 new engine files, and role-based access control with Keycloak OIDC + LLM basicauth credentials.
 
-## Design Principle: Markers in View Only
+## Dependencies to Add
 
-- **Editor**: CSS-based RTL support (`unicode-bidi: plaintext` on `.ace_line`). No markers injected into the Ace document.
-- **Player preview**: `bidify()` applied to text before DOM insertion. Display only — doesn't modify underlying story data.
-- **Document/Save/Compile**: Always clean (no markers). Strip on save is a safety net.
-- **Exported JSON**: Optional post-processing to add markers for external player compatibility.
-
-## Four User Toggles (all OFF by default, except strip-on-save)
-
-| Toggle | Default | What it does |
-|--------|---------|--------------|
-| Bidify in editor | OFF | Enables CSS `unicode-bidi: plaintext` on editor lines |
-| Bidify in player | OFF | Applies `bidify()` to story text before DOM insertion |
-| Strip bidi on save | ON (Recommended) | Strips any stray bidi markers when saving .ink files |
-| Bidify exported JSON | OFF | Post-processes exported JSON to embed bidi markers |
-
-## Plan
-
-### 1. Create `app/renderer/bidify.js` — new file
-
-Exports:
-- **`bidify(text)`**: Process line-by-line. Group codepoints by script, wrap RTL runs with RLI...PDI and LTR strong runs with LRI...PDI. Strip existing isolates first (idempotent).
-- **`stripBidi(text)`**: Remove all U+2066, U+2067, U+2069 characters.
-- **`bidifyJson(jsonString)`**: Parse compiled ink JSON, bidify story text strings (those prefixed with `^`), re-serialize.
-
-Script detection via codepoint ranges: Arabic U+0600-U+06FF + extensions, Hebrew U+0590-U+05FF, Syriac U+0700-U+074F, Thaana U+0780-U+07BF, NKo U+07C0-U+07FF, Samaritan U+0800-U+083F, Mandaic U+0840-U+085F.
-
-### 2. Add UI toggles — View > "Bidify (RTL)" submenu
-
-**`app/main-process/appmenus.js`**:
-- Add four state vars: `bidifyEditorEnabled`, `bidifyPlayerEnabled`, `stripBidiOnSave`, `bidifyExportEnabled`
-- Add submenu after "Play view animation" (~line 322):
-  ```
-  Bidify (RTL) >
-    [ ] Bidify in editor
-    [ ] Bidify in player
-    [x] Strip bidi on save (Recommended)
-    [ ] Bidify exported JSON
-  ```
-- Add four setters in exports
-
-**`app/main-process/main.js`**: Four toggle callbacks following existing pattern (toggleAnimation/toggleAutoComplete). Each toggles setting, persists via `addOrChangeViewSetting`, sends IPC to all windows. Initialize from settings on startup. Sync on view settings change.
-
-**`app/main-process/projectWindow.js`**:
-- Add defaults to `getViewSettings()` (~line 319): all OFF except `stripBidiOnSave: true`
-- Send all four settings to renderer on `dom-ready` (~line 96-103)
-
-### 3. Modify `app/renderer/controller.js`
-
-Four IPC listeners (~after line 337):
-- `set-bidify-editor-enabled` → toggle CSS class on `#editor` (add/remove `.bidify-enabled`)
-- `set-bidify-player-enabled` → `PlayerView.setBidifyEnabled(enabled)`
-- `set-strip-bidi-on-save` → set flag on InkFile (static property)
-- `set-bidify-export-enabled` → `LiveCompiler.setBidifyExportEnabled(enabled)`
-
-### 4. Modify `app/renderer/playerView.js`
-
-Display-only bidify:
-```js
-const { bidify } = require("./bidify.js");
-var bidifyEnabled = false;
+**build.gradle.kts** (after line 29):
+```kotlin
+implementation("io.ktor:ktor-server-auth:$ktorVersion")
+implementation("io.ktor:ktor-server-auth-jwt:$ktorVersion")
+implementation("org.mnode.ical4j:ical4j:4.0.7")
+implementation("com.googlecode.ez-vcard:ez-vcard:0.12.1")
 ```
 
-In `addTextSection(text)` (~line 114): `if (bidifyEnabled) text = bidify(text);`
-Add `dir="auto"` on `<p class='storyText'>` and `<p class='choice'>`.
-Add `setBidifyEnabled` to exports.
-
-### 5. Modify `app/renderer/inkFile.js`
-
-**Save only** — strip as safety net (~line 188):
-```js
-const { stripBidi } = require("./bidify.js");
-// in save():
-var fileContent = this.aceDocument.getValue() || "";
-if (InkFile.stripBidiOnSave) fileContent = stripBidi(fileContent);
+**InkyMcp.kt** (after line 10):
+```
+//DEPS io.ktor:ktor-server-auth:3.1.1
+//DEPS io.ktor:ktor-server-auth-jwt:3.1.1
+//DEPS org.mnode.ical4j:ical4j:4.0.7
+//DEPS com.googlecode.ez-vcard:ez-vcard:0.12.1
+//SOURCES src/ink/mcp/InkCalendarEngine.kt
+//SOURCES src/ink/mcp/InkVCardEngine.kt
+//SOURCES src/ink/mcp/InkAuthEngine.kt
 ```
 
-Add static property: `InkFile.stripBidiOnSave = true;`
+## New Files
 
-No changes to `getValue()` or `tryLoadFromDisk()` — document stays clean.
+### 1. InkAuthEngine.kt — Auth foundation (must come first)
 
-### 6. Modify `app/renderer/liveCompiler.js`
+- Keycloak OIDC via env vars: `KEYCLOAK_REALM_URL`, `KEYCLOAK_CLIENT_ID`
+- JWT validation (RS256 against Keycloak JWKS)
+- BasicAuth for LLM models: `model_name:jwt_token`
+- Role extraction: "edit" (full YJS collab) vs "view" (ink.js player only)
+- `InkPrincipal` data class: id, name, roles, isLlm, email
+- `installAuth(Application)` — installs Ktor jwt("keycloak") + basic("llm-basic") providers
+- `createLlmCredential(modelName)` → `{ model_name, token, mcp_uri }`
+- **Auth is opt-in**: when `KEYCLOAK_REALM_URL` unset, server runs open (backward compatible)
 
-Pass bidify export flag in compile instruction:
-```js
-var bidifyExportEnabled = false;
-// in buildCompileInstruction():
-compileInstruction.bidifyExportEnabled = bidifyExportEnabled;
+### 2. InkCalendarEngine.kt — iCal4j game events
+
+- In-memory `ConcurrentHashMap<String, Calendar>` store
+- `InkEvent` data class: uid, summary, description, dtStart, dtEnd, category, status
+- Categories: milestone, session, deadline, quest
+- 4 methods → 4 MCP tools: `create_event`, `list_events`, `export_ics`, `import_ics`
+
+### 3. InkVCardEngine.kt — ez-vcard principals
+
+- In-memory `ConcurrentHashMap<String, VCard>` + folder mappings
+- Human users: vCard from Keycloak OIDC profile → mapped to ink script folder
+- LLM models: vCard with MCP URI in NOTE field, basicauth credentials
+- MCP URI format: `mcp://model_name:jwt_token@host:port/tool_name`
+- 4 methods → 4 MCP tools: `create_principal`, `list_principals`, `get_principal`, `delete_principal`
+
+## Modified Files
+
+### 4. McpTools.kt — +10 tools (51→61)
+
+- Add `calendarEngine`, `vcardEngine`, `authEngine` constructor params
+- Add `calendarTools` (4), `vcardTools` (4), `authTools` (2) lists
+- Add 10 dispatch cases in `callTool()` when block
+- Add 10 handler methods delegating to engines
+
+### 5. McpRouter.kt — Auth plugin + route protection
+
+- Add `authEngine` param to `startServer()`
+- Create `InkCalendarEngine` + `InkVCardEngine` instances
+- Pass all 3 new engines to McpTools constructor
+- `authEngine?.installAuth(this)` after `install(WebSockets)`
+- Wrap `/collab/{docId}` and `/api/` routes in `authenticate()` when auth configured
+- Add REST endpoints: `/api/calendar/*`, `/api/principals/*`
+
+### 6. ColabEngine.kt — Auth gate on WebSocket
+
+- `installColabRoutes(colabEngine, authEngine?)` — overloaded signature
+- Before creating client: check `InkPrincipal` has "edit" role
+- Close WebSocket with VIOLATED_POLICY if no edit role
+- Extend `ColabClient` with optional `principal: InkPrincipal?`
+
+### 7. Main.kt + InkyMcp.kt — Startup wiring
+
+- Create `InkAuthEngine()`, pass to `startServer()`
+- Banner: show auth status (Keycloak URL or "disabled")
+- Update tool count 51→61, add calendar/vcard/auth categories
+
+### 8. Architecture diagrams
+
+- `ink-mcp-tools.puml`: +3 tool groups (Calendar 4, vCard 4, Auth 2), +3 engines, total 61
+- `ink-collab-yjs.puml`: add auth layer, LLM actor with basicauth WebSocket
+
+## Execution Order
+
 ```
-
-No stripping needed before compile — document is already clean.
-Add `setBidifyExportEnabled` to exports.
-
-### 7. Modify `app/main-process/inklecate.js`
-
-Post-process exported JSON when flag is set (~line 133):
-```js
-const { bidifyJson } = require("../renderer/bidify.js");
-// in onEndOfStory, after export completes:
-if (jsonExportPath && compileInstruction.bidifyExportEnabled) {
-    let json = fs.readFileSync(jsonExportPath, 'utf8');
-    json = bidifyJson(json);
-    fs.writeFileSync(jsonExportPath, json);
-}
+1. build.gradle.kts + InkyMcp.kt DEPS
+2. InkAuthEngine.kt (foundation — others depend on it)
+3. InkCalendarEngine.kt (independent of auth)
+4. InkVCardEngine.kt (uses authEngine for LLM creds)
+5. McpTools.kt (+10 tools, +10 handlers)
+6. McpRouter.kt (wire engines, install auth, protect routes)
+7. ColabEngine.kt (edit role gate)
+8. Main.kt + InkyMcp.kt (startup wiring)
+9. PUML diagrams (final state)
 ```
-
-### 8. Modify `app/renderer/main.css`
-
-CSS-based RTL for editor (applied via `.bidify-enabled` class toggle):
-```css
-#editor.bidify-enabled .ace_line {
-  unicode-bidi: plaintext;
-}
-
-#player .innerText p.storyText {
-  unicode-bidi: plaintext;
-}
-```
-
-### 9. Create `app/test/bidify.test.js` — new file
-
-Tests for: `bidify()`, `stripBidi()`, `bidifyJson()`, round-trip, idempotency, multi-line, ink syntax preservation, empty input.
-
-## Files Summary
-
-| File | Action |
-|------|--------|
-| `app/renderer/bidify.js` | **Create** — bidify/stripBidi/bidifyJson |
-| `app/main-process/appmenus.js` | **Modify** — add Bidify (RTL) submenu |
-| `app/main-process/main.js` | **Modify** — 4 toggle callbacks |
-| `app/main-process/projectWindow.js` | **Modify** — defaults + send to renderer |
-| `app/renderer/controller.js` | **Modify** — 4 IPC listeners |
-| `app/renderer/inkFile.js` | **Modify** — strip on save (safety net) |
-| `app/renderer/liveCompiler.js` | **Modify** — pass export flag |
-| `app/renderer/playerView.js` | **Modify** — display-only bidify |
-| `app/main-process/inklecate.js` | **Modify** — post-process exported JSON |
-| `app/renderer/main.css` | **Modify** — RTL CSS rules |
-| `app/test/bidify.test.js` | **Create** — unit tests |
 
 ## Verification
 
-1. Run `node app/test/bidify.test.js`
-2. Verify all four toggles persist in `view-settings.json`
-3. With "Bidify in editor" ON: editor renders RTL text correctly via CSS
-4. With "Bidify in player" ON: preview shows RTL text correctly
-5. With "Strip bidi on save" ON: saved .ink files have no stray markers
-6. With "Bidify exported JSON" ON: exported JSON contains bidi markers
-7. With all toggles OFF: no behavioral change from current Inky
+1. `gradle compileKotlin` — must pass
+2. Start server with `--no-llm` — health endpoint shows 61 tools (or 53 in pwa mode)
+3. Test `create_event` / `list_events` / `export_ics` / `import_ics` via MCP JSON-RPC
+4. Test `create_principal` / `list_principals` for human + LLM principals
+5. Test `create_llm_credential` — returns `mcp://model:token@host:port` URI
+6. Without `KEYCLOAK_REALM_URL`: all routes open (backward compatible)
+7. WebSocket `/collab/{docId}` accessible without auth when auth disabled
