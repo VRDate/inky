@@ -13,6 +13,22 @@ import java.util.concurrent.ConcurrentHashMap
  *   1. Human users (from Keycloak OIDC) — mapped to folders with ink scripts
  *   2. LLM models (virtual users) — participate in Yjs collaboration
  *
+ * Filesystem layout (domain/user convention):
+ *   ink-scripts/
+ *     example.com/
+ *       org.vcf              ← domain org vCard — grants edit to subfolders
+ *       alice.vcf             ← user vCard (alice@example.com)
+ *       alice/
+ *         script.ink          ← user's ink script (editable by alice)
+ *       bob.vcf
+ *       bob/
+ *         script.ink
+ *
+ * Access control:
+ *   - domain/org.vcf exists + domain/user.vcf exists → edit right on domain/user/script.ink
+ *   - No domain/user.vcf → view only (can read ink.js player output)
+ *   - Email user@domain maps to domain/user/ filesystem path
+ *
  * Identity mapping:
  *   - Keycloak UUID → vCard UID (1:1 identity mapping)
  *   - jCard (JSON vCard) → JWT "jcard" claim (portable identity in token)
@@ -37,6 +53,9 @@ class InkVCardEngine(
 
     /** LLM flag: id -> isLlm */
     private val llmFlags = ConcurrentHashMap<String, Boolean>()
+
+    /** Domain org vCards: domain -> org VCard (grants edit to domain subfolders) */
+    private val domainOrgs = ConcurrentHashMap<String, VCard>()
 
     data class InkPrincipalInfo(
         val id: String,
@@ -126,7 +145,7 @@ class InkVCardEngine(
             .map { (id, vcard) -> vcardToMap(id, vcard) }
     }
 
-    /** Get full details of a principal including jCard and X-AUTH */
+    /** Get full details of a principal including jCard, X-AUTH, and domain hierarchy */
     fun getPrincipal(id: String): Map<String, Any>? {
         val vcard = principals[id] ?: return null
         val map = vcardToMap(id, vcard).toMutableMap()
@@ -135,6 +154,13 @@ class InkVCardEngine(
         // Include X-AUTH (latest JWT) if present
         vcard.getExtendedProperty("X-AUTH")?.let {
             map["x_auth"] = it.value
+        }
+        // Include domain/script file paths
+        getScriptPath(id)?.let { map["script_path"] = it }
+        getVcardPath(id)?.let { map["vcf_path"] = it }
+        // Resolve effective role based on domain hierarchy
+        getScriptPath(id)?.let { scriptPath ->
+            map["effective_role"] = resolveScriptRole(id, scriptPath)
         }
         return map
     }
@@ -158,6 +184,112 @@ class InkVCardEngine(
 
     /** Check if principal has a role */
     fun hasRole(id: String, role: String): Boolean = roleMappings[id] == role
+
+    // ════════════════════════════════════════════════════════════════════
+    // DOMAIN ORG.VCF HIERARCHY
+    // ════════════════════════════════════════════════════════════════════
+
+    /**
+     * Register a domain org vCard.
+     * domain/org.vcf grants edit rights to all domain/user.vcf principals
+     * on their domain/user.script.ink files.
+     */
+    fun registerDomainOrg(domain: String, orgVcard: VCard? = null): Map<String, Any> {
+        val vcard = orgVcard ?: VCard().apply {
+            uid = Uid("org@$domain")
+            setFormattedName("$domain Organization")
+            setOrganization(Organization().apply {
+                values.add(domain)
+                values.add("domain-org")
+            })
+            setCategories(Categories().apply {
+                values.add("domain-org")
+                values.add("edit-grant")
+            })
+        }
+        domainOrgs[domain] = vcard
+        log.info("Registered domain org: {} (grants edit to subfolders)", domain)
+
+        return mapOf(
+            "ok" to true,
+            "domain" to domain,
+            "org_vcf" to Ezvcard.write(vcard).go(),
+            "message" to "$domain/org.vcf registered — grants edit to $domain/user.vcf principals"
+        )
+    }
+
+    /** List registered domain orgs */
+    fun listDomainOrgs(): List<Map<String, Any>> {
+        return domainOrgs.map { (domain, vcard) ->
+            val userCount = principals.entries.count { (id, _) ->
+                folderMappings[id]?.startsWith("./ink-scripts/$domain/") == true
+            }
+            mapOf(
+                "domain" to domain,
+                "org_name" to (vcard.formattedName?.value ?: domain),
+                "user_count" to userCount
+            )
+        }
+    }
+
+    /**
+     * Resolve the effective role for a principal on a specific ink script path.
+     *
+     * Rules:
+     *   1. domain/org.vcf exists + domain/user.vcf exists → edit
+     *   2. No org.vcf for the domain → fall back to principal's assigned role
+     *   3. No user.vcf in the domain → view only
+     *
+     * @param id Principal ID
+     * @param scriptPath Path like "domain/user.script.ink"
+     * @return "edit" or "view"
+     */
+    fun resolveScriptRole(id: String, scriptPath: String): String {
+        // Extract domain from path: "example.com/alice.script.ink" → "example.com"
+        val parts = scriptPath.replace("./ink-scripts/", "").split("/", limit = 2)
+        if (parts.size < 2) return roleMappings[id] ?: "view"
+
+        val domain = parts[0]
+
+        // Check if domain org exists (domain/org.vcf)
+        if (domainOrgs.containsKey(domain)) {
+            // Check if this principal belongs to the domain (domain/user.vcf)
+            val principalFolder = folderMappings[id] ?: return "view"
+            if (principalFolder.startsWith("./ink-scripts/$domain/")) {
+                return "edit"
+            }
+            // Principal not in this domain → view only
+            return "view"
+        }
+
+        // No domain org → fall back to assigned role
+        return roleMappings[id] ?: "view"
+    }
+
+    /**
+     * Get the ink script path for a principal.
+     * Convention: domain/user/script.ink
+     * Example: alice@example.com → ./ink-scripts/example.com/alice/script.ink
+     */
+    fun getScriptPath(id: String): String? {
+        val folder = folderMappings[id] ?: return null
+        // folder = "./ink-scripts/example.com/alice/"
+        // script = "./ink-scripts/example.com/alice/script.ink"
+        return "${folder}script.ink"
+    }
+
+    /**
+     * Get the vCard file path for a principal.
+     * Convention: domain/user.vcf
+     * Example: alice@example.com → ./ink-scripts/example.com/alice.vcf
+     */
+    fun getVcardPath(id: String): String? {
+        val folder = folderMappings[id] ?: return null
+        // folder = "./ink-scripts/example.com/alice/"
+        // vcf = "./ink-scripts/example.com/alice.vcf"
+        val trimmed = folder.trimEnd('/')
+        return "$trimmed.vcf"
+    }
 
     /**
      * Refresh the JWT for an LLM principal.
