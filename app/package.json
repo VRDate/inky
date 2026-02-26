@@ -11,7 +11,9 @@
   "scripts": {
     "postinstall": "node ../build/createDocumentnavigation.js && markdown-html resources/Documentation/WritingWithInk.md -s resources/Documentation/documentation.css -o renderer/documentation/embedded.html",
     "start": "electron main-process/main.js",
-    "test": "./node_modules/mocha/bin/mocha",
+    "test": "./node_modules/mocha/bin/mocha --timeout 30000",
+    "test:unit": "node test/bidify.test.js",
+    "test:e2e": "xvfb-run ./node_modules/mocha/bin/mocha --timeout 30000",
     "generate-locale": "node ../build/generateLocale.js",
     "build-package": "node build-package.js"
   },
@@ -41,7 +43,8 @@
     "electron": "^30.0.4",
     "jsdom": "^24.0.0",
     "markdown-html": "^0.0.8",
-    "mocha": "^10.4.0"
+    "mocha": "^10.4.0",
+    "playwright-core": "^1.58.2"
   },
   "optionalDependencies": {
     "appdmg": "^0.6.6"
