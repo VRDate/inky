@@ -97,7 +97,17 @@ fun osClassifier(): String {
 sourceSets {
     main {
         kotlin.srcDirs("src")
+        kotlin.exclude("test/**")
+        resources.exclude("test/**")
     }
+    test {
+        kotlin.srcDirs("src/test/kotlin")
+        resources.srcDirs("src/test/resources")
+    }
+}
+
+tasks.withType<Copy> {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 application {

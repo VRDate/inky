@@ -122,11 +122,11 @@ LLM -> CLIENT : "create working copy for editing"
 CLIENT -> ROUTER : tools/call webdav_working_copy
 ROUTER -> TOOLS : callTool("webdav_working_copy")
 TOOLS -> DAV : createWorkingCopy("example.com/alice/", "claude")
-DAV -> FS : copy alice/ -> claude_workdir/alice/
+DAV -> FS : copy alice/ -> claude/alice/
 FS --> DAV : copied 3 files
 DAV --> TOOLS : {origin, working_copy, copied_files}
 TOOLS --> ROUTER : working copy ready
-ROUTER --> CLIENT : claude_workdir/alice/
+ROUTER --> CLIENT : claude/alice/
 
 == Calendar: Create Event ==
 LLM -> CLIENT : "schedule a session"

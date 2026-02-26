@@ -585,7 +585,7 @@ mcp-server/src/test/kotlin/ink/mcp/
 - **Priority**: P0
 - **Tool**: `webdav_working_copy`
 - **Input**: `{"origin": "example.com/alice/", "model_id": "claude"}`
-- **Expected**: `{origin: "...", working_copy: "example.com/claude_workdir/alice/", copied_files: [...]}`
+- **Expected**: `{origin: "...", working_copy: "example.com/claude/alice/", copied_files: [...]}`
 
 ### TC-WD-012: Backup Retention — Purge Old
 - **Priority**: P1

@@ -464,10 +464,10 @@ The WebDAV filesystem follows domain/user/path conventions:
 |-------------|------|-------|
 | `domain/user/shared/` | Anyone (public) | Owner only |
 | `domain/user/*` | Owner + org members | Owner only |
-| `domain/model_workdir/user/` | LLM model | LLM model |
+| `domain/modelId/user/` | LLM model | LLM model |
 
 - **LLM access**: An LLM model needs `domain/model.vcf` to get read access to domain users' files
-- **Working copies**: LLMs edit via `domain/model_workdir/user/` with Yjs sync back to origin
+- **Working copies**: LLMs edit via `domain/modelId/user/` (model name acts like a user name; multiple models can share a copy) with Yjs sync back to origin
 - **Backups**: Stored as `domain/user/script/yyyy-MM-dd_HH-mm-ss.SSSSSSSSS.[ext]` with 14-day default retention
 - **Master file**: The script file without timestamp prefix is the main/merged copy
 

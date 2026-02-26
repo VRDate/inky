@@ -460,7 +460,8 @@ class InkWebDavEngine(
      * Origin = user's files (master)
      * Working copy = LLM's local copy for editing
      *
-     * Layout: domain/user/ (origin) -> domain/model_workdir/user/ (working copy)
+     * Layout: domain/user/ (origin) -> domain/modelId/user/ (working copy)
+     * Multiple models can share the same working copy path convention.
      * Yjs/HocusPocus sync merges changes back if enabled.
      */
     fun createWorkingCopy(
@@ -472,7 +473,7 @@ class InkWebDavEngine(
             return mapOf("ok" to false, "error" to "Origin directory not found: $originPath")
         }
 
-        // Working copy goes into domain/model_workdir/user/
+        // Working copy goes into domain/modelId/user/
         val normalized = originPath.removePrefix("/").removePrefix("ink-scripts/")
         val parts = normalized.split("/").filter { it.isNotEmpty() }
         if (parts.size < 2) {
@@ -481,7 +482,7 @@ class InkWebDavEngine(
 
         val domain = parts[0]
         val user = parts[1]
-        val workDir = resolveFile("$domain/${modelId}_workdir/$user")
+        val workDir = resolveFile("$domain/$modelId/$user")
         workDir.mkdirs()
 
         var copied = 0
