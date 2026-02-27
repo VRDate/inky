@@ -26,7 +26,9 @@ class McpTools(
     private val calendarEngine: InkCalendarEngine? = null,
     private val vcardEngine: InkVCardEngine? = null,
     private val authEngine: InkAuthEngine? = null,
-    private val webDavEngine: InkWebDavEngine? = null
+    private val webDavEngine: InkWebDavEngine? = null,
+    private val assetManifest: EmojiAssetManifest = EmojiAssetManifest(),
+    private val fakerEngine: InkFakerEngine = InkFakerEngine(assetManifest)
 ) {
 
     /** Currently connected external LLM service */
@@ -51,6 +53,7 @@ class McpTools(
             if (vcardEngine != null) addAll(vcardTools)
             if (authEngine != null) addAll(authTools)
             if (webDavEngine != null) addAll(webDavTools)
+            addAll(assetTools)
         }
     }
 
@@ -965,6 +968,83 @@ class McpTools(
     )
 
     // ════════════════════════════════════════════════════════════════════
+    // ASSET PIPELINE + FAKER TOOLS (6)
+    // ════════════════════════════════════════════════════════════════════
+
+    private val assetTools: List<McpToolInfo> = listOf(
+        McpToolInfo(
+            name = "resolve_emoji",
+            description = "Resolve an emoji to its AssetCategory (animset, grip, mesh prefix, audio category).",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("emoji") { put("type", "string"); put("description", "Emoji character (e.g. 🗡️)") }
+                }
+                putJsonArray("required") { add("emoji") }
+            }
+        ),
+        McpToolInfo(
+            name = "parse_asset_tags",
+            description = "Parse ink story tags (# mesh:🗡️, # anim:sword_slash, # voice:gandalf_en) into AssetRef list.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("tags") { put("type", "array"); putJsonObject("items") { put("type", "string") }; put("description", "Ink tags from ContinueResult") }
+                }
+                putJsonArray("required") { add("tags") }
+            }
+        ),
+        McpToolInfo(
+            name = "generate_items",
+            description = "Generate an items MD table with emoji categories, faker-generated names, and POI formula columns (base_dmg + per_level * level = total_dmg).",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("seed") { put("type", "integer"); put("description", "Random seed for deterministic generation (default: 42)") }
+                    putJsonObject("count") { put("type", "integer"); put("description", "Number of items to generate (default: 5)") }
+                    putJsonObject("level") { put("type", "integer"); put("description", "Game level for per-level modifiers (default: 1)") }
+                    putJsonObject("categories") { put("type", "array"); putJsonObject("items") { put("type", "string") }; put("description", "Filter by category names (e.g. sword, potion)") }
+                }
+            }
+        ),
+        McpToolInfo(
+            name = "generate_characters",
+            description = "Generate a DnD characters MD table with faker names, classes, races, and stat formulas (STR, DEX, CON, INT, WIS, CHA, HP).",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("seed") { put("type", "integer"); put("description", "Random seed (default: 42)") }
+                    putJsonObject("count") { put("type", "integer"); put("description", "Number of characters (default: 5)") }
+                }
+            }
+        ),
+        McpToolInfo(
+            name = "generate_story_md",
+            description = "Generate a full story Markdown document with characters table, items table, POI formulas, and ink code blocks.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("seed") { put("type", "integer"); put("description", "Random seed (default: 42)") }
+                    putJsonObject("level") { put("type", "integer"); put("description", "Game level (default: 1)") }
+                    putJsonObject("characters") { put("type", "integer"); put("description", "Number of characters (default: 5)") }
+                    putJsonObject("items") { put("type", "integer"); put("description", "Number of items (default: 5)") }
+                }
+            }
+        ),
+        McpToolInfo(
+            name = "evaluate_formulas",
+            description = "Evaluate POI XLSX formulas in MD table cells. Cells starting with '=' are computed using Apache POI (supports arithmetic, SUM, IF, etc.).",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("markdown") { put("type", "string"); put("description", "Markdown content with tables containing formula cells") }
+                }
+                putJsonArray("required") { add("markdown") }
+            }
+        )
+    )
+
+    // ════════════════════════════════════════════════════════════════════
     // DISPATCH
     // ════════════════════════════════════════════════════════════════════
 
@@ -1054,6 +1134,13 @@ class McpTools(
                 "webdav_list_backups" -> handleWebDavListBackups(arguments)
                 "webdav_restore" -> handleWebDavRestore(arguments)
                 "webdav_working_copy" -> handleWebDavWorkingCopy(arguments)
+                // Asset pipeline + faker tools
+                "resolve_emoji" -> handleResolveEmoji(arguments)
+                "parse_asset_tags" -> handleParseAssetTags(arguments)
+                "generate_items" -> handleGenerateItems(arguments)
+                "generate_characters" -> handleGenerateCharacters(arguments)
+                "generate_story_md" -> handleGenerateStoryMd(arguments)
+                "evaluate_formulas" -> handleEvaluateFormulas(arguments)
                 else -> errorResult("Unknown tool: $name")
             }
         } catch (e: Exception) {
@@ -2075,5 +2162,119 @@ Provide specific, actionable feedback."""
                 else -> put(k, v.toString())
             }
         }
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // ASSET PIPELINE + FAKER HANDLERS
+    // ════════════════════════════════════════════════════════════════════
+
+    private fun handleResolveEmoji(args: JsonObject?): McpToolResult {
+        val emoji = args.requireString("emoji")
+        val ref = assetManifest.resolve(emoji)
+            ?: return errorResult("Unknown emoji: $emoji")
+        return textResult(buildJsonObject {
+            put("emoji", ref.emoji)
+            putJsonObject("category") {
+                put("name", ref.category.name)
+                put("type", ref.category.type)
+                put("animSet", ref.category.animSet)
+                put("gripType", ref.category.gripType)
+                put("meshPrefix", ref.category.meshPrefix)
+                put("audioCategory", ref.category.audioCategory)
+            }
+            put("meshPath", ref.meshPath)
+            put("animSetId", ref.animSetId)
+        }.toString())
+    }
+
+    private fun handleParseAssetTags(args: JsonObject?): McpToolResult {
+        val tagsArray = args?.get("tags")?.jsonArray
+            ?: return errorResult("Missing required parameter: tags")
+        val tags = tagsArray.map { it.jsonPrimitive.content }
+        val refs = assetManifest.parseInkTags(tags)
+        return textResult(buildJsonArray {
+            for (ref in refs) {
+                addJsonObject {
+                    put("emoji", ref.emoji)
+                    put("category", ref.category.name)
+                    put("meshPath", ref.meshPath)
+                    put("animSetId", ref.animSetId)
+                    if (ref.voiceRef != null) {
+                        putJsonObject("voiceRef") {
+                            put("characterId", ref.voiceRef.characterId)
+                            put("language", ref.voiceRef.language)
+                            put("flacPath", ref.voiceRef.flacPath)
+                        }
+                    }
+                }
+            }
+        }.toString())
+    }
+
+    private fun handleGenerateItems(args: JsonObject?): McpToolResult {
+        val config = InkFakerEngine.FakerConfig(
+            seed = args?.get("seed")?.jsonPrimitive?.longOrNull ?: 42L,
+            count = args?.get("count")?.jsonPrimitive?.intOrNull ?: 5,
+            level = args?.get("level")?.jsonPrimitive?.intOrNull ?: 1,
+            categories = args?.get("categories")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
+        )
+        val table = fakerEngine.generateItems(config)
+        val evaluated = fakerEngine.evaluateFormulas(table)
+        return textResult(tableToJsonString(evaluated))
+    }
+
+    private fun handleGenerateCharacters(args: JsonObject?): McpToolResult {
+        val config = InkFakerEngine.FakerConfig(
+            seed = args?.get("seed")?.jsonPrimitive?.longOrNull ?: 42L,
+            count = args?.get("count")?.jsonPrimitive?.intOrNull ?: 5
+        )
+        val table = fakerEngine.generateCharacters(config)
+        val evaluated = fakerEngine.evaluateFormulas(table)
+        return textResult(tableToJsonString(evaluated))
+    }
+
+    private fun handleGenerateStoryMd(args: JsonObject?): McpToolResult {
+        val seed = args?.get("seed")?.jsonPrimitive?.longOrNull ?: 42L
+        val level = args?.get("level")?.jsonPrimitive?.intOrNull ?: 1
+        val charCount = args?.get("characters")?.jsonPrimitive?.intOrNull ?: 5
+        val itemCount = args?.get("items")?.jsonPrimitive?.intOrNull ?: 5
+        val config = InkFakerEngine.FakerConfig(seed = seed, level = level, count = maxOf(charCount, itemCount))
+        val markdown = fakerEngine.generateStoryMd(config)
+        return textResult(markdown)
+    }
+
+    private fun handleEvaluateFormulas(args: JsonObject?): McpToolResult {
+        val markdown = args.requireString("markdown")
+        val parsed = inkMdEngine.parse(markdown)
+        val evaluatedTables = parsed.tables.map { fakerEngine.evaluateFormulas(it) }
+        return textResult(buildJsonArray {
+            for (table in evaluatedTables) {
+                addJsonObject {
+                    put("name", table.name)
+                    putJsonArray("columns") { for (c in table.columns) add(c) }
+                    putJsonArray("rows") {
+                        for (row in table.rows) {
+                            addJsonObject {
+                                for ((k, v) in row) put(k, v)
+                            }
+                        }
+                    }
+                }
+            }
+        }.toString())
+    }
+
+    private fun tableToJsonString(table: InkMdEngine.MdTable): String {
+        return buildJsonObject {
+            put("name", table.name)
+            putJsonArray("columns") { for (c in table.columns) add(c) }
+            putJsonArray("rows") {
+                for (row in table.rows) {
+                    addJsonObject {
+                        for ((k, v) in row) put(k, v)
+                    }
+                }
+            }
+        }.toString()
     }
 }

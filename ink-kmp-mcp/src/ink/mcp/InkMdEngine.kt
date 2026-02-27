@@ -247,4 +247,49 @@ class InkMdEngine {
 
         return MdTable(name = name, columns = columns, rows = rows)
     }
+
+    // ── Asset + Formula extensions ───────────────────────────────
+
+    /** Resolve emoji column values from table rows to AssetRefs via manifest */
+    fun resolveAssets(table: MdTable, manifest: EmojiAssetManifest): List<EmojiAssetManifest.AssetRef> {
+        return table.rows.mapNotNull { row ->
+            val emoji = row["emoji"] ?: return@mapNotNull null
+            manifest.resolve(emoji)
+        }
+    }
+
+    /** Evaluate POI formulas in table, delegating to InkFakerEngine */
+    fun evaluateFormulas(table: MdTable, fakerEngine: InkFakerEngine): MdTable {
+        val hasFormulas = table.rows.any { row -> row.values.any { it.startsWith("=") } }
+        if (!hasFormulas) return table
+        return fakerEngine.evaluateFormulas(table)
+    }
+
+    /** Render with formula evaluation and asset resolution */
+    fun renderWithFormulas(
+        markdown: String,
+        manifest: EmojiAssetManifest,
+        fakerEngine: InkFakerEngine
+    ): Map<String, String> {
+        val parsed = parse(markdown)
+        val result = mutableMapOf<String, String>()
+
+        val evaluatedTables = parsed.tables.map { evaluateFormulas(it, fakerEngine) }
+        val tablesByName = evaluatedTables.associateBy { it.name }
+
+        for (file in parsed.files) {
+            var source = file.inkSource
+            val baseName = file.name.removeSuffix(".ink")
+            val table = tablesByName[baseName] ?: tablesByName[file.name]
+
+            if (table != null) {
+                val varDecls = generateVarDeclarations(table)
+                source = varDecls + "\n" + source
+            }
+
+            result[file.name] = source
+        }
+
+        return result
+    }
 }
