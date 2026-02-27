@@ -210,6 +210,32 @@ See: [`ink-rsocket-transport.puml`](ink-rsocket-transport.puml)
 
 ## MCP Server Architecture
 
+### Multi-Tenant OIDC PWA UI Server
+
+The MCP server is a **multi-tenant** application server — not just an API. It serves the inkey PWA editor UI and manages per-user state:
+
+| Concern | Technology | Description |
+|---------|-----------|-------------|
+| **Identity** | Keycloak OIDC + JWT | Multi-tenant authentication |
+| **Principals** | ez-vcard per user | User/LLM identity cards |
+| **Sessions** | Per-user folders | LLM model user sessions + ink story state |
+| **Collaboration** | Yjs (HocusPocus WS) | Real-time shared editing |
+| **Storage** | WebDAV (Sardine + FS) | domain/user/shared/ folder hierarchy |
+| **PWA UI** | Ktor static + SPA | Serves inkey editor as PWA |
+
+User flow: authenticate via OIDC → vCard principal created → user session folder provisioned → Yjs collab room joined → MCP tools available.
+
+### Client Surfaces
+
+| Client | Type | Purpose |
+|--------|------|---------|
+| **SillyTavern** | MCP user UI (localhost:8000) | Chat-based story interaction with LLM |
+| **Electron** (Inky desktop) | Desktop app | ACE editor + inklecate compiler |
+| **inkey PWA** | Progressive Web App | CodeMirror + Remirror + Yjs collab |
+| **Chromium PWA extension** | Browser extension | Editor extension for Chrome/Edge |
+| **Unity WebGL** | 3D rendering client | AssetBundle prefabs + animation |
+| **BabylonJS WebXR** | 3D rendering client | glTF meshes + WebXR immersive |
+
 ### What is MCP?
 
 [Model Context Protocol](https://modelcontextprotocol.io/) is a standard for connecting LLMs to external tools. The MCP server exposes ink compiler/runtime as tools that any MCP-compatible LLM (Claude, GPT, etc.) can invoke.
