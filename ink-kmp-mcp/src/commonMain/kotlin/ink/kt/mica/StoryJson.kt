@@ -1,14 +1,7 @@
-package ink.kt.ref.mica
+package ink.kt.mica
 
-
-@SuppressWarnings("UtilityClass")
-class StoryJson private constructor() {
-
-  init {
-    throw AssertionError("StoryJson should never be initialized.")
-  }
-
-  companion object {
+/** JSON field name constants for story serialization. */
+object StoryJson {
     const val FILE = "file"
     const val FILES = "files"
     const val CONTENT = "children"
@@ -23,5 +16,4 @@ class StoryJson private constructor() {
     const val IMAGE = "image"
     const val RUNNING = "running"
     const val INDEX = "index"
-  }
 }
