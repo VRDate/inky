@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
+    <PackageReference Include="xunit" Version="2.7.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.7" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- ink C# compiler (netstandard2.0) + runtime (netstandard1.0/2.0) -->
+    <ProjectReference Include="..\ink-csharp\compiler\ink_compiler.csproj" />
+    <ProjectReference Include="..\ink-csharp\ink-engine-runtime\ink-engine-runtime.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Copy bidi_and_tdd.ink fixture to output for tests -->
+    <None Include="..\ink-kmp-mcp\src\test\resources\bidi_and_tdd.ink" CopyToOutputDirectory="PreserveNewest" Link="fixtures\bidi_and_tdd.ink" />
+    <!-- xUnit runner config — disables parallel execution (ink compiler is not thread-safe) -->
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
