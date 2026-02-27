@@ -13,6 +13,7 @@ import kotlinx.serialization.json.*
  *   - LLM service providers (2 tools)
  *   - Collaboration (2 tools)
  *   - WebDAV + Backup (10 tools)
+ *   - Asset pipeline + faker (10 tools)
  */
 class McpTools(
     private val engine: InkEngine,
@@ -28,7 +29,8 @@ class McpTools(
     private val authEngine: InkAuthEngine? = null,
     private val webDavEngine: InkWebDavEngine? = null,
     private val assetManifest: EmojiAssetManifest = EmojiAssetManifest(),
-    private val fakerEngine: InkFakerEngine = InkFakerEngine(assetManifest)
+    private val fakerEngine: InkFakerEngine = InkFakerEngine(assetManifest),
+    private val assetEventEngine: InkAssetEventEngine = InkAssetEventEngine(assetManifest)
 ) {
 
     /** Currently connected external LLM service */
@@ -1062,6 +1064,31 @@ class McpTools(
                 }
                 putJsonArray("required") { add("block") }
             }
+        ),
+        McpToolInfo(
+            name = "emit_asset_event",
+            description = "Emit an asset event by processing ink tags through the EmojiAssetManifest and publishing to the AssetEventBus.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Ink story session ID") }
+                    putJsonObject("tags") { put("type", "array"); putJsonObject("items") { put("type", "string") }; put("description", "Ink tags to process (e.g. '# mesh:🗡️')") }
+                    putJsonObject("knot") { put("type", "string"); put("description", "Current knot/stitch path") }
+                }
+                putJsonArray("required") { add("session_id"); add("tags") }
+            }
+        ),
+        McpToolInfo(
+            name = "list_asset_events",
+            description = "List recent asset events from the AssetEventBus, optionally filtered by session ID or channel.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("session_id") { put("type", "string"); put("description", "Filter by session ID") }
+                    putJsonObject("channel") { put("type", "string"); put("description", "Filter by channel (e.g. 'ink/story/tags', 'ink/asset/load')") }
+                    putJsonObject("limit") { put("type", "integer"); put("description", "Max events to return (default: 50)") }
+                }
+            }
         )
     )
 
@@ -1164,6 +1191,8 @@ class McpTools(
                 "evaluate_formulas" -> handleEvaluateFormulas(arguments)
                 "list_emoji_groups" -> handleListEmojiGroups(arguments)
                 "resolve_unicode_block" -> handleResolveUnicodeBlock(arguments)
+                "emit_asset_event" -> handleEmitAssetEvent(arguments)
+                "list_asset_events" -> handleListAssetEvents(arguments)
                 else -> errorResult("Unknown tool: $name")
             }
         } catch (e: Exception) {
@@ -2360,6 +2389,99 @@ Provide specific, actionable feedback."""
                         if (cat.animSet.isNotEmpty()) put("animSet", cat.animSet)
                         if (cat.meshPrefix.isNotEmpty()) put("meshPrefix", cat.meshPrefix)
                     }
+                }
+            }
+        }.toString())
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // ASSET EVENT HANDLERS
+    // ════════════════════════════════════════════════════════════════════
+
+    private fun handleEmitAssetEvent(args: JsonObject?): McpToolResult {
+        val sessionId = args?.get("session_id")?.jsonPrimitive?.contentOrNull
+            ?: return errorResult("Missing required parameter: session_id")
+        val tags = args["tags"]?.jsonArray?.map { it.jsonPrimitive.content }
+            ?: return errorResult("Missing required parameter: tags")
+        val knot = args["knot"]?.jsonPrimitive?.contentOrNull ?: ""
+
+        val resolved = assetEventEngine.processStoryState(sessionId, tags, knot)
+        return textResult(buildJsonObject {
+            put("session_id", sessionId)
+            put("tags_processed", tags.size)
+            put("assets_resolved", resolved.size)
+            putJsonArray("assets") {
+                for (ref in resolved) {
+                    addJsonObject {
+                        put("emoji", ref.emoji)
+                        put("category", ref.category.name)
+                        put("type", ref.category.type)
+                        put("mesh_path", ref.meshPath)
+                        put("anim_set", ref.animSetId)
+                        if (ref.voiceRef != null) {
+                            putJsonObject("voice_ref") {
+                                put("character_id", ref.voiceRef.characterId)
+                                put("language", ref.voiceRef.language)
+                                put("flac_path", ref.voiceRef.flacPath)
+                            }
+                        }
+                    }
+                }
+            }
+            putJsonArray("channels_published") {
+                add(AssetEventBus.CHANNEL_STORY_TAGS)
+                if (resolved.isNotEmpty()) add(AssetEventBus.CHANNEL_ASSET_LOAD)
+            }
+        }.toString())
+    }
+
+    private fun handleListAssetEvents(args: JsonObject?): McpToolResult {
+        val sessionId = args?.get("session_id")?.jsonPrimitive?.contentOrNull
+        val channel = args?.get("channel")?.jsonPrimitive?.contentOrNull
+        val limit = args?.get("limit")?.jsonPrimitive?.intOrNull ?: 50
+        val bus = assetEventEngine.eventBus()
+
+        if (sessionId != null) {
+            val sessionEvents = bus.sessionEvents(sessionId)
+            return textResult(buildJsonObject {
+                put("session_id", sessionId)
+                put("total_events", sessionEvents.values.sumOf { it.size })
+                putJsonObject("channels") {
+                    for ((ch, events) in sessionEvents) {
+                        putJsonArray(ch) {
+                            for (event in events.takeLast(limit)) {
+                                add(event.toString())
+                            }
+                        }
+                    }
+                }
+            }.toString())
+        }
+
+        if (channel != null) {
+            val events = bus.recentEvents(channel, limit)
+            return textResult(buildJsonObject {
+                put("channel", channel)
+                put("count", events.size)
+                putJsonArray("events") {
+                    for (event in events) {
+                        add(event.toString())
+                    }
+                }
+            }.toString())
+        }
+
+        // Return status of all channels
+        return textResult(buildJsonObject {
+            putJsonArray("active_channels") { bus.activeChannels().forEach { add(it) } }
+            putJsonObject("event_counts") {
+                for (ch in AssetEventBus.ALL_CHANNELS) {
+                    put(ch, bus.recentEvents(ch, Int.MAX_VALUE).size)
+                }
+            }
+            putJsonObject("subscriber_counts") {
+                for (ch in AssetEventBus.ALL_CHANNELS) {
+                    put(ch, bus.subscriberCount(ch))
                 }
             }
         }.toString())

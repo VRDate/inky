@@ -80,6 +80,10 @@ dependencies {
     implementation("com.google.protobuf:protobuf-kotlin:$protobufVersion")
     implementation("com.google.protobuf:protobuf-java-util:$protobufVersion")
 
+    // RSocket-Kotlin — event-driven transport (AsyncAPI contract)
+    implementation("io.rsocket.kotlin:rsocket-ktor-server:0.16.0")
+    implementation("io.rsocket.kotlin:rsocket-ktor-client:0.16.0")
+
     // msgpack serialization for RSocket transport
     implementation("org.msgpack:jackson-dataformat-msgpack:0.9.8")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.17.2")

@@ -120,5 +120,11 @@ class AssetEventBus {
         const val CHANNEL_INVENTORY_CHANGE = "ink/inventory/change"
         const val CHANNEL_VOICE_SYNTHESIZE = "ink/voice/synthesize"
         const val CHANNEL_VOICE_READY = "ink/voice/ready"
+
+        /** All 6 AsyncAPI contract channels. */
+        val ALL_CHANNELS = listOf(
+            CHANNEL_STORY_TAGS, CHANNEL_ASSET_LOAD, CHANNEL_ASSET_LOADED,
+            CHANNEL_INVENTORY_CHANGE, CHANNEL_VOICE_SYNTHESIZE, CHANNEL_VOICE_READY
+        )
     }
 }

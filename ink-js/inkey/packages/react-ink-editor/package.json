@@ -21,7 +21,8 @@
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "yjs": "^13.6.0",
-    "y-websocket": "^2.0.0"
+    "y-websocket": "^2.0.0",
+    "@msgpack/msgpack": "^3.0.0"
   },
   "devDependencies": {
     "typescript": "^5.4.0",

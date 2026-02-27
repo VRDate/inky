@@ -15,8 +15,13 @@ import io.ktor.server.websocket.*
 import io.ktor.server.auth.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.sse.*
+import io.ktor.websocket.*
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.KotlinModule
+import org.msgpack.jackson.dataformat.MessagePackFactory
 import org.slf4j.LoggerFactory
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -62,8 +67,6 @@ fun startServer(
         LmStudioEngine(baseUrl = lmStudioUrl, modelName = lmStudioModel)
     } else null
 
-    val camelRoutes = if (enableLlm && llmEngine != null) CamelRoutes(inkEngine, llmEngine) else null
-
     // Initialize collaboration engine
     val colabEngine = ColabEngine()
 
@@ -76,6 +79,16 @@ fun startServer(
     // Initialize edit + puml engines (shared)
     val editEngine = InkEditEngine()
     val ink2PumlEngine = Ink2PumlEngine(editEngine)
+
+    // Initialize asset event pipeline
+    val assetManifest = EmojiAssetManifest()
+    val assetEventBus = AssetEventBus()
+    val assetEventEngine = InkAssetEventEngine(assetManifest, assetEventBus)
+
+    // Initialize Camel routes with asset event engine
+    val camelRoutes = if (enableLlm && llmEngine != null) {
+        CamelRoutes(inkEngine, llmEngine, assetEventEngine)
+    } else null
 
     // Initialize tools with all engines
     val tools = McpTools(
@@ -90,7 +103,9 @@ fun startServer(
         calendarEngine = calendarEngine,
         vcardEngine = vcardEngine,
         authEngine = authEngine,
-        webDavEngine = webDavEngine
+        webDavEngine = webDavEngine,
+        assetManifest = assetManifest,
+        assetEventEngine = assetEventEngine
     )
     val mcpSessions = ConcurrentHashMap<String, McpSession>()
 
@@ -208,6 +223,12 @@ fun startServer(
 
             // ── Yjs Collaboration WebSocket ──
             installColabRoutes(colabEngine, authEngine)
+
+            // ── RSocket-style Asset Event WebSocket ──
+            // Streams asset events (msgpack) to connected clients.
+            // Implements AsyncAPI contract: ink-asset-events.yaml
+            // Patterns: subscribe (requestStream), fireAndForget (asset loaded confirm)
+            installAssetEventRoutes(assetEventBus, assetEventEngine)
 
             // Collaboration status REST endpoint
             get("/api/collab") {
@@ -473,6 +494,171 @@ fun startServer(
             }
         }
     }.start(wait = true)
+}
+
+// ── msgpack ObjectMapper for RSocket event serialization ──
+private val msgpackMapper: ObjectMapper = ObjectMapper(MessagePackFactory()).apply {
+    registerModule(KotlinModule.Builder().build())
+}
+
+/**
+ * Install asset event WebSocket routes at /rsocket.
+ *
+ * Protocol (msgpack over WebSocket binary frames):
+ *   Client → Server:
+ *     { "type": "subscribe", "session_id": "...", "channels": ["ink/story/tags", ...] }
+ *     { "type": "fire_and_forget", "channel": "ink/asset/loaded", "data": {...} }
+ *   Server → Client:
+ *     { "channel": "ink/story/tags", "event": {...}, "timestamp": 123456 }
+ */
+private fun Routing.installAssetEventRoutes(
+    bus: AssetEventBus,
+    engine: InkAssetEventEngine
+) {
+    webSocket("/rsocket") {
+        val clientId = UUID.randomUUID().toString().take(8)
+        mcpLog.info("Asset event WS connected: {}", clientId)
+
+        val unsubscribes = mutableListOf<() -> Unit>()
+
+        try {
+            for (frame in incoming) {
+                when (frame) {
+                    is Frame.Binary -> {
+                        val msg = try {
+                            msgpackMapper.readValue(frame.readBytes(), Map::class.java)
+                        } catch (e: Exception) {
+                            mcpLog.warn("Invalid msgpack from {}: {}", clientId, e.message)
+                            continue
+                        }
+
+                        when (msg["type"]) {
+                            // Subscribe to channels for a session
+                            "subscribe" -> {
+                                val sessionId = msg["session_id"] as? String ?: ""
+                                val channels = (msg["channels"] as? List<*>)?.filterIsInstance<String>()
+                                    ?: AssetEventBus.ALL_CHANNELS
+
+                                for (channel in channels) {
+                                    val unsub = bus.subscribe(channel) { ch, event ->
+                                        // Filter by session if specified
+                                        if (sessionId.isNotEmpty() && !matchesSession(event, sessionId)) return@subscribe
+
+                                        val payload = mapOf(
+                                            "channel" to ch,
+                                            "event" to event,
+                                            "timestamp" to System.currentTimeMillis()
+                                        )
+                                        val bytes = msgpackMapper.writeValueAsBytes(payload)
+                                        launch { send(Frame.Binary(true, bytes)) }
+                                    }
+                                    unsubscribes.add(unsub)
+                                }
+                                mcpLog.debug("Client {} subscribed to {} channels (session={})",
+                                    clientId, channels.size, sessionId.ifEmpty { "*" })
+
+                                // Replay recent events for the session
+                                if (sessionId.isNotEmpty()) {
+                                    val sessionEvents = bus.sessionEvents(sessionId)
+                                    for ((ch, events) in sessionEvents) {
+                                        for (event in events) {
+                                            val payload = mapOf(
+                                                "channel" to ch,
+                                                "event" to event,
+                                                "timestamp" to System.currentTimeMillis(),
+                                                "replay" to true
+                                            )
+                                            send(Frame.Binary(true, msgpackMapper.writeValueAsBytes(payload)))
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Fire-and-forget: client confirms asset loaded
+                            "fire_and_forget" -> {
+                                val channel = msg["channel"] as? String ?: continue
+                                val data = msg["data"] ?: continue
+                                bus.publish(channel, data)
+                                mcpLog.debug("Client {} published to {}", clientId, channel)
+                            }
+
+                            // Request recent events for a channel
+                            "request" -> {
+                                val channel = msg["channel"] as? String ?: continue
+                                val limit = (msg["limit"] as? Number)?.toInt() ?: 50
+                                val events = bus.recentEvents(channel, limit)
+                                val payload = mapOf(
+                                    "channel" to channel,
+                                    "events" to events,
+                                    "count" to events.size
+                                )
+                                send(Frame.Binary(true, msgpackMapper.writeValueAsBytes(payload)))
+                            }
+
+                            else -> mcpLog.warn("Unknown message type from {}: {}", clientId, msg["type"])
+                        }
+                    }
+
+                    is Frame.Text -> {
+                        // JSON fallback for clients that don't support msgpack
+                        val text = frame.readText()
+                        val msg = mcpJson.parseToJsonElement(text).jsonObject
+                        val type = msg["type"]?.jsonPrimitive?.contentOrNull
+
+                        when (type) {
+                            "subscribe" -> {
+                                val sessionId = msg["session_id"]?.jsonPrimitive?.contentOrNull ?: ""
+                                val unsub = bus.subscribeAll { ch, event ->
+                                    if (sessionId.isNotEmpty() && !matchesSession(event, sessionId)) return@subscribeAll
+                                    val payload = buildJsonObject {
+                                        put("channel", ch)
+                                        put("event", event.toString())
+                                        put("timestamp", System.currentTimeMillis())
+                                    }
+                                    launch { send(Frame.Text(payload.toString())) }
+                                }
+                                unsubscribes.add(unsub)
+                            }
+
+                            "fire_and_forget" -> {
+                                val channel = msg["channel"]?.jsonPrimitive?.contentOrNull ?: continue
+                                val data = msg["data"]?.jsonObject ?: continue
+                                bus.publish(channel, data)
+                            }
+                        }
+                    }
+
+                    else -> { /* ignore ping/pong/close */ }
+                }
+            }
+        } finally {
+            unsubscribes.forEach { it() }
+            mcpLog.info("Asset event WS disconnected: {} ({} subscriptions removed)", clientId, unsubscribes.size)
+        }
+    }
+
+    // REST endpoint for asset event status
+    get("/api/asset-events/status") {
+        val status = buildJsonObject {
+            putJsonArray("active_channels") { bus.activeChannels().forEach { add(it) } }
+            put("total_channels", AssetEventBus.ALL_CHANNELS.size)
+            putJsonObject("subscribers") {
+                for (ch in AssetEventBus.ALL_CHANNELS) {
+                    put(ch, bus.subscriberCount(ch))
+                }
+            }
+        }
+        call.respondText(status.toString(), ContentType.Application.Json)
+    }
+}
+
+/** Check if an event belongs to a specific session. */
+private fun matchesSession(event: Any, sessionId: String): Boolean = when (event) {
+    is InkAssetEventEngine.InkTagEvent -> event.sessionId == sessionId
+    is InkAssetEventEngine.AssetLoadRequest -> event.sessionId == sessionId
+    is InkAssetEventEngine.InventoryChangeEvent -> event.sessionId == sessionId
+    is InkAssetEventEngine.VoiceSynthRequest -> event.sessionId == sessionId
+    else -> true
 }
 
 /** Handle a JSON-RPC request per MCP protocol */

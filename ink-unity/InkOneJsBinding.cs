@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
 // InkOneJsBinding.cs — Unity C# bridge for OneJS ↔ ink runtime
-// Exposes the 10 methods that createOneJsAdapter() in
+// Exposes the 11 methods that createOneJsAdapter() in
 // InkRuntimeAdapter.ts calls via globalThis.__inkBridge
 // ═══════════════════════════════════════════════════════════════
 
@@ -13,7 +13,7 @@ namespace Inky.Unity
 {
     /// <summary>
     /// Unity MonoBehaviour that registers itself as <c>__inkBridge</c> in the
-    /// OneJS JavaScript context, implementing the 10-method contract expected
+    /// OneJS JavaScript context, implementing the 11-method contract expected
     /// by <c>createOneJsAdapter()</c> in <c>InkRuntimeAdapter.ts</c>.
     /// </summary>
     public class InkOneJsBinding : MonoBehaviour
@@ -154,6 +154,51 @@ namespace Inky.Unity
             _sessions.Remove(sessionId);
         }
 
+        // ── Asset events (11th method) ─────────────────────────────
+
+        /// <summary>
+        /// Parses the current tags through a basic emoji→asset mapping
+        /// and returns a JSON array of asset event references.
+        /// Called by OneJS <c>bridge.GetAssetEvents(sessionId)</c>.
+        /// </summary>
+        public string GetAssetEvents(string sessionId)
+        {
+            var story = GetStory(sessionId);
+            var tags = story.currentTags ?? new List<string>();
+            var events = new List<AssetEventRefDto>();
+
+            foreach (var tag in tags)
+            {
+                // Parse tags in format: "mesh:🗡️", "anim:sword_slash", "voice:gandalf_en"
+                var trimmed = tag.TrimStart('#', ' ');
+                var colonIdx = trimmed.IndexOf(':');
+                if (colonIdx < 0) continue;
+
+                var key = trimmed.Substring(0, colonIdx).Trim();
+                var value = trimmed.Substring(colonIdx + 1).Trim();
+
+                if (key is "mesh" or "anim" or "voice")
+                {
+                    events.Add(new AssetEventRefDto
+                    {
+                        emoji = value,
+                        category = key,
+                        type = key switch
+                        {
+                            "mesh" => "mesh",
+                            "anim" => "animation",
+                            "voice" => "voice",
+                            _ => "unknown"
+                        },
+                        meshPath = key == "mesh" ? value : "",
+                        animSetId = key == "anim" ? value : ""
+                    });
+                }
+            }
+
+            return JsonUtility.ToJson(new AssetEventRefArrayWrapper { items = events.ToArray() });
+        }
+
         // ── Internal helpers ─────────────────────────────────────
 
         private Story GetStory(string sessionId)
@@ -215,6 +260,22 @@ namespace Inky.Unity
             public ChoiceDto[] choices;
             public bool canContinue;
             public string[] tags;
+        }
+
+        [Serializable]
+        private struct AssetEventRefDto
+        {
+            public string emoji;
+            public string category;
+            public string type;
+            public string meshPath;
+            public string animSetId;
+        }
+
+        [Serializable]
+        private struct AssetEventRefArrayWrapper
+        {
+            public AssetEventRefDto[] items;
         }
     }
 }

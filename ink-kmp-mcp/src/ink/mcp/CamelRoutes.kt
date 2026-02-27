@@ -17,10 +17,13 @@ import org.slf4j.LoggerFactory
  *   direct:ink-play            → Start interactive story session
  *   direct:ink-choose          → Make choice in story session
  *   direct:llm-compile-chain  → Generate ink → compile → play (full pipeline)
+ *   direct:ink-asset-event    → Process story tags through asset event pipeline
+ *   direct:voice-synthesize   → Request voice synthesis for story text
  */
 class CamelRoutes(
     private val inkEngine: InkEngine,
-    private val llmEngine: LlmEngine
+    private val llmEngine: LlmEngine,
+    private val assetEventEngine: InkAssetEventEngine? = null
 ) {
     private val log = LoggerFactory.getLogger(CamelRoutes::class.java)
     private var camelContext: CamelContext? = null
@@ -38,6 +41,7 @@ class CamelRoutes(
         // Register engines for processor access
         ctx.registry.bind("inkEngine", inkEngine)
         ctx.registry.bind("llmEngine", llmEngine)
+        assetEventEngine?.let { ctx.registry.bind("assetEventEngine", it) }
 
         ctx.addRoutes(buildRoutes())
         ctx.start()
@@ -193,6 +197,69 @@ class CamelRoutes(
                     .otherwise()
                         .log("Compilation failed, returning errors")
                 .end()
+
+            // ── Asset Event Processing ──
+            // Processes story tags through EmojiAssetManifest → publishes to AssetEventBus
+            from("direct:ink-asset-event")
+                .routeId("ink-asset-event")
+                .log("Process ink tags for asset events")
+                .process { exchange ->
+                    val assetEngine = exchange.context.registry.lookupByName("assetEventEngine")
+                        as? InkAssetEventEngine
+                    if (assetEngine == null) {
+                        exchange.getIn().body = mapOf("error" to "AssetEventEngine not available")
+                        return@process
+                    }
+                    val sessionId = exchange.getIn().getHeader("sessionId", String::class.java) ?: ""
+                    val knot = exchange.getIn().getHeader("knot", String::class.java) ?: ""
+                    @Suppress("UNCHECKED_CAST")
+                    val tags = exchange.getIn().body as? List<String> ?: emptyList()
+                    val resolved = assetEngine.processStoryState(sessionId, tags, knot)
+                    exchange.getIn().body = mapOf(
+                        "session_id" to sessionId,
+                        "resolved_count" to resolved.size,
+                        "assets" to resolved.map { ref ->
+                            mapOf(
+                                "emoji" to ref.emoji,
+                                "category" to ref.category.name,
+                                "mesh_path" to ref.meshPath,
+                                "anim_set" to ref.animSetId
+                            )
+                        }
+                    )
+                }
+
+            // ── Voice Synthesis Route ──
+            // Routes voice synthesis requests through asset event pipeline
+            from("direct:voice-synthesize")
+                .routeId("voice-synthesize")
+                .log("Voice synthesis request")
+                .process { exchange ->
+                    val assetEngine = exchange.context.registry.lookupByName("assetEventEngine")
+                        as? InkAssetEventEngine
+                    if (assetEngine == null) {
+                        exchange.getIn().body = mapOf("error" to "AssetEventEngine not available")
+                        return@process
+                    }
+                    val sessionId = exchange.getIn().getHeader("sessionId", String::class.java) ?: ""
+                    val text = exchange.getIn().body as? String ?: ""
+                    val characterId = exchange.getIn().getHeader("characterId", String::class.java) ?: ""
+                    val language = exchange.getIn().getHeader("language", String::class.java) ?: "en"
+                    val flacPath = exchange.getIn().getHeader("flacPath", String::class.java) ?: ""
+
+                    val voiceRef = EmojiAssetManifest.VoiceRef(
+                        characterId = characterId,
+                        language = language,
+                        flacPath = flacPath
+                    )
+                    assetEngine.processVoice(sessionId, text, voiceRef)
+                    exchange.getIn().body = mapOf(
+                        "status" to "queued",
+                        "session_id" to sessionId,
+                        "character_id" to characterId,
+                        "language" to language
+                    )
+                }
         }
     }
 }

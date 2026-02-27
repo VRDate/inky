@@ -17,6 +17,17 @@ export interface InkStoryState {
   choices: InkChoice[];
   canContinue: boolean;
   tags: string[];
+  /** Resolved asset events from the tag pipeline (when asset event engine is connected). */
+  assetEvents?: AssetEventRef[];
+}
+
+/** Asset reference resolved from an ink tag via EmojiAssetManifest. */
+export interface AssetEventRef {
+  emoji: string;
+  category: string;
+  type: string;
+  meshPath: string;
+  animSetId: string;
 }
 
 export interface InkRuntimeAdapter {
@@ -40,6 +51,8 @@ export interface InkRuntimeAdapter {
   resetStory(sessionId: string): Promise<void>;
   /** End session */
   endSession(sessionId: string): Promise<void>;
+  /** Subscribe to asset events for a session. Returns unsubscribe function. */
+  onAssetEvent?(sessionId: string, callback: (events: AssetEventRef[]) => void): () => void;
 }
 
 /** Detect the current runtime environment */
@@ -235,6 +248,16 @@ export function createOneJsAdapter(): InkRuntimeAdapter {
     },
     async endSession(sessionId: string) {
       bridge.EndSession(sessionId);
+    },
+    onAssetEvent(sessionId: string, callback: (events: AssetEventRef[]) => void) {
+      // OneJS in-process: call GetAssetEvents (11th method on __inkBridge)
+      if (typeof bridge.GetAssetEvents === "function") {
+        const json = bridge.GetAssetEvents(sessionId);
+        const events: AssetEventRef[] = JSON.parse(json);
+        if (events.length > 0) callback(events);
+      }
+      // No persistent subscription in OneJS — caller polls via continueStory()
+      return () => {};
     },
   };
 }
