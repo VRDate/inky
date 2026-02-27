@@ -1,0 +1,703 @@
+@startuml ink.proto – Protobuf Message Diagram (ink.model)
+
+' ==============================================================================
+' ink.model — Unified Protobuf Contract
+' Package: ink.model
+' Source:  ink-kmp-mcp/src/main/proto/ink/model/
+'
+' 14 .proto files defining 44 messages + 5 enums.
+' Single source of truth for KT, C#, TS/JS, Python code generation.
+' Drives MCP (JSON-RPC), RSocket (msgpack), WSS, SSE, WebDAV, Yjs protocols.
+'
+' Last updated: 2026-02-27
+' ==============================================================================
+
+skinparam backgroundColor #FAFAFA
+skinparam shadowing false
+skinparam roundcorner 8
+
+skinparam class {
+    BackgroundColor #E8EAF6
+    BorderColor #283593
+    HeaderBackgroundColor #3949AB
+    FontColor #212121
+    FontName JetBrains Mono
+    FontSize 11
+    HeaderFontColor #FFFFFF
+    HeaderFontSize 12
+    AttributeFontSize 10
+    StereotypeFontSize 9
+}
+
+skinparam enum {
+    BackgroundColor #FFF3E0
+    BorderColor #E65100
+    HeaderBackgroundColor #F57C00
+    FontColor #212121
+    HeaderFontColor #FFFFFF
+    FontSize 11
+}
+
+skinparam package {
+    BackgroundColor #ECEFF1
+    BorderColor #546E7A
+    FontColor #37474F
+    FontSize 13
+}
+
+skinparam note {
+    BackgroundColor #FFFDE7
+    BorderColor #F9A825
+    FontSize 10
+    FontName JetBrains Mono
+}
+
+title ink.model — Protobuf Message Diagram\n14 .proto files | 44 messages | 5 enums | Multi-language codegen
+footer ink.model | proto3 | KT + C# + TS + Python | MCP + RSocket + WSS + SSE + WebDAV + Yjs
+
+' ═══════════════════════════════════════════════════════════
+' STORY (story.proto)
+' ═══════════════════════════════════════════════════════════
+
+package "story.proto" #E3F2FD {
+
+    class Choice <<message>> {
+        + index : int32 [1]
+        + text : string [2]
+        + tags : repeated string [3]
+    }
+
+    class StoryState <<message>> {
+        + text : string [1]
+        + can_continue : bool [2]
+        + choices : repeated Choice [3]
+        + tags : repeated string [4]
+    }
+
+    class CompileResult <<message>> {
+        + success : bool [1]
+        + json : string [2]
+        + errors : repeated string [3]
+        + warnings : repeated string [4]
+    }
+
+    class StorySession <<message>> {
+        + id : string [1]
+        + source : string [2]
+        + state_json : string [3]
+    }
+
+    StoryState --> "*" Choice : choices
+}
+
+' ═══════════════════════════════════════════════════════════
+' STRUCTURE (structure.proto)
+' ═══════════════════════════════════════════════════════════
+
+package "structure.proto" #E8F5E9 {
+
+    enum SectionType <<enum>> {
+        SECTION_TYPE_UNSPECIFIED = 0
+        KNOT = 1
+        STITCH = 2
+        FUNCTION = 3
+        PREAMBLE = 4
+    }
+
+    enum VariableType <<enum>> {
+        VARIABLE_TYPE_UNSPECIFIED = 0
+        VAR = 1
+        CONST = 2
+        LIST = 3
+        TEMP = 4
+    }
+
+    enum DiagramMode <<enum>> {
+        DIAGRAM_MODE_UNSPECIFIED = 0
+        ACTIVITY = 1
+        STATE = 2
+    }
+
+    class Section <<message>> {
+        + name : string [1]
+        + type : SectionType [2]
+        + start_line : int32 [3]
+        + end_line : int32 [4]
+        + content : string [5]
+        + parent : string [6]
+        + parameters : repeated string [7]
+    }
+
+    class Variable <<message>> {
+        + name : string [1]
+        + type : VariableType [2]
+        + initial_value : string [3]
+        + line : int32 [4]
+    }
+
+    class DivertRef <<message>> {
+        + target : string [1]
+        + line : int32 [2]
+        + column : int32 [3]
+    }
+
+    class Structure <<message>> {
+        + sections : repeated Section [1]
+        + variables : repeated Variable [2]
+        + includes : repeated string [3]
+        + diverts : repeated DivertRef [4]
+        + total_lines : int32 [5]
+    }
+
+    class InkDiagramChoice <<message>> {
+        + text : string [1]
+        + divert : string [2]
+        + is_sticky_choice : bool [3]
+    }
+
+    Section --> SectionType : type
+    Variable --> VariableType : type
+    Structure --> "*" Section : sections
+    Structure --> "*" Variable : variables
+    Structure --> "*" DivertRef : diverts
+}
+
+' ═══════════════════════════════════════════════════════════
+' TABLE (table.proto)
+' ═══════════════════════════════════════════════════════════
+
+package "table.proto" #FFF3E0 {
+
+    enum CellType <<enum>> {
+        STRING = 0
+        INT = 1
+        FLOAT = 2
+        BOOL = 3
+        FORMULA = 4
+        EMOJI = 5
+        FAKER = 6
+    }
+
+    class MdCell <<message>> {
+        + value : string [1]
+        + formula : string [2]
+        + evaluated : string [3]
+        + type : CellType [4]
+    }
+
+    class MdRow <<message>> {
+        + cells : map<string, MdCell> [1]
+    }
+
+    class MdTable <<message>> {
+        + name : string [1]
+        + columns : repeated string [2]
+        + rows : repeated MdRow [3]
+    }
+
+    MdCell --> CellType : type
+    MdRow --> "*" MdCell : cells (map)
+    MdTable --> "*" MdRow : rows
+}
+
+' ═══════════════════════════════════════════════════════════
+' DOCUMENT (document.proto) — imports table.proto
+' ═══════════════════════════════════════════════════════════
+
+package "document.proto" #F3E5F5 {
+
+    enum EditorMode <<enum>> {
+        EDITOR_MODE_UNSPECIFIED = 0
+        EDIT = 1
+        PLAY = 2
+    }
+
+    class InkFile <<message>> {
+        + name : string [1]
+        + ink_source : string [2]
+        + header_level : int32 [3]
+    }
+
+    class ParseResult <<message>> {
+        + files : repeated InkFile [1]
+        + tables : repeated MdTable [2]
+    }
+
+    ParseResult --> "*" InkFile : files
+    ParseResult --> "*" MdTable : tables
+}
+
+' ═══════════════════════════════════════════════════════════
+' ASSET (asset.proto)
+' ═══════════════════════════════════════════════════════════
+
+package "asset.proto" #B2DFDB {
+
+    class AssetCategory <<message>> {
+        + emoji : string [1]
+        + name : string [2]
+        + type : string [3]
+        + anim_set : string [4]
+        + grip_type : string [5]
+        + mesh_prefix : string [6]
+        + audio_category : string [7]
+    }
+
+    class VoiceRef <<message>> {
+        + character_id : string [1]
+        + language : string [2]
+        + flac_path : string [3]
+    }
+
+    class AssetRef <<message>> {
+        + emoji : string [1]
+        + category : AssetCategory [2]
+        + mesh_path : string [3]
+        + anim_set_id : string [4]
+        + voice_ref : VoiceRef [5]
+        + metadata : map<string, string> [6]
+    }
+
+    AssetRef --> AssetCategory : category
+    AssetRef --> VoiceRef : voice_ref
+}
+
+' ═══════════════════════════════════════════════════════════
+' FAKER (faker.proto)
+' ═══════════════════════════════════════════════════════════
+
+package "faker.proto" #FFECB3 {
+
+    class FakerConfig <<message>> {
+        + seed : int64 [1]
+        + locale : string [2]
+        + count : int32 [3]
+        + level : int32 [4]
+        + categories : repeated string [5]
+    }
+
+    class EmojiCategory <<message>> {
+        + emoji : string [1]
+        + faker_provider : string [2]
+        + method_chain : string [3]
+        + range_min : int32 [4]
+        + range_max : int32 [5]
+    }
+}
+
+' ═══════════════════════════════════════════════════════════
+' EVENT (event.proto) — imports asset.proto
+' ═══════════════════════════════════════════════════════════
+
+package "event.proto" #FFCCBC {
+
+    class AssetEvent <<message>> {
+        + session_id : string [1]
+        + event_type : string [2]
+        + asset : AssetRef [3]
+        + timestamp : int64 [4]
+    }
+
+    class InventoryChangeEvent <<message>> {
+        + session_id : string [1]
+        + action : string [2]
+        + emoji : string [3]
+        + asset : AssetRef [4]
+        + timestamp : int64 [5]
+    }
+
+    class InkTagEvent <<message>> {
+        + session_id : string [1]
+        + tags : repeated string [2]
+        + knot : string [3]
+        + timestamp : int64 [4]
+    }
+
+    class AssetLoadRequest <<message>> {
+        + session_id : string [1]
+        + asset : AssetRef [2]
+        + priority : string [3]
+    }
+
+    class VoiceSynthRequest <<message>> {
+        + session_id : string [1]
+        + text : string [2]
+        + voice_ref : VoiceRef [3]
+        + language : string [4]
+    }
+
+    AssetEvent --> AssetRef : asset
+    InventoryChangeEvent --> AssetRef : asset
+    AssetLoadRequest --> AssetRef : asset
+    VoiceSynthRequest --> VoiceRef : voice_ref
+}
+
+' ═══════════════════════════════════════════════════════════
+' DEBUG (debug.proto) — imports story.proto
+' ═══════════════════════════════════════════════════════════
+
+package "debug.proto" #E1F5FE {
+
+    class Breakpoint <<message>> {
+        + id : string [1]
+        + type : string [2]
+        + target : string [3]
+        + enabled : bool [4]
+    }
+
+    class WatchVariable <<message>> {
+        + name : string [1]
+        + last_value : string [2]
+        + change_count : int32 [3]
+    }
+
+    class VisitEntry <<message>> {
+        + step : int32 [1]
+        + text : string [2]
+        + choices_made : int32 [3]
+        + variables_changed : repeated string [4]
+        + timestamp : int64 [5]
+    }
+
+    class DebugSession <<message>> {
+        + session_id : string [1]
+        + breakpoints : repeated Breakpoint [2]
+        + watches : map<string, WatchVariable> [3]
+        + visit_log : repeated VisitEntry [4]
+        + stepping : bool [5]
+        + step_count : int32 [6]
+        + total_steps : int32 [7]
+        + is_paused : bool [8]
+        + last_output : string [9]
+    }
+
+    class WatchChange <<message>> {
+        + old_value : string [1]
+        + new_value : string [2]
+    }
+
+    class StepResult <<message>> {
+        + text : string [1]
+        + can_continue : bool [2]
+        + choices : repeated Choice [3]
+        + tags : repeated string [4]
+        + hit_breakpoint : Breakpoint [5]
+        + watch_changes : map<string, WatchChange> [6]
+        + step_number : int32 [7]
+        + is_paused : bool [8]
+    }
+
+    DebugSession --> "*" Breakpoint : breakpoints
+    DebugSession --> "*" WatchVariable : watches (map)
+    DebugSession --> "*" VisitEntry : visit_log
+    StepResult --> "*" Choice : choices
+    StepResult --> Breakpoint : hit_breakpoint
+    StepResult --> "*" WatchChange : watch_changes (map)
+}
+
+' ═══════════════════════════════════════════════════════════
+' MCP (mcp.proto)
+' ═══════════════════════════════════════════════════════════
+
+package "mcp.proto" #F3E5F5 {
+
+    class JsonRpcRequest <<message>> {
+        + jsonrpc : string [1]
+        + id : string [2]
+        + method : string [3]
+        + params_json : string [4]
+    }
+
+    class JsonRpcResponse <<message>> {
+        + jsonrpc : string [1]
+        + id : string [2]
+        + result_json : string [3]
+        + error : JsonRpcError [4]
+    }
+
+    class JsonRpcError <<message>> {
+        + code : int32 [1]
+        + message : string [2]
+        + data_json : string [3]
+    }
+
+    class McpServerInfo <<message>> {
+        + name : string [1]
+        + version : string [2]
+    }
+
+    class McpCapabilities <<message>> {
+        + tools : McpToolCapability [1]
+    }
+
+    class McpToolCapability <<message>> {
+        + list_changed : bool [1]
+    }
+
+    class McpInitializeResult <<message>> {
+        + protocol_version : string [1]
+        + capabilities : McpCapabilities [2]
+        + server_info : McpServerInfo [3]
+    }
+
+    class McpToolInfo <<message>> {
+        + name : string [1]
+        + description : string [2]
+        + input_schema_json : string [3]
+    }
+
+    class McpToolsListResult <<message>> {
+        + tools : repeated McpToolInfo [1]
+    }
+
+    class McpContentBlock <<message>> {
+        + type : string [1]
+        + text : string [2]
+    }
+
+    class McpToolResult <<message>> {
+        + content : repeated McpContentBlock [1]
+        + is_error : bool [2]
+    }
+
+    JsonRpcResponse --> JsonRpcError : error
+    McpInitializeResult --> McpCapabilities : capabilities
+    McpInitializeResult --> McpServerInfo : server_info
+    McpCapabilities --> McpToolCapability : tools
+    McpToolsListResult --> "*" McpToolInfo : tools
+    McpToolResult --> "*" McpContentBlock : content
+}
+
+' ═══════════════════════════════════════════════════════════
+' LLM (llm.proto)
+' ═══════════════════════════════════════════════════════════
+
+package "llm.proto" #E0F7FA {
+
+    class GgufModel <<message>> {
+        + id : string [1]
+        + hugging_face_repo : string [2]
+        + file_name : string [3]
+        + parameters : string [4]
+        + quantization : string [5]
+        + architecture : string [6]
+        + size_gb : double [7]
+        + min_vram_gb : int32 [8]
+        + jlama_compatible : bool [9]
+        + description : string [10]
+    }
+
+    class ServiceDef <<message>> {
+        + id : string [1]
+        + name : string [2]
+        + base_url : string [3]
+        + default_model : string [4]
+        + api_key_env : string [5]
+        + description : string [6]
+        + requires_api_key : bool [7]
+        + is_local : bool [8]
+        + doc_url : string [9]
+    }
+}
+
+' ═══════════════════════════════════════════════════════════
+' PRINCIPAL (principal.proto)
+' ═══════════════════════════════════════════════════════════
+
+package "principal.proto" #FCE4EC {
+
+    class InkPrincipal <<message>> {
+        + id : string [1]
+        + name : string [2]
+        + roles : repeated string [3]
+        + is_llm : bool [4]
+        + email : string [5]
+    }
+
+    class InkPrincipalInfo <<message>> {
+        + id : string [1]
+        + display_name : string [2]
+        + email : string [3]
+        + role : string [4]
+        + is_llm : bool [5]
+        + folder_path : string [6]
+        + mcp_uri : string [7]
+    }
+}
+
+' ═══════════════════════════════════════════════════════════
+' CALENDAR (calendar.proto)
+' ═══════════════════════════════════════════════════════════
+
+package "calendar.proto" #F1F8E9 {
+
+    class InkEvent <<message>> {
+        + uid : string [1]
+        + summary : string [2]
+        + description : string [3]
+        + dt_start : string [4]
+        + dt_end : string [5]
+        + category : string [6]
+        + location : string [7]
+        + status : string [8]
+    }
+}
+
+' ═══════════════════════════════════════════════════════════
+' COLLAB (collab.proto)
+' ═══════════════════════════════════════════════════════════
+
+package "collab.proto" #EDE7F6 {
+
+    class ColabClient <<message>> {
+        + client_id : string [1]
+        + doc_id : string [2]
+    }
+
+    class ColabDocumentInfo <<message>> {
+        + doc_id : string [1]
+        + created_at : int64 [2]
+        + update_count : int64 [3]
+        + client_count : int32 [4]
+    }
+
+    class EditorContext <<message>> {
+        + mode : string [1]
+        + session_id : string [2]
+        + doc_id : string [3]
+        + is_compiling : bool [4]
+        + errors : repeated string [5]
+    }
+}
+
+' ═══════════════════════════════════════════════════════════
+' SILLYTAVERN (sillytavern.proto)
+' ═══════════════════════════════════════════════════════════
+
+package "sillytavern.proto" #FFF9C4 {
+
+    class StCharacterCard <<message>> {
+        + name : string [1]
+        + description : string [2]
+        + personality : string [3]
+        + scenario : string [4]
+        + first_message : string [5]
+        + mes_example : string [6]
+        + system_prompt : string [7]
+        + creator_notes : string [8]
+        + tags : repeated string [9]
+    }
+}
+
+' ═══════════════════════════════════════════════════════════
+' CROSS-PROTO DEPENDENCIES
+' ═══════════════════════════════════════════════════════════
+
+' document.proto imports table.proto
+ParseResult ..> MdTable : imports
+
+' event.proto imports asset.proto
+AssetEvent ..> AssetRef : imports
+InventoryChangeEvent ..> AssetRef : imports
+AssetLoadRequest ..> AssetRef : imports
+VoiceSynthRequest ..> VoiceRef : imports
+
+' debug.proto imports story.proto
+StepResult ..> Choice : imports
+
+' ═══════════════════════════════════════════════════════════
+' NOTES
+' ═══════════════════════════════════════════════════════════
+
+note as N1
+  **ink.model Proto Contract (2026-02-27)**
+  ═══════════════════════════════════════════
+
+  **14 .proto files | 44 messages | 5 enums**
+
+  | .proto file | Messages | Enums | Imports |
+  | story.proto | 4 | 0 | — |
+  | structure.proto | 5 | 3 | — |
+  | table.proto | 3 | 1 | — |
+  | document.proto | 2 | 1 | table.proto |
+  | asset.proto | 3 | 0 | — |
+  | faker.proto | 2 | 0 | — |
+  | event.proto | 5 | 0 | asset.proto |
+  | debug.proto | 6 | 0 | story.proto |
+  | mcp.proto | 11 | 0 | — |
+  | llm.proto | 2 | 0 | — |
+  | principal.proto | 2 | 0 | — |
+  | calendar.proto | 1 | 0 | — |
+  | collab.proto | 3 | 0 | — |
+  | sillytavern.proto | 1 | 0 | — |
+
+  **Codegen targets:**
+
+  | Target | Generated Output |
+  | KT/JVM | java/ink/model/ (direct use) |
+  | KT gRPC | grpckt/ink/model/ (stubs) |
+  | TypeScript | ts/ink/model/ (→ ink-js) |
+  | C# | csharp/Ink.Model/ (→ ink-unity) |
+  | Python | python/ink_model/ (→ tools) |
+  | JS | js/ink/model/ (→ ink-js) |
+
+  **Wire formats driven by proto:**
+
+  | Protocol | Format | Usage |
+  | MCP | JSON-RPC | JsonFormat.printer() |
+  | RSocket | msgpack | jackson-dataformat-msgpack |
+  | WSS | JSON or binary | proto → JSON or bytes |
+  | SSE | JSON stream | proto → JSON events |
+  | WebDAV | JSON props | proto → JSON metadata |
+  | Yjs | CRDT + proto | proto field names = Y.Map keys |
+  | ink VARs | ink source | MdTable → generateVarDeclarations |
+end note
+
+note as N2
+  **Cross-Framework Consolidation**
+  ═════════════════════════════════
+
+  **Before proto (duplicated):**
+
+  | Concept | KT | C# | TS |
+  | Choice | ChoiceInfo | ChoiceDto | InkChoice |
+  | Story output | ContinueResult | StoryStateDto | InkStoryState |
+  | Compilation | CompileResult | CompileResult | (adapter) |
+  | Variables | (engine) | VariablesState | (runtime) |
+  | Structure | InkSection | Container | (adapter) |
+  | Table data | MdTable | — | — |
+
+  **After proto (unified):**
+
+  | Proto Message | Replaces All |
+  | ink.model.Choice | KT/C#/TS Choice types |
+  | ink.model.StoryState | KT/C#/TS state types |
+  | ink.model.CompileResult | KT/C#/TS compile types |
+  | ink.model.Variable | KT/C#/TS variable types |
+  | ink.model.Section | KT/C#/TS section types |
+  | ink.model.MdTable | KT table + flexible columns |
+
+  **Zero code duplication across frameworks.**
+end note
+
+N1 .. StoryState
+N2 .. CompileResult
+
+legend bottom right
+  |= Color |= Proto File Domain |
+  | <#E3F2FD> | story — narrative state |
+  | <#E8F5E9> | structure — ink document |
+  | <#FFF3E0> | table — MD data tables |
+  | <#F3E5F5> | document / mcp — file + protocol |
+  | <#B2DFDB> | asset — emoji/mesh/anim |
+  | <#FFECB3> | faker — data generation |
+  | <#FFCCBC> | event — RSocket events |
+  | <#E1F5FE> | debug — breakpoints/watch |
+  | <#E0F7FA> | llm — model definitions |
+  | <#FCE4EC> | principal — auth/identity |
+  | <#F1F8E9> | calendar — iCal events |
+  | <#EDE7F6> | collab — Yjs sessions |
+  | <#FFF9C4> | sillytavern — character cards |
+endlegend
+
+@enduml

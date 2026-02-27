@@ -409,8 +409,70 @@ note as N2
   Both implement InkRuntime interface.
 end note
 
+note as N3
+  **mica → ink.kt Gap Analysis (2026-02-27)**
+  ═════════════════════════════════════════════
+
+  **mica-unique features: candidates for ink.kt**
+
+  | mica Class | ink.kt Equivalent | Port Status |
+  | InkParser | — | ⬜ Port (parse .ink at runtime) |
+  | Expression | — | ⬜ Port (standalone evaluator) |
+  | Symbol | — | ⬜ Port (syntax constants) |
+  | StoryInterrupt | — | ⬜ Port (flow override) |
+  | StoryText | — | ⬜ Port (dynamic text) |
+  | Operator | NativeFunctionCall | ✅ Different approach |
+  | VariableMap | VariablesState | ✅ Different approach |
+  | Function | ExternalFunction | ✅ fun interface |
+  | StoryWrapper | — | ⬜ Port (DI for file/object) |
+  | StorySaver | JsonSerialisation | ✅ Different format |
+  | StoryLoader | JsonSerialisation | ✅ Different format |
+  | StoryJson | JsonSerialisation | ✅ Constants merged |
+
+  **mica features covered differently in ink.kt**
+
+  | mica Feature | ink.kt Equivalent | Note |
+  | Content base | InkObject | Same role, diff name |
+  | Container traversal | Path + Pointer | VM-style navigation |
+  | BigDecimal values | sealed Value<T> | Bool/Int/Float/String |
+  | Knot (parameterized) | Container + ChoicePoint | Compiled away |
+  | Stitch (parameterized) | Container | Compiled away |
+  | Choice (with conditions) | ChoicePoint + Choice | Split in compiled |
+  | Gather (merge point) | Container | Compiled away |
+  | Conditional sequences | ControlCommand dispatch | VM instructions |
+  | ConditionalOption | ControlCommand dispatch | VM instructions |
+  | Declaration | VariableAssignment | Compiled to bytecode |
+  | Divert | Divert | Same concept |
+  | Tag | Tag | Same concept |
+
+  **Architecture: Parser vs VM**
+
+  | Aspect | mica (parser) | ink.kt (compiled) |
+  | Input | .ink source text | compiled JSON bytecode |
+  | Navigation | container.index pointer | CallStack + Path |
+  | Values | BigDecimal only | sealed Bool/Int/Float/String |
+  | Expressions | EvalEx shunting-yard | NativeFunctionCall dispatch |
+  | Variables | VariableMap interface | VariablesState + StatePatch |
+  | Save/Load | StoryLoader/Saver JSON | JsonSerialisation |
+  | Size | 28 files ~2100 LOC | 36 files ~8000+ LOC |
+  | Threads | — | CallStack.Thread |
+  | Flows | — | Flow (named contexts) |
+  | Profiling | — | Profiler + ProfileNode |
+
+  **Porting priority from mica to ink.kt**
+
+  | # | Feature | Value | Effort |
+  | 1 | InkParser | Parse .ink without compiler | HIGH |
+  | 2 | Expression | Standalone eval for MCP | MED |
+  | 3 | StoryInterrupt | Game flow override | MED |
+  | 4 | Symbol | Parser infrastructure | LOW |
+  | 5 | StoryText | Dynamic text (compiled handles) | LOW |
+  | 6 | StoryWrapper | DI pattern for file loading | LOW |
+end note
+
 N1 .. Story
 N2 .. InkParser
+N3 .. Expression
 
 legend bottom right
   |= Color |= Meaning |

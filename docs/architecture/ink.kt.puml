@@ -1455,7 +1455,66 @@ note as PROGRESS
   **Next**: Implement InkRuntime on Story, run ink-proof
 end note
 
+note as GAPS
+  **Cross-Implementation Gap Analysis (2026-02-27)**
+  ════════════════════════════════════════════════════
+
+  **1. JS → ink.kt gaps (inkjs has, ink.kt missing)**
+
+  | Feature | inkjs | ink.kt | Priority |
+  | onDidContinue callback | ✅ | ⬜ | HIGH — event-driven UI |
+  | onMakeChoice callback | ✅ | ⬜ | HIGH — event-driven UI |
+  | onEvaluateFunction callback | ✅ | ⬜ | MED — debugging |
+  | onCompleteEvaluateFunction | ✅ | ⬜ | MED — debugging |
+  | onChoosePathString callback | ✅ | ⬜ | MED — debugging |
+  | ContinueSingleStep() | ✅ | ⬜ | LOW — debugging |
+  | $() / $$() var shorthand | ✅ | ✅ operator[] | ✅ Done |
+
+  **2. mica → ink.kt gaps (mica has, ink.kt missing)**
+
+  | Feature | mica | ink.kt | Priority |
+  | InkParser (parse .ink at runtime) | ✅ | ⬜ | HIGH — KMP |
+  | Expression evaluator | ✅ | ⬜ | HIGH — KMP |
+  | Symbol (syntax constants) | ✅ | ⬜ | MED — parser |
+  | StoryInterrupt (flow override) | ✅ | ⬜ | MED — game |
+  | StoryText (dynamic text) | ✅ | ⬜ | LOW — compiled |
+  | Function interface | ✅ | ✅ ExternalFunc | ✅ Done |
+  | VariableMap interface | ✅ | ✅ VariablesState | ✅ Done |
+  | StorySaver/Loader | ✅ | ✅ JsonSerialisation | ✅ Done |
+
+  **3. C# → ink.kt gaps (C# has, ink.kt may differ)**
+
+  | Feature | C# | ink.kt | Note |
+  | ContinueAsync(millis) | ✅ | ✅ | Ported |
+  | asyncContinueComplete | ✅ | ✅ | Ported |
+  | Stream overloads | ✅ | ⬜ | KMP = string-only OK |
+  | dontSaveDefaultValues | ✅ | ✅ | Ported |
+  | Copy() on InkObject | ✅ | ✅ | Ported |
+  | ExternalFunction delegate | ✅ delegate | ✅ fun interface | Idiomatic |
+  | VariableChanged delegate | ✅ delegate | ✅ fun interface | Idiomatic |
+
+  **4. ink.kt unique (not in other impls)**
+
+  | Feature | ink.kt only | Note |
+  | InkClock (pluggable clock) | ✅ | KMP test-friendly |
+  | DateComponents data class | ✅ | Clock decomposition |
+  | sealed class Value hierarchy | ✅ | Exhaustive when() |
+  | fun interface SAM conversion | ✅ | Lambda-friendly API |
+  | InkRuntime common interface | ✅ | Both runtimes |
+
+  **5. Porting priority (what to do next)**
+
+  | Priority | Task | Source | Target |
+  | 1 | Event callbacks (5 hooks) | inkjs Story | ink.kt Story |
+  | 2 | InkParser (.ink at runtime) | mica | ink.kt |
+  | 3 | Expression evaluator | mica | ink.kt |
+  | 4 | StoryInterrupt flow override | mica | ink.kt |
+  | 5 | ContinueSingleStep() | inkjs Story | ink.kt Story |
+  | 6 | Symbol syntax constants | mica | ink.kt |
+end note
+
 PROGRESS .. Story
+GAPS .. InkRuntime
 
 ' ══════════════════════════════════════════════════════════════════════════════
 ' LEGEND

@@ -896,6 +896,46 @@ note as N_COMPARE
 
 end note
 
+note as N_GAPS
+  **C# → ink.kt Gap Analysis (2026-02-27)**
+  ═══════════════════════════════════════════
+
+  **C# is the canonical reference.**
+  ink.kt ports all C# runtime classes 1:1.
+
+  **Fully ported (36 classes)**
+
+  | C# Class | ink.kt Class | Idiomatic Change |
+  | Object (base) | InkObject | Avoids java.lang.Object clash |
+  | Value<T> abstract | Value<T> sealed | Exhaustive when() |
+  | delegate ErrorHandler | fun interface | Lambda-friendly SAM |
+  | delegate VariableChanged | fun interface | Lambda-friendly SAM |
+  | delegate ExternalFunction | fun interface | Single SAM (not 0/1/2/3) |
+  | IEnumerable<string> | Iterable<String> | Kotlin stdlib |
+  | Dictionary | LinkedHashMap | Insertion-order preserved |
+  | struct (SearchResult) | data class | Same semantics |
+  | struct (Pointer) | class | JVM has no value types |
+  | struct (InkListItem) | data class | Hashable + equals |
+  | SimpleJson (Stream) | SimpleJson (string) | KMP commonMain only |
+
+  **C#-only features (not ported — by design)**
+
+  | C# Feature | Reason Not Ported |
+  | Stream/TextWriter overloads | KMP = string-only (no java.io) |
+  | InvariantCulture formatting | Kotlin toString is locale-free |
+  | System.Diagnostics.Stopwatch | kotlin.time.TimeSource.Monotonic |
+  | Action<Writer> delegates | fun interface InnerWriter |
+
+  **C# features ink.kt adds beyond**
+
+  | ink.kt Unique | Description |
+  | InkClock | Pluggable clock (testable) |
+  | InkRuntime interface | Common contract for both runtimes |
+  | sealed Value | Compiler-enforced exhaustive matching |
+  | DateComponents | Clock decomposition data class |
+end note
+
 N_COMPARE .. Story
+N_GAPS .. StoryState
 
 @enduml

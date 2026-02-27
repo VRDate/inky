@@ -805,7 +805,50 @@ note as N2
   via ValueType enum and rounding.
 end note
 
+note as N3
+  **JS → Kotlin/JS Porting Gap Analysis (2026-02-27)**
+  ══════════════════════════════════════════════════════
+
+  **JS-unique features to port to ink.kt (Kotlin/JS)**
+
+  | Feature | inkjs | ink.kt | Action |
+  | onDidContinue | ✅ callback | ⬜ | Port as fun interface |
+  | onMakeChoice | ✅ callback | ⬜ | Port as fun interface |
+  | onEvaluateFunction | ✅ callback | ⬜ | Port as fun interface |
+  | onCompleteEvaluateFunction | ✅ callback | ⬜ | Port as fun interface |
+  | onChoosePathString | ✅ callback | ⬜ | Port as fun interface |
+  | ContinueSingleStep() | ✅ method | ⬜ | Port to Story.kt |
+  | currentFlowIsDefaultFlow | ✅ property | ⬜ | Port to Story.kt |
+
+  **Ported differently (idiomatic Kotlin equivalents)**
+
+  | inkjs | ink.kt | Note |
+  | $("var") / $$("var", val) | operator get/set | story.variablesState["var"] |
+  | prototype inheritance | sealed/when | Exhaustive dispatch |
+  | Date.now() | TimeSource.Monotonic | Cross-platform |
+  | JSON.parse + reviver | SimpleJson | Zero-dep parser |
+  | CommonJS/ESM modules | KMP targets | JVM/JS/Native/WASM |
+
+  **Missing from inkjs (ink.kt has)**
+
+  | Feature | ink.kt | inkjs |
+  | Profiler + ProfileNode | ✅ | ⬜ Not implemented |
+  | Stopwatch | ✅ TimeSource | ⬜ Date.now() |
+  | InkClock pluggable | ✅ | ⬜ |
+  | InkRuntime interface | ✅ | ⬜ |
+  | sealed Value hierarchy | ✅ exhaustive | ⬜ class chain |
+
+  **Kotlin/JS compilation strategy**
+  ink.kt compiles to JS via Kotlin/JS compiler.
+  Same JS API surface as inkjs — interop via
+  @JsExport on Story, Choice, VariablesState.
+  Browser/Node: CommonJS + ESM dual publish.
+  Event callbacks = Kotlin fun interfaces
+  which compile to JS function types.
+end note
+
 N1 .. Story
 N2 .. Value
+N3 .. StoryState
 
 @enduml

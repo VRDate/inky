@@ -1052,4 +1052,51 @@ CallStack ..> SJWriter : writeJson
 Flow ..> SJWriter : writeJson
 VariablesState ..> SJWriter : writeJson
 
+note as N_GAPS
+  **Java (blade-ink) → ink.kt Gap Analysis (2026-02-27)**
+  ═════════════════════════════════════════════════════════
+
+  **Porting complete: 46 Java files → 36 Kotlin files.**
+  Consolidation: 8 value files → 1 sealed Value.kt,
+  ProfileNode → combined into Profiler.kt,
+  StringExt → removed (Kotlin stdlib).
+
+  **Java → Kotlin idiomatic changes**
+
+  | Java | Kotlin | Benefit |
+  | HashMap | LinkedHashMap | Insertion-order preserved |
+  | getter/setter | property syntax | Concise |
+  | ExternalFunction0/1/2/3 | fun interface | Single SAM lambda |
+  | VariableChanged interface | fun interface | Lambda-friendly |
+  | ErrorHandler interface | fun interface | Lambda-friendly |
+  | InnerWriter interface | fun interface | Lambda-friendly |
+  | Stopwatch (System.nanoTime) | TimeSource.Monotonic | Cross-platform |
+  | RTObject base class | InkObject | No java.lang clash |
+  | AbstractValue + Value<T> | sealed Value<T> | Exhaustive when() |
+  | null checks + casts | smart casts + ?.let | Null-safe |
+  | StringBuilder loops | buildString {} | Idiomatic |
+  | Locale.getDefault() | Kotlin toString() | Locale-free |
+
+  **Java bugs fixed in ink.kt**
+
+  | Bug | Location | Fix |
+  | setTemporaryVariable infinite recursion | CallStack | Default params |
+  | HashMap iteration order non-deterministic | Throughout | LinkedHashMap |
+  | Locale-dependent float formatting | NativeFunctionCall | Kotlin toString |
+
+  **Java-only files removed (no Kotlin equivalent)**
+
+  | Java File | Reason |
+  | StringExt.java | Kotlin stdlib String extensions |
+  | Error.java | ErrorType + ErrorHandler split to top-level |
+  | 8 separate value files | Consolidated to sealed Value.kt |
+
+  **Porting status: ✅ COMPLETE**
+  All 46 Java source files accounted for.
+  36 Kotlin files in ink.kt package.
+  ink-proof: 7 bytecode + 135 ink conformance tests.
+end note
+
+N_GAPS .. Story
+
 @enduml
