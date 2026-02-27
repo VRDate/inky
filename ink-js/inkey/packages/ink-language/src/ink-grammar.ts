@@ -1,16 +1,22 @@
 /**
- * Runtime-agnostic ink language grammar — token types and regex patterns.
+ * Unified ink+markdown grammar — merged regex-only line classifier.
  *
- * Ported from: app/renderer/ace-ink-mode/ace-ink.js
+ * Both ink and markdown are text-based formats parseable by regex only.
+ * This module merges both grammars into a single line-level classifier
+ * where every line is unambiguous by its leading regex pattern.
+ * No AST parser needed, no fenced code blocks needed.
  *
- * This module defines the ink tokenization rules in a format that can be
- * consumed by CodeMirror 6 (StreamLanguage), Remirror node views, or any
- * other editor that needs ink syntax highlighting.
+ * Ported from: app/renderer/ace-ink-mode/ace-ink.js (ink patterns)
+ * Extended with: markdown patterns (headings, tables, inline markup)
  *
- * Each rule has:
- *   - name: semantic token name (used for highlighting)
- *   - regex: pattern to match
- *   - group: category for grouping rules
+ * Consumed by: CodeMirror 6, Remirror node views, ACE, and the KMP
+ * Kotlin mirror (InkMdGrammar.kt in commonMain — pure regex, zero deps).
+ *
+ * Key disambiguation:
+ *   - # (single hash) = ink tag
+ *   - ## through ###### = markdown heading (document structure)
+ *   - | ... | = markdown table row (data tables)
+ *   - All ink patterns (===, *, +, ~, VAR, ->) take precedence over markdown
  */
 
 // ─── Token Types ─────────────────────────────────────────────────────
@@ -80,6 +86,20 @@ export type InkTokenType =
   | "todo.TODO"
   | "glue"
   | "escape"
+  | "md.heading"
+  | "md.heading.marker"
+  | "md.heading.text"
+  | "md.table.row"
+  | "md.table.separator"
+  | "md.table.cell"
+  | "md.bold"
+  | "md.italic"
+  | "md.link"
+  | "md.link.text"
+  | "md.link.url"
+  | "md.image"
+  | "md.code"
+  | "md.horizontal-rule"
   | "text";
 
 // ─── Token Categories (for highlight mapping) ───────────────────────
@@ -101,7 +121,10 @@ export type InkTokenCategory =
   | "glue"         // <> glue operator
   | "escape"       // \ escape sequences
   | "string"       // string literals
-  | "text";        // plain text
+  | "md-heading"   // ## through ###### headings
+  | "md-table"     // | cell | cell | table rows
+  | "md-markup"    // bold, italic, link, image, code, hr
+  | "text";        // plain text (shared ink + md)
 
 /** Map each token type to its category */
 export function tokenCategory(token: InkTokenType): InkTokenCategory {
@@ -138,6 +161,10 @@ export function tokenCategory(token: InkTokenType): InkTokenCategory {
   if (token.startsWith("todo")) return "todo";
   if (token === "glue") return "glue";
   if (token === "escape") return "escape";
+  // Markdown tokens (merged ink+md grammar)
+  if (token.startsWith("md.heading")) return "md-heading";
+  if (token.startsWith("md.table")) return "md-table";
+  if (token.startsWith("md.")) return "md-markup";
   return "text";
 }
 
@@ -225,7 +252,39 @@ export const GLUE_REGEX = /<>/;
 /** Escape sequences: \[, \], \\, \~, etc. */
 export const ESCAPE_REGEX = /\\[[\]()\\~{}/#*+\-]/;
 
-// ─── Line Classifier ─────────────────────────────────────────────────
+// ─── Markdown Patterns (merged ink+md grammar) ──────────────────────
+// Both ink and markdown are line-oriented text formats parseable by regex.
+// No AST parser needed — every line is self-classifying by its leading pattern.
+// This eliminates the need for ```ink fenced code blocks.
+
+/** Markdown heading: ## through ###### (H2-H6). Single # is ink tag. */
+export const MD_HEADING_REGEX = /^(#{2,6})\s+(.+)$/;
+
+/** Markdown table row: | cell | cell | */
+export const MD_TABLE_ROW_REGEX = /^\|.*\|$/;
+
+/** Markdown table separator: |---|---|---| */
+export const MD_TABLE_SEPARATOR_REGEX = /^\|[\s:]*-{3,}[\s:]*\|/;
+
+/** Markdown horizontal rule: --- or *** or ___ (3+) */
+export const MD_HORIZONTAL_RULE_REGEX = /^(\*{3,}|-{3,}|_{3,})$/;
+
+/** Markdown link: [text](url) */
+export const MD_LINK_REGEX = /\[([^\]]+)\]\(([^)]+)\)/;
+
+/** Markdown image: ![alt](url) */
+export const MD_IMAGE_REGEX = /!\[([^\]]*)\]\(([^)]+)\)/;
+
+/** Markdown bold: **text** or __text__ */
+export const MD_BOLD_REGEX = /(\*\*|__)(.+?)\1/;
+
+/** Markdown italic: *text* or _text_ */
+export const MD_ITALIC_REGEX = /([*_])(.+?)\1/;
+
+/** Markdown inline code: `code` */
+export const MD_INLINE_CODE_REGEX = /`([^`]+)`/;
+
+// ─── Unified Line Classifier (merged ink+md) ────────────────────────
 
 export type InkLineType =
   | "knot"
@@ -240,11 +299,27 @@ export type InkLineType =
   | "todo"
   | "comment"
   | "multiline-logic"
+  | "md-heading"
+  | "md-table-row"
+  | "md-table-separator"
+  | "md-horizontal-rule"
   | "text";
 
-/** Classify an ink line by its leading content */
+/**
+ * Classify a line as ink or markdown by its leading regex pattern.
+ *
+ * Ink and markdown are both text formats parseable by regex only.
+ * Every line is unambiguous — no fenced code blocks needed.
+ *
+ * Disambiguation:
+ *   - # (single hash) = ink tag
+ *   - ## through ###### = markdown heading
+ *   - | ... | = markdown table row
+ *   - All other ink patterns (===, *, +, ~, VAR, ->) take precedence
+ */
 export function classifyLine(line: string): InkLineType {
   const trimmed = line.trimStart();
+  // Ink patterns first (more specific)
   if (trimmed.startsWith("//") || trimmed.startsWith("/*")) return "comment";
   if (TODO_REGEX.test(line)) return "todo";
   if (KNOT_REGEX.test(line)) return "knot";
@@ -257,6 +332,11 @@ export function classifyLine(line: string): InkLineType {
   if (GATHER_REGEX.test(line)) return "gather";
   if (LOGIC_LINE_REGEX.test(line)) return "logic";
   if (MULTILINE_LOGIC_REGEX.test(line)) return "multiline-logic";
+  // Markdown patterns (after ink)
+  if (MD_HEADING_REGEX.test(trimmed)) return "md-heading";
+  if (MD_TABLE_SEPARATOR_REGEX.test(trimmed)) return "md-table-separator";
+  if (MD_TABLE_ROW_REGEX.test(trimmed)) return "md-table-row";
+  if (MD_HORIZONTAL_RULE_REGEX.test(trimmed)) return "md-horizontal-rule";
   return "text";
 }
 

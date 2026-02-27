@@ -145,6 +145,77 @@ ink-kmp-mcp/src/commonMain/kotlin/com/bladecoder/ink/runtime/
 └── StoryState.kt             # Tier 6 — OutputOp functional enum, TreeMap<Choice> state
 ```
 
+## Merged Ink+MD Grammar (Regex Only)
+
+Both ink and markdown are **line-oriented text formats parseable by regex**. No AST parser needed — every line is classified by its leading characters. The fenced ` ```ink ` separator is eliminated: ink and markdown coexist naturally in a single file.
+
+### Line Classification (Regex Dispatch Table)
+
+| Leading Regex | Classification | Example |
+|---|---|---|
+| `^(\s*)(={2,})` | **ink knot** | `=== chapter_1 ===` |
+| `^(\s*)(=)(\s*)(\w+)` | **ink stitch** | `= meeting` |
+| `^(\s*)((?:[*+]\s?)+)` | **ink choice** | `* [Go north]` |
+| `^(\s*)((?:-(?!>)\s*)+)` | **ink gather** | `- -` |
+| `^\s*~` | **ink logic** | `~ x = x + 1` |
+| `^(\s*)(VAR\|CONST)\b` | **ink var/const** | `VAR health = 100` |
+| `^(\s*)(LIST)\b` | **ink list** | `LIST items = sword, potion` |
+| `^(\s*)(INCLUDE)\b` | **ink include** | `INCLUDE helpers.ink` |
+| `^(\s*)(EXTERNAL)\b` | **ink external** | `EXTERNAL gameOver()` |
+| `^(\s*)(TODO)\b` | **ink todo** | `TODO: fix this` |
+| `^(\s*)(->)` | **ink divert** | `-> chapter_2` |
+| `^(\s*)(//\|/\*)` | **ink comment** | `// note` |
+| `^(#{2,6})\s+(.+)$` | **md heading** (H2-H6) | `## Characters` |
+| `^\|.*\|$` | **md table row** | `\| name \| health \|` |
+| `^#\s+` | **ink tag** (single `#`) | `# author: inkle` |
+| `<>` | **ink glue** | `<>` |
+| everything else | **prose text** (both) | `You enter the cave.` |
+
+### Key Disambiguation
+
+- **`#` (single hash)** = ink tag — `# author: inkle`, `# theme: dark`
+- **`##` through `######`** = markdown heading — section structure for the document
+- **`-` (dash)** = ink gather (not `->`) — markdown lists use `*` which is ink choice, so `-` for lists is avoided
+- **Prose text** is shared — works identically in ink (story output) and markdown (document body)
+- **Tables** (`|...|`) are always markdown — ink has no table syntax
+
+### Merged File Format
+
+```
+## Characters
+
+| name    | role   | health |
+|---------|--------|--------|
+| Arthur  | knight | 100    |
+| Merlin  | wizard | 80     |
+
+VAR player_name = "Arthur"
+VAR player_role = "knight"
+
+=== start ===
+You are {player_name}, a {player_role}.
+* [Draw sword] -> combat
+* [Cast spell] -> magic
+
+## Combat
+
+=== combat ===
+~ health = health - 20
+You fight bravely.
+-> END
+```
+
+No ` ```ink ` fences needed. Each line is self-classifying by regex. The grammar parser (both TS `classifyLine()` and KT `InkMdEngine.parse()`) dispatches on the leading pattern.
+
+### Grammar Source of Truth
+
+The unified regex grammar lives in `@inky/ink-language` (TypeScript) with a KMP Kotlin mirror in commonMain. Both are pure regex, zero dependencies:
+
+| Location | Language | Purpose |
+|----------|----------|---------|
+| `ink-js/inkey/packages/ink-language/src/ink-grammar.ts` | TypeScript | Editor tokenization (ACE, CM6, Remirror) |
+| `ink-kmp-mcp/src/commonMain/.../InkMdGrammar.kt` | Kotlin | KMP runtime line classifier (pure regex) |
+
 ## Strategy: Verify with Old, Develop in KT Only
 
 ### Zero 3rd Party Dependencies
