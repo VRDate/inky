@@ -48,7 +48,7 @@
 | 39 | VariablesState | IEnumerable | Iterable | class | Iterable + operator[] | ✅ | **fun interface** |
 | 40 | Json (stub) | — | — | — | internal object | ⚠️ | Stub for now |
 | 41 | StoryState | class | class | class | OutputOp functional enum | ✅ | **LinkedHashMap state** |
-| 42 | SimpleJson | class | class | class | — | ⏳ | |
+| 42 | SimpleJson | class | class | class | object + Reader + Writer | ✅ | **LinkedHashMap**, fun interface InnerWriter, fixes Java bugs |
 | 43 | JsonSerialisation | static class | class | class | — | ⏳ | |
 | 44 | Story | class | class | class | — | ⏳ | Main entry |
 | 45 | Profiler | class | class | class | — | ⏳ | |
