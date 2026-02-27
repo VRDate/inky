@@ -1,7 +1,6 @@
 package ink.kt.mica
 
 import ink.kt.mica.util.InkRunTimeException
-import java.math.BigDecimal
 import kotlin.random.Random
 
 class Story(
@@ -29,8 +28,8 @@ class Story(
             if (cnt.value is Knot && (cnt.value as Knot).isFunction)
                 functions[cnt.value.id.lowercase()] = cnt.value as Knot
         }
-        putVariable(Symbol.TRUE, BigDecimal.ONE)
-        putVariable(Symbol.FALSE, BigDecimal.ZERO)
+        putVariable(Symbol.TRUE, 1.0)
+        putVariable(Symbol.FALSE, 0.0)
         putVariable(Symbol.PI, Expression.PI)
         putVariable(Symbol.e, Expression.e)
         functions[IS_NULL] = IsNullFunction()
@@ -187,8 +186,8 @@ class Story(
             if (c is Knot || c is Function || c is Stitch) {
                 if ((c as ParameterizedContainer).hasValue(key)) {
                     when (value) {
-                        is Boolean -> c.setValue(key, if (value) BigDecimal.ONE else BigDecimal.ZERO)
-                        is Int -> c.setValue(key, BigDecimal(value))
+                        is Boolean -> c.setValue(key, if (value) 1.0 else 0.0)
+                        is Int -> c.setValue(key, value.toDouble())
                         else -> c.setValue(key, value)
                     }
                     return
@@ -226,28 +225,28 @@ class Story(
             val k = token.substring(2).trim()
             if (content.containsKey(k)) return content[k]!!
             wrapper.logException(InkRunTimeException("Could not identify container id: $k"))
-            return BigDecimal.ZERO
+            return 0.0
         }
         if (content.containsKey(token)) {
             val storyContainer = content[token]!!
-            return BigDecimal.valueOf(storyContainer.count.toLong())
+            return storyContainer.count.toDouble()
         }
         val pathId = getValueId(token)
         if (content.containsKey(pathId)) {
             val storyContainer = content[pathId]!!
-            return BigDecimal.valueOf(storyContainer.count.toLong())
+            return storyContainer.count.toDouble()
         }
         val knotId = getKnotId(token)
         if (content.containsKey(knotId)) {
             val storyContainer = content[knotId]!!
-            return BigDecimal.valueOf(storyContainer.count.toLong())
+            return storyContainer.count.toDouble()
         }
         if (container is ParameterizedContainer && (container as ParameterizedContainer).hasValue(token))
             return (container as ParameterizedContainer).getValue(token)
         if (variables.containsKey(token))
             return variables[token]!!
         wrapper.logException(InkRunTimeException("Could not identify the variable $token or $pathId"))
-        return BigDecimal.ZERO
+        return 0.0
     }
 
     private fun getValueId(id: String): String {
@@ -306,7 +305,7 @@ class Story(
         override val isFixedNumParams: Boolean = true
         override fun eval(params: List<Any>, vMap: VariableMap): Any {
             val param = params[0]
-            return if (param == BigDecimal.ZERO) BigDecimal.ONE else BigDecimal.ZERO
+            return if (param == 0.0) 1.0 else 0.0
         }
     }
 
@@ -316,8 +315,8 @@ class Story(
         override fun eval(params: List<Any>, vMap: VariableMap): Any {
             return when (val param = params[0]) {
                 is Boolean -> !param
-                is BigDecimal -> if (param == BigDecimal.ZERO) BigDecimal.ONE else BigDecimal.ZERO
-                else -> BigDecimal.ZERO
+                is Double -> if (param == 0.0) 1.0 else 0.0
+                else -> 0.0
             }
         }
     }
@@ -327,11 +326,11 @@ class Story(
         override val isFixedNumParams: Boolean = true
         override fun eval(params: List<Any>, vMap: VariableMap): Any {
             val param = params[0]
-            if (param is BigDecimal) {
+            if (param is Double) {
                 val v = param.toInt()
-                return if (v > 0) BigDecimal(Random.nextInt(v)) else BigDecimal.ZERO
+                return if (v > 0) Random.nextInt(v).toDouble() else 0.0
             }
-            return BigDecimal.ZERO
+            return 0.0
         }
     }
 
@@ -340,10 +339,10 @@ class Story(
         override val isFixedNumParams: Boolean = true
         override fun eval(params: List<Any>, vMap: VariableMap): Any {
             val param = params[0]
-            if (param is BigDecimal) {
-                return BigDecimal.valueOf(param.toInt().toLong())
+            if (param is Double) {
+                return param.toInt().toDouble()
             }
-            return BigDecimal.ZERO
+            return 0.0
         }
     }
 
@@ -408,7 +407,7 @@ class Story(
 
     private fun checkResult(res: Any): Boolean {
         if (res is Boolean) return res
-        if (res is BigDecimal) return res > BigDecimal.ZERO
+        if (res is Double) return res > 0.0
         return false
     }
 

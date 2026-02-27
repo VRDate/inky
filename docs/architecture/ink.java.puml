@@ -1091,6 +1091,18 @@ note as N_GAPS
   | Error.java | ErrorType + ErrorHandler split to top-level |
   | 8 separate value files | Consolidated to sealed Value.kt |
 
+  **Java features NOT ported (ink.kt adds beyond Java)**
+
+  | Feature | ink.kt | Java | Source |
+  | onDidContinue callback | ✅ | ⬜ | inkjs |
+  | onMakeChoice callback | ✅ | ⬜ | inkjs |
+  | onEvaluateFunction callback | ✅ | ⬜ | inkjs |
+  | onCompleteEvaluateFunction | ✅ | ⬜ | inkjs |
+  | onChoosePathString callback | ✅ | ⬜ | inkjs |
+  | ContinueSingleStep() public | ✅ | ⬜ pkg-private | inkjs |
+  | InkClock (pluggable) | ✅ | ⬜ | ink.kt unique |
+  | InkRuntime interface | ✅ | ⬜ | ink.kt unique |
+
   **Porting status: ✅ COMPLETE**
   All 46 Java source files accounted for.
   36 Kotlin files in ink.kt package.

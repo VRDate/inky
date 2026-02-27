@@ -1,7 +1,5 @@
 package ink.kt.mica
 
-import java.math.BigDecimal
-
 class ConditionalOption internal constructor(
     condition: String,
     parent: Container,
@@ -22,7 +20,7 @@ class ConditionalOption internal constructor(
 
     fun evaluate(vMap: VariableMap): Boolean {
         val res = Declaration.evaluate(text, vMap)
-        return (res as BigDecimal).toInt() > 0
+        return (res as Double).toInt() > 0
     }
 
     companion object {

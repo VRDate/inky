@@ -1,7 +1,6 @@
 package ink.kt.mica
 
 import ink.kt.mica.util.InkRunTimeException
-import java.math.BigDecimal
 
 class Declaration internal constructor(
     lineNumber: Int,
@@ -79,7 +78,7 @@ class Declaration internal constructor(
             "${parent.id}${Symbol.DOT}${parent.size}"
 
         fun evaluate(str: String, variables: VariableMap): Any {
-            if (str.isEmpty()) return BigDecimal.ONE
+            if (str.isEmpty()) return 1.0
             var ev = ""
             try {
                 ev = str

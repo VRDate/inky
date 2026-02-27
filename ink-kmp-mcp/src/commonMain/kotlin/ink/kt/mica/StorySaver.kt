@@ -1,84 +1,65 @@
 package ink.kt.mica
 
-import com.fasterxml.jackson.core.JsonGenerator
-import java.math.BigDecimal
+import kotlinx.serialization.json.*
 
+/**
+ * Saves story state to a JsonObject (kotlinx.serialization).
+ * KMP-compatible: replaces Jackson JsonGenerator.
+ */
 object StorySaver {
 
-    fun saveStream(g: JsonGenerator, story: Story) {
-        g.writeStartObject()
-        g.writeFieldName(StoryJson.FILES)
-        g.writeStartArray()
-        for (s in story.fileNames) {
-            g.writeString(s)
-        }
-        g.writeEndArray()
-        g.writeFieldName(StoryJson.CONTENT)
-        g.writeStartObject()
-        for ((_, c) in story.content) {
-            if (c.count > 0) {
-                g.writeFieldName(c.id)
-                g.writeStartObject()
-                g.writeNumberField(StoryJson.COUNT, c.count)
-                if (c is Container && c.index > 0) {
-                    g.writeNumberField(StoryJson.INDEX, c.index)
+    fun save(story: Story): JsonObject = buildJsonObject {
+        put(StoryJson.FILES, buildJsonArray {
+            for (s in story.fileNames) add(s)
+        })
+
+        put(StoryJson.CONTENT, buildJsonObject {
+            for ((_, c) in story.content) {
+                if (c.count > 0) {
+                    put(c.id, buildJsonObject {
+                        put(StoryJson.COUNT, c.count)
+                        if (c is Container && c.index > 0) {
+                            put(StoryJson.INDEX, c.index)
+                        }
+                        if (c is ParameterizedContainer && c.values.isNotEmpty()) {
+                            put(StoryJson.VARIABLES, buildJsonObject {
+                                for ((key, value) in c.values) {
+                                    putValue(this, story, key, value)
+                                }
+                            })
+                        }
+                    })
                 }
-                if (c is ParameterizedContainer && c.values.isNotEmpty()) {
-                    g.writeFieldName(StoryJson.VARIABLES)
-                    g.writeStartObject()
-                    for ((key, value) in c.values) {
-                        saveObject(g, story, key, value)
-                    }
-                    g.writeEndObject()
-                }
-                g.writeEndObject()
             }
-        }
-        g.writeEndObject()
-        g.writeStringField(StoryJson.CONTAINER, story.container.id)
-        g.writeFieldName(StoryJson.TEXT)
-        g.writeStartArray()
-        for (s in story.text) {
-            g.writeString(s)
-        }
-        g.writeEndArray()
-        g.writeFieldName(StoryJson.CHOICES)
-        g.writeStartArray()
-        for (choice in story.choices) {
-            g.writeString(choice.id)
-        }
-        g.writeEndArray()
-        g.writeFieldName(StoryJson.VARIABLES)
-        g.writeStartObject()
-        for ((key, value) in story.variables) {
-            saveObject(g, story, key, value)
-        }
-        g.writeEndObject()
-        g.writeEndObject()
+        })
+
+        put(StoryJson.CONTAINER, story.container.id)
+
+        put(StoryJson.TEXT, buildJsonArray {
+            for (s in story.text) add(s)
+        })
+
+        put(StoryJson.CHOICES, buildJsonArray {
+            for (choice in story.choices) add(choice.id)
+        })
+
+        put(StoryJson.VARIABLES, buildJsonObject {
+            for ((key, value) in story.variables) {
+                putValue(this, story, key, value)
+            }
+        })
     }
 
-    private fun saveObject(g: JsonGenerator, story: Story, key: String, value: Any) {
+    private fun putValue(builder: JsonObjectBuilder, story: Story, key: String, value: Any) {
         when (value) {
-            is Boolean -> {
-                g.writeBooleanField(key, value)
-            }
-            is BigDecimal -> {
-                g.writeNumberField(key, value)
-            }
-            is String -> {
-                g.writeStringField(key, value)
-            }
-            else -> {
-                // Try to get an id from the value (Content subclass)
-                if (value is Content) {
-                    g.writeStringField(key, value.id)
-                } else {
-                    story.wrapper.logError(
-                        "StorySaver: Could not save $key: $value. " +
-                        "Not Boolean, Number, String, or Content."
-                    )
-                }
-            }
+            is Boolean -> builder.put(key, value)
+            is Double -> builder.put(key, value)
+            is Int -> builder.put(key, value)
+            is String -> builder.put(key, value)
+            is Content -> builder.put(key, value.id)
+            else -> story.wrapper.logError(
+                "StorySaver: Could not save $key: $value. Not Boolean, Number, String, or Content."
+            )
         }
     }
 }

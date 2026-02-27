@@ -1,7 +1,6 @@
 package ink.kt.mica
 
 import ink.kt.mica.util.InkRunTimeException
-import java.math.BigDecimal
 
 internal class Choice(
     textBase: String,
@@ -57,7 +56,7 @@ internal class Choice(
             try {
                 val obj = Declaration.evaluate(condition, story)
                 if (obj is Boolean && !obj) return false
-                if (obj is BigDecimal && obj.toInt() <= 0) return false
+                if (obj is Double && obj.toInt() <= 0) return false
             } catch (e: InkRunTimeException) {
                 story.logException(e)
                 return false

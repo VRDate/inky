@@ -1,79 +1,68 @@
 package ink.kt.mica
 
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.core.JsonToken
 import ink.kt.mica.util.InkLoadingException
-import java.math.BigDecimal
+import kotlinx.serialization.json.*
 
+/**
+ * Loads story state from a JsonObject (kotlinx.serialization).
+ * KMP-compatible: replaces Jackson JsonParser.
+ */
 object StoryLoader {
 
-    fun loadStream(p: JsonParser, story: Story) {
-        while (p.nextToken() != JsonToken.END_OBJECT) {
-            when (p.currentName) {
-                StoryJson.CONTENT -> {
-                    p.nextToken() // START_OBJECT
-                    while (p.nextToken() != JsonToken.END_OBJECT) {
-                        val cid = p.currentName
-                        val content = story.content[cid]
-                        p.nextToken() // START_OBJECT
-                        while (p.nextToken() != JsonToken.END_OBJECT) {
-                            when (p.currentName) {
-                                StoryJson.COUNT -> content?.count = p.nextIntValue(0)
-                                StoryJson.INDEX -> if (content is Container)
-                                    content.index = p.nextIntValue(0)
-                                StoryJson.VARIABLES -> {
-                                    p.nextToken() // START_OBJECT
-                                    val pContainer = content as? ParameterizedContainer
-                                    while (p.nextToken() != JsonToken.END_OBJECT) {
-                                        val varName = p.currentName
-                                        val obj = loadObjectStream(p, story)
-                                        if (obj != null && pContainer != null)
-                                            pContainer.values[varName] = obj
-                                    }
-                                }
-                                else -> { }
-                            }
-                        }
+    fun load(json: JsonObject, story: Story) {
+        json[StoryJson.CONTENT]?.jsonObject?.let { contentObj ->
+            for ((cid, cValue) in contentObj) {
+                val content = story.content[cid] ?: continue
+                val cObj = cValue.jsonObject
+                cObj[StoryJson.COUNT]?.jsonPrimitive?.intOrNull?.let { content.count = it }
+                if (content is Container) {
+                    cObj[StoryJson.INDEX]?.jsonPrimitive?.intOrNull?.let { content.index = it }
+                }
+                cObj[StoryJson.VARIABLES]?.jsonObject?.let { varsObj ->
+                    val pContainer = content as? ParameterizedContainer ?: return@let
+                    for ((varName, varValue) in varsObj) {
+                        val obj = loadValue(varValue, story)
+                        if (obj != null) pContainer.values[varName] = obj
                     }
                 }
-                StoryJson.CONTAINER -> story.container = story.content[p.nextTextValue()] as Container
-                StoryJson.TEXT -> {
-                    p.nextToken() // START_ARRAY
-                    while (p.nextToken() != JsonToken.END_ARRAY) {
-                        story.text.add(p.text)
-                    }
-                }
-                StoryJson.CHOICES -> {
-                    p.nextToken() // START_ARRAY
-                    while (p.nextToken() != JsonToken.END_ARRAY) {
-                        val cnt = story.content[p.text]
-                        if (cnt is Choice)
-                            story.choices.add(cnt)
-                        else
-                            story.wrapper.logException(InkLoadingException("${p.text} is not a choice"))
-                    }
-                }
-                StoryJson.VARIABLES -> {
-                    p.nextToken() // START_OBJECT
-                    while (p.nextToken() != JsonToken.END_OBJECT) {
-                        val varName = p.currentName
-                        val obj = loadObjectStream(p, story)
-                        if (obj != null) {
-                            story.variables[varName] = obj
-                        }
-                    }
-                }
-                else -> { }
+            }
+        }
+
+        json[StoryJson.CONTAINER]?.jsonPrimitive?.content?.let { containerId ->
+            story.container = story.content[containerId] as Container
+        }
+
+        json[StoryJson.TEXT]?.jsonArray?.let { textArr ->
+            for (elem in textArr) {
+                story.text.add(elem.jsonPrimitive.content)
+            }
+        }
+
+        json[StoryJson.CHOICES]?.jsonArray?.let { choicesArr ->
+            for (elem in choicesArr) {
+                val choiceId = elem.jsonPrimitive.content
+                val cnt = story.content[choiceId]
+                if (cnt is Choice)
+                    story.choices.add(cnt)
+                else
+                    story.wrapper.logException(InkLoadingException("$choiceId is not a choice"))
+            }
+        }
+
+        json[StoryJson.VARIABLES]?.jsonObject?.let { varsObj ->
+            for ((varName, varValue) in varsObj) {
+                val obj = loadValue(varValue, story)
+                if (obj != null) story.variables[varName] = obj
             }
         }
     }
 
-    private fun loadObjectStream(p: JsonParser, story: Story): Any? {
-        val token = p.nextToken()
-        if (token == JsonToken.VALUE_NULL) return null
-        if (token.isBoolean) return p.booleanValue
-        if (token.isNumeric) return BigDecimal(p.text)
-        val str = p.text
+    private fun loadValue(element: JsonElement, story: Story): Any? {
+        if (element is JsonNull) return null
+        val prim = element.jsonPrimitive
+        if (prim.booleanOrNull != null) return prim.boolean
+        if (prim.doubleOrNull != null) return prim.double
+        val str = prim.content
         return story.wrapper.getStoryObject(str)
     }
 }

@@ -1,59 +1,55 @@
 package ink.kt.mica
 
 import ink.kt.mica.util.InkParseException
-import java.io.InputStream
 
 object InkParser {
 
     fun parse(provider: StoryWrapper, fileName: String): Story {
-        val input: InputStream = provider.getStream(fileName)
+        val input: String = provider.getFileContent(fileName)
         return parse(input, provider, fileName)
     }
 
-    fun parse(inputStream: InputStream, provider: StoryWrapper, fileName: String): Story {
+    fun parse(input: String, provider: StoryWrapper, fileName: String): Story {
         val includes = mutableListOf<String>()
         val content = mutableMapOf<String, Content>()
         var topContainer: Container? = null
-        inputStream.reader(Charsets.UTF_8).buffered(DEFAULT_BUFFER_SIZE).use { reader ->
-            var line: String? = reader.readLine()
-            var lineNumber = 1
-            var currentContainer: Container? = null
-            while (line != null) {
-                var trimmedLine = line.trim()
-                if (trimmedLine.contains(Symbol.COMMENT)) {
-                    trimmedLine = trimmedLine.substring(0, trimmedLine.indexOf(Symbol.COMMENT)).trim()
-                }
-                if (trimmedLine.contains(Symbol.HASHMARK)) {
-                    val tags = trimmedLine.substring(trimmedLine.indexOf(Symbol.HASHMARK) + 1).trim()
-                        .split(Symbol.HASHMARK)
-                    for (tag in tags) {
-                        val tagTxt = tag.trim()
-                        if (tagTxt.isNotEmpty()) {
-                            val current = Tag(tagTxt, currentContainer, lineNumber)
-                            if (currentContainer != null)
-                                currentContainer.add(current)
-                            if (!content.containsKey(current.id))
-                                content[current.id] = current
-                        }
-                    }
-                    trimmedLine = trimmedLine.substring(0, trimmedLine.indexOf(Symbol.HASHMARK)).trim()
-                }
-                if (trimmedLine.startsWith(Symbol.INCLUDE)) {
-                    val includeFile = trimmedLine.replace(Symbol.INCLUDE, "").trim()
-                    includes.add(includeFile)
-                }
-                val tokens = parseLine(lineNumber, trimmedLine, currentContainer)
-                for (current in tokens) {
-                    if (current is Container)
-                        currentContainer = current
-                    if (!content.containsKey(current.id))
-                        content[current.id] = current
-                    if (currentContainer != null && topContainer == null)
-                        topContainer = currentContainer
-                }
-                line = reader.readLine()
-                lineNumber++
+        val lines = input.lines()
+        var lineNumber = 1
+        var currentContainer: Container? = null
+        for (rawLine in lines) {
+            var trimmedLine = rawLine.trim()
+            if (trimmedLine.contains(Symbol.COMMENT)) {
+                trimmedLine = trimmedLine.substring(0, trimmedLine.indexOf(Symbol.COMMENT)).trim()
             }
+            if (trimmedLine.contains(Symbol.HASHMARK)) {
+                val tags = trimmedLine.substring(trimmedLine.indexOf(Symbol.HASHMARK) + 1).trim()
+                    .split(Symbol.HASHMARK)
+                for (tag in tags) {
+                    val tagTxt = tag.trim()
+                    if (tagTxt.isNotEmpty()) {
+                        val current = Tag(tagTxt, currentContainer, lineNumber)
+                        if (currentContainer != null)
+                            currentContainer.add(current)
+                        if (!content.containsKey(current.id))
+                            content[current.id] = current
+                    }
+                }
+                trimmedLine = trimmedLine.substring(0, trimmedLine.indexOf(Symbol.HASHMARK)).trim()
+            }
+            if (trimmedLine.startsWith(Symbol.INCLUDE)) {
+                val includeFile = trimmedLine.replace(Symbol.INCLUDE, "").trim()
+                includes.add(includeFile)
+            }
+            val tokens = parseLine(lineNumber, trimmedLine, currentContainer)
+            for (current in tokens) {
+                if (current is Container)
+                    currentContainer = current
+                if (!content.containsKey(current.id))
+                    content[current.id] = current
+                if (currentContainer != null && topContainer == null)
+                    topContainer = currentContainer
+            }
+            lineNumber++
         }
         if (topContainer == null)
             throw InkParseException("Could not detect a root knot node in $fileName")

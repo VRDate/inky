@@ -1,31 +1,36 @@
 package ink.kt.mica
 
 import ink.kt.mica.util.InkRunTimeException
-import java.math.BigDecimal
-import java.math.MathContext
-import java.math.RoundingMode
+import kotlin.math.pow
 
 /**
  * A one-class expression evaluator.
  * Originally based on https://github.com/uklimaschewski/EvalEx
+ * KMP-compatible: uses Double instead of BigDecimal, no Java reflection.
  *
- * Creates a new expression instance from an expression string with a given default math context.
+ * Creates a new expression instance from an expression string.
  * @param originalExpression The expression, e.g. `"2.4*sin(3)/(2-4)"` or `"sin(y)>0 & max(z, 3)>3"`
- * @param defaultMathContext The [MathContext] to use by default
  */
-class Expression(
-    originalExpression: String,
-    private val defaultMathContext: MathContext = MathContext.DECIMAL32
-) {
+class Expression(originalExpression: String) {
     class ExpressionException(message: String) : RuntimeException(message)
 
-    private var mc = defaultMathContext
+    /**
+     * Pluggable interface for game object method dispatch.
+     * Replaces Java reflection for KMP compatibility.
+     */
+    fun interface GameObjectResolver {
+        fun call(obj: Any, method: String, params: List<Any>): Any
+    }
+
     private var rpn: List<String>? = null
     private val firstVarChars: String = "_"
     private val varChars: String = "_."
     private val operators = sortedMapOf<String, Operator>(String.CASE_INSENSITIVE_ORDER)
     private var expression: String = originalExpression.trim()
         private set
+
+    /** Optional resolver for game object method calls (e.g. `object.method(args)`). */
+    var gameObjectResolver: GameObjectResolver? = null
 
     /**
      * Expression tokenizer that allows iterating over a [String] expression token by token.
@@ -122,93 +127,80 @@ class Expression(
     }
 
     init {
-        this.mc = defaultMathContext
         this.expression = originalExpression
         addOperator(object : Operator("+", 20, true) {
             override fun eval(v1: Any, v2: Any): Any = when (v1) {
-                is BigDecimal -> v1.add(v2 as BigDecimal, mc)
+                is Double -> v1 + (v2 as Double)
                 is String -> stripStringParameter(v1) + stripStringParameter(v2.toString())
-                else -> BigDecimal.ZERO
+                else -> 0.0
             }
         })
         addOperator(object : Operator("-", 20, true) {
             override fun eval(v1: Any, v2: Any): Any = when (v1) {
-                is BigDecimal -> v1.subtract(v2 as BigDecimal, mc)
-                else -> BigDecimal.ZERO
+                is Double -> v1 - (v2 as Double)
+                else -> 0.0
             }
         })
         addOperator(object : Operator("*", 30, true) {
             override fun eval(v1: Any, v2: Any): Any = when (v1) {
-                is BigDecimal -> v1.multiply(v2 as BigDecimal, mc)
-                else -> BigDecimal.ZERO
+                is Double -> v1 * (v2 as Double)
+                else -> 0.0
             }
         })
         addOperator(object : Operator("/", 30, true) {
             override fun eval(v1: Any, v2: Any): Any = when (v1) {
-                is BigDecimal -> v1.divide(v2 as BigDecimal, mc)
-                else -> BigDecimal.ZERO
+                is Double -> v1 / (v2 as Double)
+                else -> 0.0
             }
         })
         addOperator(object : Operator("%", 30, true) {
             override fun eval(v1: Any, v2: Any): Any = when (v1) {
-                is BigDecimal -> v1.remainder(v2 as BigDecimal, mc)
-                else -> BigDecimal.ZERO
+                is Double -> v1 % (v2 as Double)
+                else -> 0.0
             }
         })
         addOperator(object : Operator("^", 40, false) {
             override fun eval(v1: Any, v2: Any): Any {
-                if (v1 !is BigDecimal || v2 !is BigDecimal) return BigDecimal.ZERO
-                var v2m = v2
-                val signOf2 = v2m.signum()
-                val dn1 = v1.toDouble()
-                v2m = v2m.multiply(BigDecimal(signOf2))
-                val remainderOf2 = v2m.remainder(BigDecimal.ONE)
-                val n2IntPart = v2m.subtract(remainderOf2)
-                val intPow = v1.pow(n2IntPart.intValueExact(), mc)
-                val doublePow = BigDecimal(Math.pow(dn1, remainderOf2.toDouble()))
-                var result = intPow.multiply(doublePow, mc)
-                if (signOf2 == -1) {
-                    result = BigDecimal.ONE.divide(result, mc.precision, RoundingMode.HALF_UP)
-                }
-                return result
+                if (v1 !is Double || v2 !is Double) return 0.0
+                return v1.pow(v2)
             }
         })
         addOperator(object : Operator("&&", 4, false) {
             override fun eval(v1: Any, v2: Any): Any {
-                val b1 = v1 != BigDecimal.ZERO
-                val b2 = v2 != BigDecimal.ZERO
-                return if (b1 && b2) BigDecimal.ONE else BigDecimal.ZERO
+                val b1 = v1 != 0.0
+                val b2 = v2 != 0.0
+                return if (b1 && b2) 1.0 else 0.0
             }
         })
         addOperator(object : Operator("||", 2, false) {
             override fun eval(v1: Any, v2: Any): Any {
-                val b1 = v1 != BigDecimal.ZERO
-                val b2 = v2 != BigDecimal.ZERO
-                return if (b1 || b2) BigDecimal.ONE else BigDecimal.ZERO
+                val b1 = v1 != 0.0
+                val b2 = v2 != 0.0
+                return if (b1 || b2) 1.0 else 0.0
             }
         })
         addOperator(object : Operator(">", 10, false) {
             override fun eval(v1: Any, v2: Any): Any {
-                if (v1 !is BigDecimal || v2 !is BigDecimal) return BigDecimal.ZERO
-                return if (v1.compareTo(v2) == 1) BigDecimal.ONE else BigDecimal.ZERO
+                if (v1 !is Double || v2 !is Double) return 0.0
+                return if (v1 > v2) 1.0 else 0.0
             }
         })
         addOperator(object : Operator(">=", 10, false) {
             override fun eval(v1: Any, v2: Any): Any {
-                if (v1 !is BigDecimal || v2 !is BigDecimal) return BigDecimal.ZERO
-                return if (v1 >= v2) BigDecimal.ONE else BigDecimal.ZERO
+                if (v1 !is Double || v2 !is Double) return 0.0
+                return if (v1 >= v2) 1.0 else 0.0
             }
         })
         addOperator(object : Operator("<", 10, false) {
             override fun eval(v1: Any, v2: Any): Any {
-                if (v1 !is BigDecimal || v2 !is BigDecimal) return BigDecimal.ZERO
-                return if (v1.compareTo(v2) == -1) BigDecimal.ONE else BigDecimal.ZERO
+                if (v1 !is Double || v2 !is Double) return 0.0
+                return if (v1 < v2) 1.0 else 0.0
             }
         })
         addOperator(object : Operator("<=", 10, false) {
             override fun eval(v1: Any, v2: Any): Any {
-                if (v1 !is BigDecimal || v2 !is BigDecimal) return BigDecimal.ZERO
-                return if (v1 <= v2) BigDecimal.ONE else BigDecimal.ZERO
+                if (v1 !is Double || v2 !is Double) return 0.0
+                return if (v1 <= v2) 1.0 else 0.0
             }
         })
         addOperator(object : Operator("==", 7, false) {
@@ -216,16 +208,16 @@ class Expression(
         })
         addOperator(object : Operator("=", 7, false) {
             override fun eval(v1: Any, v2: Any): Any = when (v1) {
-                is BigDecimal -> if (v1.compareTo(v2 as BigDecimal) == 0) BigDecimal.ONE else BigDecimal.ZERO
-                is String -> if (stripStringParameter(v1).compareTo(stripStringParameter(v2 as String)) == 0) BigDecimal.ONE else BigDecimal.ZERO
-                else -> BigDecimal.ZERO
+                is Double -> if (v1 == (v2 as Double)) 1.0 else 0.0
+                is String -> if (stripStringParameter(v1) == stripStringParameter(v2 as String)) 1.0 else 0.0
+                else -> 0.0
             }
         })
         addOperator(object : Operator("!=", 7, false) {
             override fun eval(v1: Any, v2: Any): Any = when (v1) {
-                is BigDecimal -> if (v1.compareTo(v2 as BigDecimal) != 0) BigDecimal.ONE else BigDecimal.ZERO
-                is String -> if (stripStringParameter(v1).compareTo(stripStringParameter(v2 as String)) != 0) BigDecimal.ONE else BigDecimal.ZERO
-                else -> BigDecimal.ZERO
+                is Double -> if (v1 != (v2 as Double)) 1.0 else 0.0
+                is String -> if (stripStringParameter(v1) != stripStringParameter(v2 as String)) 1.0 else 0.0
+                else -> 0.0
             }
         })
         addOperator(object : Operator("<>", 7, false) {
@@ -233,9 +225,9 @@ class Expression(
         })
         addOperator(object : Operator("?:", 40, false) {
             override fun eval(v1: Any, v2: Any): Any = when (v2) {
-                is BigDecimal -> if (v1 is BigDecimal && v1 == BigDecimal.ZERO) v2 else v1
-                is String -> if (v1 is BigDecimal && v1 == BigDecimal.ZERO) stripStringParameter(v2) else v1
-                else -> if (v1 is BigDecimal && v1 == BigDecimal.ZERO) v2 else v1
+                is Double -> if (v1 is Double && v1 == 0.0) v2 else v1
+                is String -> if (v1 is Double && v1 == 0.0) stripStringParameter(v2) else v1
+                else -> if (v1 is Double && v1 == 0.0) v2 else v1
             }
         })
     }
@@ -337,17 +329,13 @@ class Expression(
         val stack = ArrayDeque<Any>()
         for (token in getRPN(vMap)) {
             if (isNumber(token)) {
-                stack.addLast(BigDecimal(token, mc))
+                stack.addLast(token.toDouble())
             } else if (operators.containsKey(token)) {
                 val v1 = stack.removeLast()
                 val v2 = stack.removeLast()
                 stack.addLast(operators[token]!!.eval(v2, v1))
             } else if (vMap.hasValue(token)) {
-                val obj = vMap.getValue(token)
-                when (obj) {
-                    is BigDecimal -> stack.addLast(obj.round(mc))
-                    else -> stack.addLast(obj)
-                }
+                stack.addLast(vMap.getValue(token))
             } else if (vMap.hasFunction(token)) {
                 val f = vMap.getFunction(token)
                 val p = mutableListOf<Any>()
@@ -382,33 +370,30 @@ class Expression(
                 if (stack.isNotEmpty() && stack.last() === PARAMS_START) {
                     stack.removeLast()
                 }
-                if (vl is BigDecimal && vl == BigDecimal.ZERO) {
-                    stack.addLast(BigDecimal.ZERO)
+                if (vl is Double && vl == 0.0) {
+                    stack.addLast(0.0)
                 } else {
-                    // TODO: Replace Java reflection with Kotlin-compatible approach for KMP
-                    // For now, game object method calls require JVM reflection
-                    val paramTypes = p.map { it.javaClass }.toTypedArray()
-                    val params = p.toTypedArray()
-                    val valClass = vl.javaClass
-                    try {
-                        val m = valClass.getMethod(function, *paramTypes)
-                        var fResult: Any = m.invoke(vl, *params) ?: BigDecimal.ZERO
-                        fResult = when (fResult) {
-                            is Boolean -> if (fResult) BigDecimal.ONE else BigDecimal.ZERO
-                            is Int -> BigDecimal(fResult)
-                            is Float -> BigDecimal(fResult.toDouble())
-                            is Double -> BigDecimal(fResult)
-                            else -> fResult
+                    // KMP-compatible: use pluggable GameObjectResolver instead of Java reflection
+                    val resolver = gameObjectResolver
+                    if (resolver != null) {
+                        try {
+                            var fResult: Any = resolver.call(vl, function, p)
+                            fResult = when (fResult) {
+                                is Boolean -> if (fResult) 1.0 else 0.0
+                                is Int -> fResult.toDouble()
+                                is Float -> fResult.toDouble()
+                                else -> fResult
+                            }
+                            stack.addLast(fResult)
+                        } catch (e: Exception) {
+                            throw InkRunTimeException(
+                                "Could not call method $function on variable $vr with ${p.size} params. ${vMap.debugInfo()}", e
+                            )
                         }
-                        stack.addLast(fResult)
-                    } catch (e: Exception) {
-                        val errMsg = buildString {
-                            append("Could not call method $function on variable $vr ")
-                            append("($vr, ${valClass.name}) with parameters:")
-                            paramTypes.forEach { append(" ${it.name}") }
-                            append(". ${vMap.debugInfo()}")
-                        }
-                        throw InkRunTimeException(errMsg, e)
+                    } else {
+                        throw InkRunTimeException(
+                            "Game object method call $vr.$function requires a GameObjectResolver. ${vMap.debugInfo()}"
+                        )
                     }
                 }
             } else if ("(" == token) {
@@ -419,22 +404,13 @@ class Expression(
         }
         val obj: Any? = stack.removeLast()
         when (obj) {
-            is BigDecimal -> return obj.stripTrailingZeros()
+            is Double -> {
+                // Strip trailing zeros: return Int-like doubles as clean doubles
+                return if (obj == obj.toLong().toDouble()) obj.toLong().toDouble() else obj
+            }
             is String -> if (isStringParameter(obj)) return stripStringParameter(obj)
         }
         return obj ?: 0
-    }
-
-    @Suppress("unused")
-    fun setPrecision(precision: Int): Expression {
-        this.mc = MathContext(precision)
-        return this
-    }
-
-    @Suppress("unused")
-    fun setRoundingMode(roundingMode: RoundingMode): Expression {
-        this.mc = MathContext(mc.precision, roundingMode)
-        return this
     }
 
     private fun addOperator(oper: Operator) {
@@ -500,12 +476,12 @@ class Expression(
     }
 
     companion object {
-        val PI = BigDecimal("3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679")
-        val e = BigDecimal("2.71828182845904523536028747135266249775724709369995957496696762772407663")
+        val PI = kotlin.math.PI
+        val e = kotlin.math.E
         private const val decimalSeparator = '.'
         private const val minusSign = '-'
         private val PARAMS_START = object : LazyNumber {
-            override fun eval(): BigDecimal = BigDecimal(0)
+            override fun eval(): Double = 0.0
         }
 
         fun isNumber(st: String): Boolean {

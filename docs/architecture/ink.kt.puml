@@ -1438,7 +1438,7 @@ note as PROGRESS
   | CallStack | CallStack | CallStack | CallStack | — | ✅ Complete |
   | Path | Path | Path | Path | — | ✅ Complete |
   | Pointer | Pointer | Pointer | Pointer | — | ✅ Complete |
-  | Value<T> | Value<T> | AbstractValue | Value | BigDecimal | ✅ Complete |
+  | Value<T> | Value<T> | AbstractValue | Value | Double | ✅ Complete |
   | Choice | Choice | Choice | Choice | Choice | ✅ Complete |
   | ChoicePoint | ChoicePoint | ChoicePoint | ChoicePoint | — | ✅ Complete |
   | Divert | Divert | Divert | Divert | Divert | ✅ Complete |
@@ -1479,14 +1479,24 @@ note as GAPS
   **2. mica → ink.kt gaps (mica has, ink.kt missing)**
 
   | Feature | mica | ink.kt | Priority |
-  | InkParser (parse .ink at runtime) | ✅ | ⬜ | HIGH — KMP |
-  | Expression evaluator | ✅ | ⬜ | HIGH — KMP |
-  | Symbol (syntax constants) | ✅ | ⬜ | MED — parser |
-  | StoryInterrupt (flow override) | ✅ | ⬜ | MED — game |
-  | StoryText (dynamic text) | ✅ | ⬜ | LOW — compiled |
+  | InkParser (parse .ink at runtime) | ✅ KMP | ⬜ | HIGH — KMP |
+  | Expression evaluator | ✅ KMP | ⬜ | HIGH — KMP |
+  | Symbol (syntax constants) | ✅ KMP | ⬜ | MED — parser |
+  | StoryInterrupt (flow override) | ✅ KMP | ⬜ | MED — game |
+  | StoryText (dynamic text) | ✅ KMP | ⬜ | LOW — compiled |
   | Function interface | ✅ | ✅ ExternalFunc | ✅ Done |
   | VariableMap interface | ✅ | ✅ VariablesState | ✅ Done |
-  | StorySaver/Loader | ✅ | ✅ JsonSerialisation | ✅ Done |
+  | StorySaver/Loader | ✅ KMP | ✅ JsonSerialisation | ✅ Done |
+
+  **2b. mica KMP porting status (JVM → KMP)**
+
+  | JVM Dependency | KMP Replacement | Files Changed | Status |
+  | BigDecimal | Double | 7 files | ✅ Ported |
+  | java.io.InputStream | String input | InkParser, StoryWrapper | ✅ Ported |
+  | Jackson JsonParser | kotlinx.serialization.json | StoryLoader | ✅ Ported |
+  | Jackson JsonGenerator | kotlinx.serialization.json | StorySaver | ✅ Ported |
+  | Java reflection | GameObjectResolver fun interface | Expression | ✅ Ported |
+  | MathContext/RoundingMode | kotlin.math.pow | Expression | ✅ Ported |
 
   **3. C# → ink.kt gaps (C# has, ink.kt may differ)**
 
@@ -1512,11 +1522,12 @@ note as GAPS
 
   | Priority | Task | Source | Target |
   | 1 | ~~Event callbacks (5 hooks)~~ | inkjs Story | ✅ Done |
-  | 2 | InkParser (.ink at runtime) | mica | ink.kt |
-  | 3 | Expression evaluator | mica | ink.kt |
-  | 4 | StoryInterrupt flow override | mica | ink.kt |
-  | 5 | ~~ContinueSingleStep()~~ | inkjs Story | ✅ Done |
-  | 6 | Symbol syntax constants | mica | ink.kt |
+  | 2 | ~~mica KMP port (BigDecimal/Jackson/IO)~~ | mica JVM | ✅ Done |
+  | 3 | InkParser (.ink at runtime) | mica KMP | ink.kt |
+  | 4 | Expression evaluator | mica KMP | ink.kt |
+  | 5 | StoryInterrupt flow override | mica KMP | ink.kt |
+  | 6 | ~~ContinueSingleStep()~~ | inkjs Story | ✅ Done |
+  | 7 | Symbol syntax constants | mica KMP | ink.kt |
 end note
 
 PROGRESS .. Story

@@ -1,7 +1,6 @@
 package ink.kt.mica
 
 import ink.kt.mica.util.InkRunTimeException
-import java.math.BigDecimal
 import kotlin.random.Random
 
 object StoryText {
@@ -36,7 +35,10 @@ object StoryText {
     private fun evaluateTextVariable(s: String, variables: VariableMap): String {
         return try {
             val obj = Declaration.evaluate(s, variables)
-            if (obj is BigDecimal) obj.toPlainString() else obj.toString()
+            if (obj is Double) {
+                // Format cleanly: 5.0 → "5", 3.14 → "3.14"
+                if (obj == obj.toLong().toDouble()) obj.toLong().toString() else obj.toString()
+            } else obj.toString()
         } catch (e: InkRunTimeException) {
             variables.logException(e)
             "$ERROR$s${Symbol.BRACE_RIGHT}"
@@ -77,7 +79,7 @@ object StoryText {
                 val value = Declaration.evaluate(condition, variables)
                 v = when (value) {
                     is Boolean -> if (value) 1 else 0
-                    is BigDecimal -> value.toInt()
+                    is Double -> value.toInt()
                     else -> 1
                 }
             } catch (e: InkRunTimeException) {
@@ -98,7 +100,7 @@ object StoryText {
         return try {
             val obj = Declaration.evaluate(condition, variables)
             when (obj) {
-                is BigDecimal -> if (obj.toInt() > 0) ifText else elseText
+                is Double -> if (obj.toInt() > 0) ifText else elseText
                 is Boolean -> if (obj) ifText else elseText
                 else -> {
                     variables.logException(
