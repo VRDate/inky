@@ -1,9 +1,8 @@
 using System.Text;
 using System.Text.Json;
-using Ink;
 using Ink.Runtime;
 using Xunit;
-using IOPath = System.IO.Path;
+using static InkBidiTdd.Tests.InkTestFixtures;
 
 namespace InkBidiTdd.Tests;
 
@@ -15,8 +14,8 @@ namespace InkBidiTdd.Tests;
 /// Mirrors the exact API shape of InkOneJsBinding.cs but uses System.Text.Json instead
 /// of UnityEngine.JsonUtility and plain classes instead of MonoBehaviour.
 ///
-/// This validates that the C# ink runtime works correctly through the same bridge
-/// contract that OneJS JavaScript calls via globalThis.__inkBridge.
+/// Uses <see cref="InkStorySession.CompileLocked"/> for thread-safe compilation and
+/// <see cref="InkTestFixtures"/> companion object for shared fixtures.
 /// </summary>
 public class InkOneJsBindingTest
 {
@@ -27,6 +26,7 @@ public class InkOneJsBindingTest
     /// <summary>
     /// Non-Unity implementation of the 10-method ink bridge contract.
     /// Same API as InkOneJsBinding.cs but uses System.Text.Json.
+    /// Compilation delegated to <see cref="InkStorySession.CompileLocked"/>.
     /// </summary>
     private class InkBridge
     {
@@ -37,7 +37,7 @@ public class InkOneJsBindingTest
         {
             try
             {
-                var (story, errors) = InkCompilerLock.Compile(source);
+                var (story, errors) = InkStorySession.CompileLocked(source);
                 if (story == null || errors.Count > 0)
                     return JsonSerializer.Serialize(new { json = "", errors = errors.ToArray() });
                 var json = story.ToJson();
@@ -94,111 +94,54 @@ public class InkOneJsBindingTest
         }
 
         public string SaveState(string sessionId)
-        {
-            var story = GetStory(sessionId);
-            return story.state.ToJson();
-        }
+            => GetStory(sessionId).state.ToJson();
 
         public void LoadState(string sessionId, string stateJson)
-        {
-            var story = GetStory(sessionId);
-            story.state.LoadJson(stateJson);
-        }
+            => GetStory(sessionId).state.LoadJson(stateJson);
 
         public void ResetStory(string sessionId)
-        {
-            var story = GetStory(sessionId);
-            story.ResetState();
-        }
+            => GetStory(sessionId).ResetState();
 
         public void EndSession(string sessionId)
-        {
-            _sessions.Remove(sessionId);
-        }
+            => _sessions.Remove(sessionId);
 
-        public bool HasSession(string sessionId) => _sessions.ContainsKey(sessionId);
+        public bool HasSession(string sessionId)
+            => _sessions.ContainsKey(sessionId);
 
         private Story GetStory(string sessionId)
-        {
-            if (!_sessions.TryGetValue(sessionId, out var story))
-                throw new ArgumentException($"Unknown session: {sessionId}");
-            return story;
-        }
+            => _sessions.TryGetValue(sessionId, out var story)
+                ? story
+                : throw new ArgumentException($"Unknown session: {sessionId}");
 
         private static string SerializeState(Story story, string text)
         {
             var choices = story.currentChoices.Select(c => new { index = c.index, text = c.text }).ToArray();
             var tags = story.currentTags?.ToArray() ?? Array.Empty<string>();
-            return JsonSerializer.Serialize(new
-            {
-                text,
-                choices,
-                canContinue = story.canContinue,
-                tags
-            });
+            return JsonSerializer.Serialize(new { text, choices, canContinue = story.canContinue, tags });
         }
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // HELPERS
+    // HELPERS — JSON DTO parsing
     // ═══════════════════════════════════════════════════════════════
 
-    private static readonly string BidiTddSource = LoadFixture();
-
-    private static string LoadFixture()
-    {
-        var candidates = new[]
-        {
-            IOPath.Combine(AppContext.BaseDirectory, "fixtures", "bidi_and_tdd.ink"),
-            IOPath.Combine(FindProjectRoot(), "ink-kmp-mcp", "src", "test", "resources", "bidi_and_tdd.ink"),
-        };
-
-        foreach (var path in candidates)
-        {
-            if (File.Exists(path))
-                return File.ReadAllText(path);
-        }
-
-        throw new FileNotFoundException(
-            $"bidi_and_tdd.ink not found. Searched:\n  {string.Join("\n  ", candidates)}");
-    }
-
-    private static string FindProjectRoot()
-    {
-        var dir = Directory.GetCurrentDirectory();
-        while (dir != null)
-        {
-            if (Directory.Exists(IOPath.Combine(dir, "ink-csharp")) ||
-                File.Exists(IOPath.Combine(dir, ".git")))
-                return dir;
-            dir = Directory.GetParent(dir)?.FullName;
-        }
-        return Directory.GetCurrentDirectory();
-    }
-
-    /// <summary>
-    /// Each test gets its own bridge to avoid concurrent Dictionary access.
-    /// xUnit creates a new instance per test, so this is safe.
-    /// </summary>
     private readonly InkBridge _bridge = new();
 
     private record CompileResultDto(string json, string[] errors);
     private record StoryStateDto(string text, ChoiceDto[] choices, bool canContinue, string[] tags);
     private record ChoiceDto(int index, string text);
 
-    private CompileResultDto ParseCompileResult(string json)
+    private static CompileResultDto ParseCompileResult(string json)
     {
-        var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
+        var root = JsonDocument.Parse(json).RootElement;
         return new CompileResultDto(
             root.GetProperty("json").GetString()!,
             root.GetProperty("errors").EnumerateArray().Select(e => e.GetString()!).ToArray());
     }
 
-    private StoryStateDto ParseStoryState(string json)
+    private static StoryStateDto ParseStoryState(string json)
     {
-        var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
+        var root = JsonDocument.Parse(json).RootElement;
         return new StoryStateDto(
             root.GetProperty("text").GetString()!,
             root.GetProperty("choices").EnumerateArray().Select(c =>
@@ -207,11 +150,8 @@ public class InkOneJsBindingTest
             root.GetProperty("tags").EnumerateArray().Select(t => t.GetString()!).ToArray());
     }
 
-    private string ParseVariableValue(string json)
-    {
-        var doc = JsonDocument.Parse(json);
-        return doc.RootElement.GetProperty("value").GetString()!;
-    }
+    private static string ParseVariableValue(string json)
+        => JsonDocument.Parse(json).RootElement.GetProperty("value").GetString()!;
 
     // ═══════════════════════════════════════════════════════════════
     // 1. COMPILE
@@ -220,8 +160,7 @@ public class InkOneJsBindingTest
     [Fact]
     public void Compile_returns_valid_JSON_with_no_errors()
     {
-        var resultJson = _bridge.Compile(BidiTddSource);
-        var result = ParseCompileResult(resultJson);
+        var result = ParseCompileResult(_bridge.Compile(BidiTddSource));
         Assert.Empty(result.errors);
         Assert.NotEmpty(result.json);
         Assert.Contains("\"inkVersion\"", result.json);
@@ -230,8 +169,7 @@ public class InkOneJsBindingTest
     [Fact]
     public void Compile_invalid_source_returns_errors()
     {
-        var resultJson = _bridge.Compile("=== broken ink {{{}}} ===");
-        var result = ParseCompileResult(resultJson);
+        var result = ParseCompileResult(_bridge.Compile("=== broken ink {{{}}} ==="));
         Assert.NotEmpty(result.errors);
     }
 
@@ -268,17 +206,11 @@ public class InkOneJsBindingTest
     {
         var compiled = ParseCompileResult(_bridge.Compile(BidiTddSource));
         var sessionId = _bridge.StartStory(compiled.json);
+        var state = ParseStoryState(_bridge.ContinueStory(sessionId));
 
-        var stateJson = _bridge.ContinueStory(sessionId);
-        var state = ParseStoryState(stateJson);
-
-        Assert.True(
-            state.text.Contains("Inky Test Suite") || state.text.Contains("חבילת בדיקות"),
-            "Should show main menu text");
-        Assert.True(state.choices.Length >= 5,
-            $"Main menu should have >= 5 choices, got {state.choices.Length}");
+        Assert.True(state.text.Contains("Inky Test Suite") || state.text.Contains("חבילת בדיקות"));
+        Assert.True(state.choices.Length >= 5);
         Assert.False(state.canContinue);
-
         _bridge.EndSession(sessionId);
     }
 
@@ -292,11 +224,8 @@ public class InkOneJsBindingTest
         var compiled = ParseCompileResult(_bridge.Compile(BidiTddSource));
         var sessionId = _bridge.StartStory(compiled.json);
         _bridge.ContinueStory(sessionId);
-
-        var afterChoiceJson = _bridge.Choose(sessionId, 0);
-        var afterChoice = ParseStoryState(afterChoiceJson);
+        var afterChoice = ParseStoryState(_bridge.Choose(sessionId, 0));
         Assert.NotEmpty(afterChoice.text);
-
         _bridge.EndSession(sessionId);
     }
 
@@ -312,10 +241,7 @@ public class InkOneJsBindingTest
         Assert.True(smokeIndex >= 0, "Should find Smoke Test choice");
 
         var afterSmoke = ParseStoryState(_bridge.Choose(sessionId, smokeIndex));
-        Assert.True(
-            afterSmoke.text.Contains("שלום") || afterSmoke.text.Contains("Hello"),
-            "Smoke test should output text");
-
+        Assert.True(afterSmoke.text.Contains("שלום") || afterSmoke.text.Contains("Hello"));
         _bridge.EndSession(sessionId);
     }
 
@@ -333,7 +259,6 @@ public class InkOneJsBindingTest
         Assert.Equal("100", ParseVariableValue(_bridge.GetVariable(sessionId, "health")));
         Assert.Equal("50", ParseVariableValue(_bridge.GetVariable(sessionId, "gold")));
         Assert.Equal("both", ParseVariableValue(_bridge.GetVariable(sessionId, "lang")));
-
         _bridge.EndSession(sessionId);
     }
 
@@ -356,7 +281,6 @@ public class InkOneJsBindingTest
 
         _bridge.SetVariable(sessionId, "show_emoji", "false");
         Assert.Equal("False", ParseVariableValue(_bridge.GetVariable(sessionId, "show_emoji")));
-
         _bridge.EndSession(sessionId);
     }
 
@@ -374,9 +298,7 @@ public class InkOneJsBindingTest
         var savedState = _bridge.SaveState(sessionId);
         Assert.NotEmpty(savedState);
         Assert.StartsWith("{", savedState);
-
         JsonDocument.Parse(savedState);
-
         _bridge.EndSession(sessionId);
     }
 
@@ -393,12 +315,10 @@ public class InkOneJsBindingTest
         var savedState = _bridge.SaveState(sessionId);
 
         _bridge.Choose(sessionId, 0);
-
         _bridge.LoadState(sessionId, savedState);
         var restored = ParseStoryState(_bridge.ContinueStory(sessionId));
 
         Assert.Equal(initial.choices.Length, restored.choices.Length);
-
         _bridge.EndSession(sessionId);
     }
 
@@ -412,15 +332,11 @@ public class InkOneJsBindingTest
         var compiled = ParseCompileResult(_bridge.Compile(BidiTddSource));
         var sessionId = _bridge.StartStory(compiled.json);
         _bridge.ContinueStory(sessionId);
-
         _bridge.Choose(sessionId, 0);
 
         _bridge.ResetStory(sessionId);
         var afterReset = ParseStoryState(_bridge.ContinueStory(sessionId));
-
-        Assert.True(afterReset.choices.Length >= 5,
-            "Reset should restore main menu choices");
-
+        Assert.True(afterReset.choices.Length >= 5);
         _bridge.EndSession(sessionId);
     }
 
@@ -434,26 +350,20 @@ public class InkOneJsBindingTest
         var compiled = ParseCompileResult(_bridge.Compile(BidiTddSource));
         var sessionId = _bridge.StartStory(compiled.json);
         Assert.True(_bridge.HasSession(sessionId));
-
         _bridge.EndSession(sessionId);
         Assert.False(_bridge.HasSession(sessionId));
     }
 
     [Fact]
     public void EndSession_unknown_id_does_not_throw()
-    {
-        _bridge.EndSession("nonexistent_session");
-    }
+        => _bridge.EndSession("nonexistent_session");
 
     [Fact]
     public void ContinueStory_unknown_session_throws()
-    {
-        Assert.Throws<ArgumentException>(() => _bridge.ContinueStory("nonexistent"));
-    }
+        => Assert.Throws<ArgumentException>(() => _bridge.ContinueStory("nonexistent"));
 
     // ═══════════════════════════════════════════════════════════════
-    // FULL LIFECYCLE — Compile → Start → Continue → Choose → Save →
-    //                  Load → Reset → End
+    // FULL LIFECYCLE — 10-method contract end-to-end
     // ═══════════════════════════════════════════════════════════════
 
     [Fact]
@@ -464,40 +374,37 @@ public class InkOneJsBindingTest
         Assert.Empty(compileResult.errors);
 
         // 2. StartStory
-        var sessionId = _bridge.StartStory(compileResult.json);
-        Assert.True(_bridge.HasSession(sessionId));
+        var sid = _bridge.StartStory(compileResult.json);
+        Assert.True(_bridge.HasSession(sid));
 
         // 3. ContinueStory
-        var initial = ParseStoryState(_bridge.ContinueStory(sessionId));
+        var initial = ParseStoryState(_bridge.ContinueStory(sid));
         Assert.True(initial.choices.Length >= 5);
 
         // 4. Choose
-        var afterChoice = ParseStoryState(_bridge.Choose(sessionId, 0));
-        Assert.NotEmpty(afterChoice.text);
+        Assert.NotEmpty(ParseStoryState(_bridge.Choose(sid, 0)).text);
 
         // 5. GetVariable
-        var healthVal = ParseVariableValue(_bridge.GetVariable(sessionId, "health"));
-        Assert.Equal("100", healthVal);
+        Assert.Equal("100", ParseVariableValue(_bridge.GetVariable(sid, "health")));
 
         // 6. SetVariable
-        _bridge.SetVariable(sessionId, "health", "75");
-        Assert.Equal("75", ParseVariableValue(_bridge.GetVariable(sessionId, "health")));
+        _bridge.SetVariable(sid, "health", "75");
+        Assert.Equal("75", ParseVariableValue(_bridge.GetVariable(sid, "health")));
 
         // 7. SaveState
-        var savedState = _bridge.SaveState(sessionId);
-        Assert.NotEmpty(savedState);
+        var saved = _bridge.SaveState(sid);
+        Assert.NotEmpty(saved);
 
         // 8. LoadState
-        _bridge.LoadState(sessionId, savedState);
-        Assert.Equal("75", ParseVariableValue(_bridge.GetVariable(sessionId, "health")));
+        _bridge.LoadState(sid, saved);
+        Assert.Equal("75", ParseVariableValue(_bridge.GetVariable(sid, "health")));
 
         // 9. ResetStory
-        _bridge.ResetStory(sessionId);
-        var afterReset = ParseStoryState(_bridge.ContinueStory(sessionId));
-        Assert.True(afterReset.choices.Length >= 5);
+        _bridge.ResetStory(sid);
+        Assert.True(ParseStoryState(_bridge.ContinueStory(sid)).choices.Length >= 5);
 
         // 10. EndSession
-        _bridge.EndSession(sessionId);
-        Assert.False(_bridge.HasSession(sessionId));
+        _bridge.EndSession(sid);
+        Assert.False(_bridge.HasSession(sid));
     }
 }
