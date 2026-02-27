@@ -100,6 +100,8 @@ export type InkTokenType =
   | "md.image"
   | "md.code"
   | "md.horizontal-rule"
+  | "md.definition-value"
+  | "md.definition-term"
   | "text";
 
 // ─── Token Categories (for highlight mapping) ───────────────────────
@@ -266,8 +268,11 @@ export const MD_HEADING_H3_REGEX = /^(#{3})\s+(\w[\w_]*)(\s*)(\([\w,\s\->]*\))?$
 /** Markdown heading H4 = ink stitch equivalent: #### stitch_name */
 export const MD_HEADING_H4_REGEX = /^(#{4})\s+(\w[\w_]*)(\s*)(\([\w,\s\->]*\))?$/;
 
-/** Markdown heading H5-H6 (sub-sections). */
-export const MD_HEADING_H56_REGEX = /^(#{5,6})\s+(.+)$/;
+/** Markdown heading H5 = ink thread: ##### thread_name (concurrent) */
+export const MD_HEADING_H5_REGEX = /^(#{5})\s+(\w[\w_]*)$/;
+
+/** Markdown heading H6 (labels / metadata / footnotes). */
+export const MD_HEADING_H6_REGEX = /^(#{6})\s+(.+)$/;
 
 /** Markdown table row: | cell | cell | */
 export const MD_TABLE_ROW_REGEX = /^\|.*\|$/;
@@ -277,6 +282,9 @@ export const MD_TABLE_SEPARATOR_REGEX = /^\|[\s:]*-{3,}[\s:]*\|/;
 
 /** Ordered list / numbered choice: 1. item (= <ol><li>) */
 export const MD_ORDERED_LIST_REGEX = /^(\s*)(\d+\.)\s+/;
+
+/** Definition list value: ": value" (= ink VAR/LIST declaration) */
+export const MD_DEFINITION_VALUE_REGEX = /^(\s*):\s+(.+)$/;
 
 /** Markdown horizontal rule: --- or *** or ___ (3+) */
 export const MD_HORIZONTAL_RULE_REGEX = /^(\*{3,}|-{3,}|_{3,})$/;
@@ -304,6 +312,7 @@ export type InkLineType =
   | "choice"            // * or + (ul choice)
   | "choice-ordered"    // 1. 2. 3. (ol numbered choice)
   | "gather"            // - (not ->)
+  | "thread"            // <- thread or ##### thread (H5 = concurrent thread)
   | "logic"             // ~ expression
   | "var-decl"          // VAR or CONST
   | "list-decl"         // LIST
@@ -316,6 +325,7 @@ export type InkLineType =
   | "md-table-row"      // | cell | cell |
   | "md-table-separator" // |---|---|
   | "md-horizontal-rule" // --- or *** or ___
+  | "md-definition-value" // : value (= ink VAR, part of <dl>)
   | "text";             // prose (shared ink + md)
 
 /**
@@ -346,14 +356,16 @@ export function classifyLine(line: string): InkLineType {
   if (GATHER_REGEX.test(line)) return "gather";
   if (LOGIC_LINE_REGEX.test(line)) return "logic";
   if (MULTILINE_LOGIC_REGEX.test(line)) return "multiline-logic";
-  // Markdown headings — H3 = knot, H4 = stitch (AST node unification)
+  // Markdown headings — H3 = knot, H4 = stitch, H5 = thread (AST unification)
   if (MD_HEADING_H3_REGEX.test(trimmed)) return "knot";
   if (MD_HEADING_H4_REGEX.test(trimmed)) return "stitch";
+  if (MD_HEADING_H5_REGEX.test(trimmed)) return "thread";
   if (MD_HEADING_H2_REGEX.test(trimmed)) return "md-heading";
-  if (MD_HEADING_H56_REGEX.test(trimmed)) return "md-heading";
-  // Markdown table and layout
+  if (MD_HEADING_H6_REGEX.test(trimmed)) return "md-heading";
+  // Markdown table, definition list, and layout
   if (MD_TABLE_SEPARATOR_REGEX.test(trimmed)) return "md-table-separator";
   if (MD_TABLE_ROW_REGEX.test(trimmed)) return "md-table-row";
+  if (MD_DEFINITION_VALUE_REGEX.test(trimmed)) return "md-definition-value";
   if (MD_HORIZONTAL_RULE_REGEX.test(trimmed)) return "md-horizontal-rule";
   return "text";
 }

@@ -192,6 +192,31 @@ The `*` bullet is already shared — ink `*` choice and markdown `*` unordered l
 - `1. [First option]` = ordered ink choice = numbered `<ol><li>`
 - `* [Sword] A fine blade` = labeled choice = `<dl><dt>Sword</dt><dd>A fine blade</dd></dl>`
 
+### Definition List = Ink VAR/LIST
+
+The markdown definition list (`<dl>`) maps directly to ink variable declarations:
+
+| Markdown DL | HTML | Ink | Merged AST |
+|---|---|---|---|
+| `name` + `\n: value` | `<dt>name</dt><dd>value</dd>` | `VAR name = value` | `VarDecl(name, value)` |
+| `name` + `\n: "text"` | `<dt>name</dt><dd>"text"</dd>` | `VAR name = "text"` | `VarDecl(name, stringValue)` |
+| `name` + `\n: true` | `<dt>name</dt><dd>true</dd>` | `VAR name = true` | `VarDecl(name, boolValue)` |
+| `items` + `\n: a, b, c` | `<dt>items</dt><dd>a, b, c</dd>` | `LIST items = a, b, c` | `ListDecl(name, items)` |
+
+Example — the same data as both markdown DL and ink VARs:
+```
+health
+: 100
+
+player_name
+: "Arthur"
+
+items
+: sword, potion, key
+```
+
+The parser treats `term` + `: value` as `VAR term = value` (or `LIST` if comma-separated).
+
 ### Key Disambiguation
 
 - **`#` (single hash)** = ink tag — `# author: inkle`, `# theme: dark`
@@ -205,18 +230,21 @@ The `*` bullet is already shared — ink `*` choice and markdown `*` unordered l
 The core innovation: **ink knots and markdown headings merge into one AST node**.
 Both `=== knot_name ===` and `### knot_name` represent the same structural concept — a named section.
 
-| Ink Syntax | Markdown Equivalent | Merged AST Node | Heading Level |
-|---|---|---|---|
-| (file-level) | `## Chapter` | `Section(level=2)` | H2 = chapter/file |
-| `=== knot_name ===` | `### knot_name` | `Section(level=3, isKnot=true)` | H3 = knot |
-| `= stitch_name` | `#### stitch_name` | `Section(level=4, isStitch=true)` | H4 = stitch |
-| `=== function f() ===` | `### function f()` | `Section(level=3, isFunction=true)` | H3 = function |
+| Level | Ink Syntax | Markdown Syntax | HTML | Merged AST Node |
+|---|---|---|---|---|
+| H1 | `# tag` | — | — | Ink tag (single `#`) |
+| H2 | (file-level) | `## Chapter` | `<h2>` | `Section(level=2)` — chapter/file |
+| H3 | `=== knot ===` | `### knot` | `<h3>` | `Section(level=3, isKnot=true)` |
+| H4 | `= stitch` | `#### stitch` | `<h4>` | `Section(level=4, isStitch=true)` |
+| H5 | `<- thread` | `##### thread` | `<h5>` | `Thread(level=5)` — concurrent |
+| H6 | (label) | `###### note` | `<h6>` | `Label(level=6)` — metadata |
 
 The parser accepts **both syntaxes** for the same node — `=== combat ===` and `### combat` produce identical AST. This means:
 - Markdown editors (Remirror, CodeMirror) render knots as headings natively
 - Ink editors (ACE) render headings as knots natively
 - TOC / outline / fold works identically for both
 - `# tag` (single hash, no space before text) stays as ink tag — never a heading
+- `##### thread_name` = `<- thread_name` — concurrent thread declaration
 
 ### Merged File Format
 
