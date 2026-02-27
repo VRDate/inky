@@ -57,10 +57,10 @@ tasks.register<Exec>("testTypeScript") {
     commandLine(npmCmd, "test")
 }
 
-// ── ink-csharp (InkMdTable.Tests — dotnet + xUnit + Steeltoe) ─
+// ── C# (InkMdTable.Tests + InkBidiTdd.Tests — dotnet + xUnit) ──
 
 tasks.register<Exec>("dotnetRestore") {
-    description = "Restore NuGet packages for InkMdTable.Tests"
+    description = "Restore NuGet packages for C# test projects"
     group = "setup"
     workingDir = file("InkMdTable.Tests")
     commandLine(dotnetCmd, "restore")
@@ -68,11 +68,20 @@ tasks.register<Exec>("dotnetRestore") {
     outputs.dir("InkMdTable.Tests/obj")
 }
 
+tasks.register<Exec>("dotnetRestoreBidiTdd") {
+    description = "Restore NuGet packages for InkBidiTdd.Tests"
+    group = "setup"
+    workingDir = file("InkBidiTdd.Tests")
+    commandLine(dotnetCmd, "restore")
+    inputs.file("InkBidiTdd.Tests/InkBidiTdd.Tests.csproj")
+    outputs.dir("InkBidiTdd.Tests/obj")
+}
+
 tasks.register<Exec>("compileCSharp") {
-    description = "Build InkMdTable.Tests C# project"
+    description = "Build all C# test projects"
     group = "build"
-    dependsOn("dotnetRestore")
-    workingDir = file("InkMdTable.Tests")
+    dependsOn("dotnetRestore", "dotnetRestoreBidiTdd")
+    workingDir = file("InkBidiTdd.Tests")
     commandLine(dotnetCmd, "build", "--no-restore")
 }
 
@@ -81,6 +90,14 @@ tasks.register<Exec>("testCSharp") {
     group = "verification"
     dependsOn("dotnetRestore")
     workingDir = file("InkMdTable.Tests")
+    commandLine(dotnetCmd, "test", "--no-restore", "--logger", "console;verbosity=normal")
+}
+
+tasks.register<Exec>("testCSharpBidiTdd") {
+    description = "Run xUnit tests in InkBidiTdd.Tests/ (ink compiler + runtime + OneJS bridge)"
+    group = "verification"
+    dependsOn("dotnetRestoreBidiTdd")
+    workingDir = file("InkBidiTdd.Tests")
     commandLine(dotnetCmd, "test", "--no-restore", "--logger", "console;verbosity=normal")
 }
 
@@ -114,7 +131,7 @@ tasks.register("compileAll") {
 }
 
 tasks.register("testAll") {
-    description = "Run all tests across all 4 ecosystems"
+    description = "Run all tests across all 4 ecosystems (KT 145 + C# 42 + TS 48 + JS 64 = 299)"
     group = "verification"
-    dependsOn("testKotlin", "testJavaScript", "testTypeScript", "testCSharp")
+    dependsOn("testKotlin", "testJavaScript", "testTypeScript", "testCSharp", "testCSharpBidiTdd")
 }
