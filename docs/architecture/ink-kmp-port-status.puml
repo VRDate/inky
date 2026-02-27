@@ -1,0 +1,149 @@
+@startuml ink-kmp-port-status
+!theme plain
+title Ink KMP Runtime Port — Class Status\n(C# inkle/ink = primary reference, Java blade-ink + JS inkjs = secondary)
+
+skinparam packageStyle rectangle
+skinparam class {
+    BackgroundColor<<ported>> #B2DFDB
+    BackgroundColor<<pending>> #FFCCBC
+    BackgroundColor<<stub>> #FFF9C4
+    BorderColor #333333
+}
+
+legend right
+    | Color | Status |
+    |<#B2DFDB>| Ported to KMP commonMain |
+    |<#FFF9C4>| Stub / partial (needs JsonSerialisation) |
+    |<#FFCCBC>| Pending port |
+endlegend
+
+package "Tier 0 — Enums & Exceptions" {
+    class ValueType <<ported>> { enum class }
+    class PushPopType <<ported>> { enum class }
+    class ErrorType <<ported>> { enum class }
+    class StoryException <<ported>> { class : Exception }
+}
+
+package "Tier 1 — Base & Structural" {
+    class InkObject <<ported>> { open class\n  path, parent, copy() }
+    class INamedContent <<ported>> { interface }
+    class DebugMetadata <<ported>> { data class }
+    class Path <<ported>> { class + Component }
+    class Pointer <<ported>> { data class\n  container, index }
+    class SearchResult <<ported>> { class\n  obj, approximate }
+    class Container <<ported>> { class : InkObject, INamedContent\n  content, namedContent }
+}
+
+package "Tier 2 — Leaf Objects" {
+    class Glue <<ported>> { class : InkObject }
+    class Void <<ported>> { class : InkObject }
+    class Tag <<ported>> { class : InkObject }
+    class ControlCommand <<ported>> { class : InkObject\n  enum CommandType }
+    class Divert <<ported>> { class : InkObject }
+    class ChoicePoint <<ported>> { class : InkObject }
+    class VariableAssignment <<ported>> { class : InkObject }
+    class VariableReference <<ported>> { class : InkObject }
+}
+
+package "Tier 3 — Value Hierarchy (sealed)" {
+    class "Value<T>" <<ported>> { sealed class : InkObject\n  valueType, isTruthy, cast() }
+    class BoolValue <<ported>> { }
+    class IntValue <<ported>> { }
+    class FloatValue <<ported>> { }
+    class StringValue <<ported>> { }
+    class DivertTargetValue <<ported>> { }
+    class VariablePointerValue <<ported>> { }
+    class ListValue <<ported>> { }
+}
+
+package "Tier 4 — List System" {
+    class InkListItem <<ported>> { data class\n  originName, itemName }
+    class InkList <<ported>> { class : MutableMap by LinkedHashMap\n  +, -, union, intersect }
+    class ListDefinition <<ported>> { class\n  lazy items }
+    class ListDefinitionsOrigin <<ported>> { class\n  findSingleItemList }
+}
+
+package "Tier 5 — Execution Engine" {
+    class Choice <<ported>> { class : InkObject, Comparable\n  threadAtGeneration: Thread }
+    class NativeFunctionCall <<ported>> { class : InkObject\n  fun interface BinaryOp\n  fun interface UnaryOp }
+    class "CallStack" <<ported>> { class\n  Element, Thread\n  LinkedHashMap temps }
+    class "CallStack.Element" <<ported>> { nested class }
+    class "CallStack.Thread" <<ported>> { nested class }
+    class Flow <<ported>> { class\n  callStack, outputStream, choices }
+    class StatePatch <<ported>> { class\n  globals, visitCounts, turnIndices }
+    class VariablesState <<ported>> { class : Iterable<String>\n  fun interface VariableChanged\n  operator get/set }
+}
+
+package "Tier 6 — State & Serialization" {
+    class StoryState <<ported>> { class\n  enum OutputOp (functional)\n  fun interface ErrorHandler\n  fun interface OnDidLoadState\n  LinkedHashMap visitCounts/turnIndices }
+    class SimpleJson <<pending>> { object\n  Writer, Reader }
+    class JsonSerialisation <<pending>> { object\n  readJson, writeJson }
+    class Json <<stub>> { internal object\n  jTokenToRuntimeObject (stub) }
+}
+
+package "Tier 7 — Story Runtime" {
+    class Story <<pending>> { class\n  Continue, ChooseChoice\n  external functions }
+    class Profiler <<pending>> { class }
+    class StopWatch <<pending>> { class }
+}
+
+' --- Relationships ---
+InkObject <|-- Container
+InkObject <|-- "Value<T>"
+InkObject <|-- Glue
+InkObject <|-- Void
+InkObject <|-- Tag
+InkObject <|-- ControlCommand
+InkObject <|-- Divert
+InkObject <|-- ChoicePoint
+InkObject <|-- VariableAssignment
+InkObject <|-- VariableReference
+InkObject <|-- Choice
+InkObject <|-- NativeFunctionCall
+
+"Value<T>" <|-- BoolValue
+"Value<T>" <|-- IntValue
+"Value<T>" <|-- FloatValue
+"Value<T>" <|-- StringValue
+"Value<T>" <|-- DivertTargetValue
+"Value<T>" <|-- VariablePointerValue
+"Value<T>" <|-- ListValue
+
+Container *-- InkObject : content
+Container o-- INamedContent : namedContent
+
+"CallStack" *-- "CallStack.Element"
+"CallStack" *-- "CallStack.Thread"
+"CallStack.Element" --> Pointer
+"CallStack.Thread" --> "CallStack.Element"
+Flow --> "CallStack"
+Flow --> Choice
+
+VariablesState --> "CallStack"
+VariablesState --> StatePatch
+VariablesState --> ListDefinitionsOrigin
+
+StoryState --> VariablesState
+StoryState --> Flow
+StoryState --> "CallStack"
+
+Story --> StoryState
+Story --> Container
+Story --> NativeFunctionCall
+
+note right of "CallStack"
+    FIXED: Java's infinite recursion
+    bug in setTemporaryVariable
+end note
+
+note right of NativeFunctionCall
+    fun interface BinaryOp/UnaryOp
+    (supplier functional pattern)
+end note
+
+note right of InkList
+    LinkedHashMap delegation
+    insertion-order + O(1)
+end note
+
+@enduml
