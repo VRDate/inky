@@ -10,6 +10,6 @@ package ink.kt
  *
  * Kotlin: Simple wrapper, `val text: String`.
  */
-class Tag(val text: String) : InkObject() {
+class Tag(override var text: String) : InkObject() {
     override fun toString(): String = "# $text"
 }

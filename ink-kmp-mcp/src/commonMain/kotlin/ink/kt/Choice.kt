@@ -14,13 +14,18 @@ package ink.kt
  */
 class Choice : InkObject(), Comparable<Choice> {
 
-    var text: String? = null
+    override var text: String = ""
     var index: Int = 0
     var targetPath: Path? = null
     var sourcePath: String? = null
     var isInvisibleDefault: Boolean = false
     var originalThreadIndex: Int = 0
     var tags: List<String>? = null
+
+    // ── Parser fields (from mica Choice — unused in compiled mode) ─────
+    var level: Int = 0
+    internal var conditions: MutableList<String> = mutableListOf()
+    internal var repeatable: Boolean = false
 
     // C#: Thread property, Java: getter/setter, JS: untyped field
     // Kotlin: properly typed now that CallStack is ported
@@ -51,5 +56,8 @@ class Choice : InkObject(), Comparable<Choice> {
         copy.isInvisibleDefault = isInvisibleDefault
         copy.tags = tags
         copy.threadAtGeneration = threadAtGeneration?.copy()
+        copy.level = level
+        copy.conditions = conditions.toMutableList()
+        copy.repeatable = repeatable
     }
 }

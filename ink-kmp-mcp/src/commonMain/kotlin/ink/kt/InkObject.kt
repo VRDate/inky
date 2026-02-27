@@ -16,6 +16,12 @@ package ink.kt
 open class InkObject {
     var parent: Container? = null
 
+    // ── Parser fields (from mica Content — unused in compiled mode) ────
+    open var id: String = ""
+    open var text: String = ""
+    var lineNumber: Int = 0
+    internal var count: Int = 0
+
     private var _debugMetadata: DebugMetadata? = null
     private var _path: Path? = null
 

@@ -19,6 +19,14 @@ class Container : InkObject(), INamedContent {
     val content: MutableList<InkObject> = mutableListOf()
     var namedContent: HashMap<String, INamedContent> = HashMap()
 
+    // ── Parser traversal (from mica Container — unused in compiled mode) ──
+    internal var index: Int = 0
+    val children: MutableList<InkObject> get() = content
+    val size: Int get() = content.size
+    fun add(item: InkObject) { addContent(item) }
+    operator fun get(i: Int): InkObject = content[i]
+    fun indexOf(c: InkObject): Int = content.indexOf(c)
+
     var visitsShouldBeCounted: Boolean = false
     var turnIndexShouldBeCounted: Boolean = false
     var countingAtStartOnly: Boolean = false

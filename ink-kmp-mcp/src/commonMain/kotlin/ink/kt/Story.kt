@@ -81,6 +81,17 @@ class Story : VariablesState.VariableChanged {
     /** Error handler callback. Assign to handle errors/warnings during evaluation. */
     var onError: ErrorHandler? = null
 
+    // ── Parser-mode fields (from mica Story — unused in compiled mode) ──
+    internal var parserMode: Boolean = false
+    internal var parserContainer: Container? = null
+    internal val parserContent: MutableMap<String, InkObject> = mutableMapOf()
+    internal val fileNames: MutableList<String> = mutableListOf()
+    internal val parserVariables: MutableMap<String, Any> = mutableMapOf()
+    internal val parserFunctions: MutableMap<String, Any> = mutableMapOf()
+    internal val parserInterrupts: MutableList<Any> = mutableListOf()
+    internal val parserText: MutableList<String> = mutableListOf()
+    internal val parserChoices: MutableList<Container> = mutableListOf()
+
     // ── Event callbacks (ported from inkjs) ──────────────────────────────
     // JS: this.onDidContinue = null;  etc.
     // These 5 callbacks match the inkjs Story API 1:1 for Kotlin/JS compatibility.
