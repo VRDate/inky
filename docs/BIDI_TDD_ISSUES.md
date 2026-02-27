@@ -5,7 +5,7 @@
 > data from [inkle/inky](https://github.com/inkle/inky/issues) and
 > [inkle/ink](https://github.com/inkle/ink/issues) to simulate a "time travel"
 > impact analysis — the same thought experiment explored interactively in
-> `app/test/fixtures/bidi_and_tdd.ink`.
+> `ink-electron/test/fixtures/bidi_and_tdd.ink`.
 
 ---
 
@@ -637,8 +637,8 @@ This matrix maps ink syntax features to existing test coverage and TDD recommend
 ## References
 
 - Issue #122: [Cannot use Right-to-Left languages with Inky properly](https://github.com/inkle/inky/issues/122)
-- Test fixture: `app/test/fixtures/bidi_and_tdd.ink` (1113 lines, 28 features × 10 RTL scripts)
+- Test fixture: `ink-electron/test/fixtures/bidi_and_tdd.ink` (1113 lines, 28 features × 10 RTL scripts)
 - Kotlin TDD tests: `mcp-server/src/test/kotlin/ink/mcp/BidiTddInkTest.kt`
-- E2E tests: `app/test/bidi-e2e.test.js` (15 tests)
-- Unit tests: `app/test/bidify.test.js` (29 assertions)
+- E2E tests: `ink-electron/test/bidi-e2e.test.js` (15 tests)
+- Unit tests: `ink-electron/test/bidify.test.js` (29 assertions)
 - Syntax coverage: `docs/bidi/INK_SYNTAX_COVERAGE.md` (100 features catalogued)

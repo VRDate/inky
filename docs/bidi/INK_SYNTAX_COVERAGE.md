@@ -2,9 +2,9 @@
 
 > **Reference:** [Writing with Ink](https://github.com/inkle/ink/blob/master/Documentation/WritingWithInk.md)
 > **Test files analysed:**
-> - `app/test/test.js` — General Inky E2E tests
-> - `app/test/bidi-e2e.test.js` — Bidi/RTL-specific E2E tests
-> - `app/test/fixtures/bidi_and_tdd.ink` — Comprehensive bidi ink fixture
+> - `ink-electron/test/test.js` — General Inky E2E tests
+> - `ink-electron/test/bidi-e2e.test.js` — Bidi/RTL-specific E2E tests
+> - `ink-electron/test/fixtures/bidi_and_tdd.ink` — Comprehensive bidi ink fixture
 
 ---
 
@@ -27,11 +27,11 @@
 
 | Test File | Tests | Coverage Focus |
 |---|---|---|
-| `app/test/test.js` | 7 | Core Inky E2E (launch, compile, choices, TODOs) |
-| `app/test/bidi-e2e.test.js` | 15 | Bidi/RTL typing, compilation, museum, assertions |
-| `app/test/incremental-e2e.test.js` | 15 | Chapter-by-chapter writing simulation, 28 syntax features, timing |
-| `app/test/bidify.test.js` | 29 | Unit tests for bidify/stripBidi/bidifyJson |
-| `app/test/fixtures/bidi_and_tdd.ink` | — | 1113-line fixture covering 28 ink features × 10 RTL scripts |
+| `ink-electron/test/test.js` | 7 | Core Inky E2E (launch, compile, choices, TODOs) |
+| `ink-electron/test/bidi-e2e.test.js` | 15 | Bidi/RTL typing, compilation, museum, assertions |
+| `ink-electron/test/incremental-e2e.test.js` | 15 | Chapter-by-chapter writing simulation, 28 syntax features, timing |
+| `ink-electron/test/bidify.test.js` | 29 | Unit tests for bidify/stripBidi/bidifyJson |
+| `ink-electron/test/fixtures/bidi_and_tdd.ink` | — | 1113-line fixture covering 28 ink features × 10 RTL scripts |
 
 ### Legend
 
@@ -739,7 +739,7 @@ All supported types:
 
 ## Appendix A: Test File Summary
 
-### `app/test/test.js` — 5 tests
+### `ink-electron/test/test.js` — 5 tests
 
 | Test | Ink Features Exercised |
 |---|---|
@@ -751,7 +751,7 @@ All supported types:
 | `suppresses choice text` | `[]` suppression, `-> END` |
 | `shows TODOs` | `TODO:`, `*` choices, gather `-` |
 
-### `app/test/bidi-e2e.test.js` — 12 tests
+### `ink-electron/test/bidi-e2e.test.js` — 12 tests
 
 | Test | Ink Features Exercised |
 |---|---|
@@ -771,7 +771,7 @@ All supported types:
 | `validates bidify/stripBidi round-trip` | (bidify module, not ink syntax) |
 | `validates assertion file entries` | (bidify module, not ink syntax) |
 
-### `app/test/fixtures/bidi_and_tdd.ink` — 28 features claimed
+### `ink-electron/test/fixtures/bidi_and_tdd.ink` — 28 features claimed
 
 | # | Feature | Ink Syntax Used |
 |---|---|---|

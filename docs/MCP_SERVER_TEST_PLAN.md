@@ -8,10 +8,10 @@
 
 | Location | Type | Count | Covers |
 |----------|------|-------|--------|
-| `app/test/bidify.test.js` | Unit | 29 | `bidify()`, `stripBidi()`, `bidifyJson()` — 8 scripts |
-| `app/test/test.js` | E2E (Playwright) | 7 | Electron editor: window, title, menu, hello world, choices, TODO |
-| `app/test/bidi-e2e.test.js` | E2E (Playwright) | — | Bidi rendering in Electron player |
-| `app/test/incremental-e2e.test.js` | E2E (Playwright) | — | Incremental compilation |
+| `ink-electron/test/bidify.test.js` | Unit | 29 | `bidify()`, `stripBidi()`, `bidifyJson()` — 8 scripts |
+| `ink-electron/test/test.js` | E2E (Playwright) | 7 | Electron editor: window, title, menu, hello world, choices, TODO |
+| `ink-electron/test/bidi-e2e.test.js` | E2E (Playwright) | — | Bidi rendering in Electron player |
+| `ink-electron/test/incremental-e2e.test.js` | E2E (Playwright) | — | Incremental compilation |
 | `docs/E2E_TEST_PLAN.md` | Plan | 80 | Electron editor E2E (10 implemented / 70 not) |
 
 ### Gap: MCP Server (0 tests)

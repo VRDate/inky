@@ -866,7 +866,7 @@ await window.waitForSelector('#editor .ace_content', { timeout: 15000 });
 
 ### Currently Implemented Tests
 
-**E2E Tests** (`app/test/test.js` — Playwright + Mocha):
+**E2E Tests** (`ink-electron/test/test.js` — Playwright + Mocha):
 1. TC-AL-001: Shows an initial window
 2. TC-AL-002: Reads the title
 3. TC-NA-001: Opens the menu (file browser sidebar)
@@ -875,5 +875,5 @@ await window.waitForSelector('#editor .ace_content', { timeout: 15000 });
 6. TC-PL-004: Suppresses choice text
 7. TC-CO-004: Shows TODOs
 
-**Unit Tests** (`app/test/bidify.test.js` — Node.js assert):
+**Unit Tests** (`ink-electron/test/bidify.test.js` — Node.js assert):
 - 29 tests covering `stripBidi()`, `bidify()`, `bidifyJson()` for Arabic, Hebrew, Persian, Syriac, Thaana, NKo, Samaritan, Mandaic scripts, plus idempotency and round-trip tests.

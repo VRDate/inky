@@ -10,12 +10,12 @@
 
 ## Architecture (Current Implementation)
 
-The bidi support is implemented as a **single file** — `app/renderer/bidify.js` (156 lines, zero dependencies).
+The bidi support is implemented as a **single file** — `ink-electron/renderer/bidify.js` (156 lines, zero dependencies).
 
 ### Module Structure
 
 ```
-app/renderer/bidify.js    # All bidi logic in one file
+ink-electron/renderer/bidify.js    # All bidi logic in one file
 ├── isRTL(cp)             # Unicode range check for RTL scripts
 ├── isLTR(cp)             # Unicode range check for LTR scripts
 ├── stripBidi(text)       # Remove LRI/RLI/PDI markers
@@ -32,11 +32,11 @@ app/renderer/bidify.js    # All bidi logic in one file
 
 | File | Integration | What it does |
 |------|-------------|-------------|
-| `app/renderer/playerView.js` | `require('./bidify.js')` | Calls `bidify()` on story text before DOM insertion. Toggled via `setBidifyEnabled()` |
-| `app/renderer/inkFile.js` | `require('./bidify.js')` | Calls `stripBidi()` before saving .ink files to disk (when `stripBidiOnSave` is enabled) |
-| `app/main-process/inklecate.js` | `require('../renderer/bidify.js')` | Calls `bidifyJson()` when exporting compiled ink JSON (when `bidifyExportEnabled` is set) |
-| `app/main-process/appmenus.js` | Menu definition | View > Bidify (RTL) submenu with 4 toggles: editor, player, strip-on-save, export JSON |
-| `app/renderer/controller.js` | IPC handlers | Handles `set-bidify-editor-enabled`, `set-bidify-player-enabled`, strip-on-save, export toggles |
+| `ink-electron/renderer/playerView.js` | `require('./bidify.js')` | Calls `bidify()` on story text before DOM insertion. Toggled via `setBidifyEnabled()` |
+| `ink-electron/renderer/inkFile.js` | `require('./bidify.js')` | Calls `stripBidi()` before saving .ink files to disk (when `stripBidiOnSave` is enabled) |
+| `ink-electron/main-process/inklecate.js` | `require('../renderer/bidify.js')` | Calls `bidifyJson()` when exporting compiled ink JSON (when `bidifyExportEnabled` is set) |
+| `ink-electron/main-process/appmenus.js` | Menu definition | View > Bidify (RTL) submenu with 4 toggles: editor, player, strip-on-save, export JSON |
+| `ink-electron/renderer/controller.js` | IPC handlers | Handles `set-bidify-editor-enabled`, `set-bidify-player-enabled`, strip-on-save, export toggles |
 
 **Note:** In this branch, `editorView.js` does NOT have bidify integration. The bidify toggle for the editor exists in the menu but the editor integration is not yet wired up.
 

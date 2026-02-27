@@ -2,7 +2,7 @@
 !theme plain
 title bidify.js — Single-File Bidi Module in Inky (Electron)
 
-rectangle "app/renderer/bidify.js\n(156 lines, zero dependencies)" as bidify {
+rectangle "ink-electron/renderer/bidify.js\n(156 lines, zero dependencies)" as bidify {
     rectangle "isRTL(cp) / isLTR(cp)\nUnicode range checks\nfor RTL & LTR scripts" as ranges
     rectangle "getScriptRuns(line)\nGroups codepoints\nby direction (rtl/ltr/neutral)" as sr
     rectangle "bidifyLine(line)\nWraps runs with\nLRI / RLI / PDI isolates" as iso
