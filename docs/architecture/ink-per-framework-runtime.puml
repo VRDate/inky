@@ -1,0 +1,168 @@
+@startuml ink-per-framework-runtime
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+
+title Ink Per-Framework Runtime + Editor Architecture
+footer Inky • GraalJS ≈ OneJS • ACE • CodeMirror • Remirror • Yjs
+
+' ───────── Color palette ─────────
+skinparam component {
+    BackgroundColor<<kt>> #E3F2FD
+    BackgroundColor<<cs>> #F3E5F5
+    BackgroundColor<<electron>> #E8F5E9
+    BackgroundColor<<inkey>> #E0F7FA
+    BackgroundColor<<shared>> #FFF9C4
+    BackgroundColor<<event>> #FFEBEE
+}
+
+' ───────── Top: Ink Language ─────────
+package "Ink Language" as ink {
+    [.ink source files] as INK
+}
+
+' ───────── Shared Grammar ─────────
+package "@inky/ink-language\n(shared grammar)" as grammar <<shared>> {
+    [ink-grammar.ts\n(runtime-agnostic)] as GRAMMAR
+    [ink-keywords.ts] as KEYWORDS
+}
+
+' ───────── KT/JVM ─────────
+package "KT / JVM (MCP Server)" as ktjvm <<kt>> {
+    package "Ink Compiler + Runtime" as ktRuntime {
+        [GraalJS\n(GraalVM Polyglot)] as GRAALJS <<kt>>
+        [inkjs\n(ink-full.js)] as KT_INKJS <<kt>>
+        GRAALJS --> KT_INKJS : loads
+    }
+    note right of GRAALJS
+        GraalJS ≈ OneJS
+        Embedded JS engine
+        in JVM process
+    end note
+
+    [InkEngine.kt\n(compile + play)] as KT_ENGINE <<kt>>
+    [McpTools.kt\n(79 tools)] as KT_TOOLS <<kt>>
+    [CamelRoutes.kt\n(LLM pipeline)] as KT_CAMEL <<kt>>
+
+    KT_ENGINE --> GRAALJS : via
+    KT_TOOLS --> KT_ENGINE : delegates
+    KT_CAMEL --> KT_ENGINE
+}
+
+' ───────── C# / Unity ─────────
+package "C# / Unity" as csunity <<cs>> {
+    package "Native Ink Runtime" as csRuntime {
+        [Ink.Compiler\n(C# native)] as CS_COMPILER <<cs>>
+        [Ink.Runtime.Story\n(C# native)] as CS_STORY <<cs>>
+        CS_COMPILER --> CS_STORY : creates
+    }
+
+    package "OneJS Bridge" as onejs {
+        [InkOneJsBinding.cs\n(11 methods)] as ONEJS_BRIDGE <<cs>>
+        [globalThis.__inkBridge\n(JS ↔ C#)] as ONEJS_GLOBAL <<cs>>
+        ONEJS_BRIDGE --> ONEJS_GLOBAL : registers
+    }
+    note right of ONEJS_BRIDGE
+        OneJS ≈ GraalJS
+        Embedded JS engine
+        in Unity process
+    end note
+
+    ONEJS_BRIDGE --> CS_COMPILER : uses
+    ONEJS_BRIDGE --> CS_STORY : manages
+}
+
+' ───────── JS/Electron (Inky desktop) ─────────
+package "JS / Electron (Inky Desktop)" as electron <<electron>> {
+    package "Editor" as elEditor {
+        [ACE Editor\n(ink source)] as ACE <<electron>>
+        [ace-ink-mode\n(syntax, fold, complete)] as ACE_MODE <<electron>>
+        ACE --> ACE_MODE : uses
+    }
+
+    package "Compiler + Runtime" as elRuntime {
+        [inklecate\n(C# subprocess)] as INKLECATE <<electron>>
+        [inkjs\n(npm, runtime)] as EL_INKJS <<electron>>
+    }
+
+    [editorView.js] as EL_VIEW <<electron>>
+    [controller.js] as EL_CTRL <<electron>>
+
+    EL_VIEW --> ACE : creates
+    EL_CTRL --> EL_VIEW : orchestrates
+    EL_CTRL --> INKLECATE : spawns
+}
+
+' ───────── JS/Browser (inkey web) ─────────
+package "JS / Browser (inkey web)" as inkey <<inkey>> {
+    package "Edit Mode" as inkeyEdit {
+        [@inky/codemirror-ink\n(CodeMirror 6)] as CM6 <<inkey>>
+        [@inky/remirror-ink\n(Remirror/ProseMirror)] as REMIRROR <<inkey>>
+        [Yjs\n(y-codemirror.next\ny-prosemirror)] as YJS <<inkey>>
+        CM6 --> YJS : collab
+        REMIRROR --> YJS : collab
+    }
+    note right of REMIRROR
+        MD + ```ink blocks
+        Structured editing
+    end note
+
+    package "Play Mode" as inkeyPlay {
+        [InkPlayer.tsx\n(readonly)] as PLAYER <<inkey>>
+        [inkjs\n(npm, direct)] as INKEY_INKJS <<inkey>>
+        PLAYER --> INKEY_INKJS : uses
+    }
+
+    package "React Components" as inkeyReact {
+        [InkCodeEditor.tsx\n→ CodeMirror 6] as CODE_ED <<inkey>>
+        [InkProseEditor.tsx\n→ Remirror] as PROSE_ED <<inkey>>
+        [ModeToggle.tsx\n(edit ↔ play)] as TOGGLE <<inkey>>
+        [InkEditorProvider.tsx\n(Yjs + runtime)] as PROVIDER <<inkey>>
+    }
+
+    [InkRuntimeAdapter.ts\n(3 backends)] as ADAPTER <<inkey>>
+    [BabylonJS\n(3D/WebXR)] as BABYLON <<inkey>>
+
+    CODE_ED --> CM6 : wraps
+    PROSE_ED --> REMIRROR : wraps
+    PROVIDER --> YJS : Y.Doc
+    PROVIDER --> ADAPTER : runtime
+    ADAPTER --> INKEY_INKJS : browser
+    ADAPTER --> ONEJS_GLOBAL : unity-onejs
+}
+
+' ───────── Event Bus Layer ─────────
+package "Event Bus (RSocket + msgpack)" as eventBus <<event>> {
+    [AssetEventBus\n(in-process)] as BUS <<event>>
+    [RSocket WS\n(Ktor /rsocket)] as RSOCKET <<event>>
+    [AsyncAPI\ncontract] as ASYNCAPI <<event>>
+    BUS --> RSOCKET : publishes
+}
+
+' ───────── Cross-package connections ─────────
+INK --> KT_ENGINE : compiles
+INK --> CS_COMPILER : compiles
+INK --> INKLECATE : compiles
+INK --> INKEY_INKJS : compiles
+
+GRAMMAR --> ACE_MODE : shared syntax
+GRAMMAR --> CM6 : shared syntax
+GRAMMAR --> REMIRROR : shared syntax
+
+' ───────── Event transport per framework ─────────
+KT_ENGINE ..> BUS : in-process\n(event origin)
+ONEJS_BRIDGE ..> BUS : in-process\n(same Unity proc)
+EL_INKJS ..> RSOCKET : WebSocket
+ADAPTER ..> RSOCKET : WebSocket
+BABYLON ..> RSOCKET : WebSocket
+
+legend right
+  | Framework | Compiler | Runtime | Editor | Transport |
+  |<#E3F2FD>| KT/JVM | GraalJS+inkjs | GraalJS+inkjs | — | In-process |
+  |<#F3E5F5>| C#/Unity | ink-csharp | ink-csharp+OneJS | — | In-process |
+  |<#E8F5E9>| JS/Electron | inklecate | inkjs | ACE | WebSocket |
+  |<#E0F7FA>| JS/Browser | inkjs | inkjs | CM6+Remirror+Yjs | WebSocket |
+endlegend
+
+@enduml

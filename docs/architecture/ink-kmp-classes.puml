@@ -4,7 +4,7 @@ skinparam backgroundColor #FEFEFE
 skinparam classAttributeIconSize 0
 
 title Ink KMP + MCP Server — Class Diagram
-footer blade-ink-java | inkjs | InkEngine | MCP Tools
+footer blade-ink-java | inkjs | InkEngine | MCP Tools | Asset Pipeline | RSocket EDA
 
 ' ───────── blade-ink-java API ─────────
 package "blade-ink-java (JVM)" #E3F2FD {
@@ -162,10 +162,103 @@ package "KMP Common API (Proposed)" #E0F7FA {
     IStory --> IChoice : exposes
 }
 
+' ───────── Asset Pipeline (Kotlin/JVM) ─────────
+package "Asset Pipeline (Kotlin/JVM)" #B2DFDB {
+    class "EmojiAssetManifest" {
+        -categories: Map<String, AssetCategory>
+        +resolve(emoji: String): AssetRef?
+        +resolveByName(name: String): AssetRef?
+        +resolveTag(key: String, value: String): AssetRef?
+        +parseInkTags(tags: List<String>): List<AssetRef>
+    }
+
+    class "AssetCategory" <<data>> {
+        +emoji: String
+        +name: String
+        +type: String
+        +animSet: String
+        +gripType: String
+        +meshPrefix: String
+        +audioCategory: String
+    }
+
+    class "VoiceRef" <<data>> {
+        +characterId: String
+        +language: String
+        +flacPath: String
+    }
+
+    class "AssetRef" <<data>> {
+        +emoji: String
+        +category: AssetCategory
+        +meshPath: String
+        +animSetId: String
+        +voiceRef: VoiceRef?
+        +metadata: Map<String, String>
+    }
+
+    class "InkAssetEventEngine" {
+        -manifest: EmojiAssetManifest
+        -bus: AssetEventBus
+        +processTagsFromContinue(sessionId: String, result: ContinueResult): List<AssetEvent>
+        +processInventoryChange(sessionId: String, action: String, emoji: String): AssetEvent
+    }
+
+    class "AssetEvent" <<data>> {
+        +type: String
+        +sessionId: String
+        +emoji: String
+        +assetRef: AssetRef
+        +timestamp: Long
+    }
+
+    class "AssetEventBus" {
+        -subscribers: Map<String, Flow<AssetEvent>>
+        +publish(channel: String, event: AssetEvent)
+        +subscribe(channel: String): Flow<AssetEvent>
+        +fireAndForget(event: AssetEvent)
+        +requestStream(sessionId: String): Flow<AssetEvent>
+    }
+
+    class "InkFakerEngine" {
+        -manifest: EmojiAssetManifest
+        +generateCharacter(config: FakerConfig): Map<String, Any>
+        +generateItem(config: FakerConfig): Map<String, Any>
+        +generateInkVars(data: Map<String, Any>): String
+        +generateStoryMd(characters: List, items: List): String
+    }
+
+    class "FakerConfig" <<data>> {
+        +locale: String
+        +seed: Long?
+        +count: Int
+    }
+
+    class "ChatterboxTtsEngine" {
+        +synthesize(text: String, voiceRef: VoiceRef, language: String): ByteArray
+        +listVoices(): List<VoiceRef>
+        +isAvailable(): Boolean
+    }
+
+    EmojiAssetManifest --> AssetCategory : maps emoji →
+    EmojiAssetManifest --> AssetRef : produces
+    AssetRef --> AssetCategory
+    AssetRef --> VoiceRef
+    InkAssetEventEngine --> EmojiAssetManifest : resolves
+    InkAssetEventEngine --> AssetEventBus : publishes
+    InkAssetEventEngine --> AssetEvent : produces
+    InkFakerEngine --> EmojiAssetManifest : generates from
+    ChatterboxTtsEngine --> VoiceRef : uses
+}
+
 ' ───────── Cross-package relations ─────────
 InkEngine ..> JCompiler : via GraalJS
 InkEngine ..> JStory : via GraalJS
 BStory ..|> IStory : JVM actual
 JStory ..|> IStory : JS actual
+McpTools --> InkAssetEventEngine : delegates
+McpTools --> InkFakerEngine : delegates
+McpTools --> ChatterboxTtsEngine : delegates
+InkAssetEventEngine --> InkEngine : triggers ink blocks
 
 @enduml

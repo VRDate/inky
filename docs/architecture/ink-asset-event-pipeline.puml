@@ -1,0 +1,122 @@
+@startuml ink-asset-event-pipeline
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam activityBackgroundColor #E3F2FD
+skinparam activityDiamondBackgroundColor #FFF9C4
+
+title Ink Asset Event Pipeline — Multi-Protocol Architecture
+footer MCP • Yjs Collab • RSocket EDA • AsyncAPI
+
+' ───────── Protocol Legend ─────────
+skinparam partition {
+    BackgroundColor<<mcp>> #FFEBEE
+    BackgroundColor<<yjs>> #F3E5F5
+    BackgroundColor<<eda>> #E8F5E9
+    BackgroundColor<<render>> #E0F7FA
+}
+
+|#FFEBEE| MCP + LLM |
+start
+:LLM Agent (Claude/GPT)\ncalls MCP tools;
+:generate_story_md\ngenerate_ink_vars;
+note right
+  faker-kotlin + k-random
+  → emoji MD tables
+  → characters, items, stats
+end note
+:compile_ink_md\n(InkMdEngine);
+:EmojiAssetManifest\nresolves emoji → category;
+note right
+  🗡️ → sword_1h animset
+  🛡️ → shield_buckler mesh
+  🧙 → wizard character
+  🎤 → FLAC voice ref
+end note
+
+|#F3E5F5| Yjs Collab |
+:Editor edits ink source\n(CodeMirror 6 / Remirror);
+:Yjs sync via HocusPocus WS\n(ColabEngine);
+note right
+  Y.Doc shared between
+  multiple editors
+  y-codemirror.next
+  y-prosemirror
+end note
+
+|#FFEBEE| MCP + LLM |
+:compile_ink → JSON;
+:start_story → session;
+:continue_story → ContinueResult;
+:Parse ink tags;
+note right
+  # anim:sword_slash
+  # mesh:weapon_sword_01
+  # voice:gandalf_en
+  # sfx:metal_clang
+end note
+
+|#E8F5E9| RSocket EDA |
+:InkAssetEventEngine\nresolves tags via manifest;
+:Create AssetEvent\n(msgpack serialized);
+
+if (Event type?) then (mesh)
+  :MeshLoadEvent\n{emoji, meshPath, transform};
+elseif (anim) then
+  :AnimPlayEvent\n{animSetId, clipName, loop};
+elseif (voice) then
+  :VoiceSynthEvent\n{voiceRef, text, lang};
+  :ChatterboxTtsEngine\n(ONNX from FLAC ref);
+elseif (inventory) then
+  :InventoryChangeEvent\n{action, emoji, itemName};
+  :Trigger ink script block\n=== equip_sword ===;
+  :More tags emitted\n→ recursive events;
+else (sfx)
+  :SfxPlayEvent\n{audioCategory, clipId};
+endif
+
+:AssetEventBus.publish(channel, event);
+:RSocket transport;
+note right
+  fireAndForget → load mesh
+  requestStream → session events
+  requestChannel → voice synth
+end note
+
+|#E0F7FA| Renderers |
+if (Target?) then (Unity WebGL)
+  :InkAssetEventReceiver.cs;
+  :AssetBundle.LoadAsync(prefab);
+  :Animator.Play(animSetId);
+  note right
+    In-process via
+    OneJS __inkBridge
+    (no network)
+  end note
+elseif (BabylonJS WebXR) then
+  :BabylonJsAssetLoader.ts;
+  :SceneLoader.ImportMesh(glTF);
+  :AnimationGroup.start();
+  note right
+    WebSocket RSocket
+    from inkey PWA
+  end note
+elseif (Inkey Editor PWA) then
+  :InkPlayer.tsx (play mode);
+  :Asset event indicators;
+  :Visual timeline markers;
+else (Electron Inky)
+  :ACE editor + preview;
+  :Asset event log panel;
+endif
+
+stop
+
+legend right
+  | Protocol | Transport | Purpose |
+  |<#FFEBEE>| MCP | SSE/stdio/REST | LLM ↔ ink tools |
+  |<#F3E5F5>| Yjs | HocusPocus WS | Real-time collab |
+  |<#E8F5E9>| RSocket | WS + msgpack | Asset events (EDA) |
+  |<#E0F7FA>| Renderers | In-process / WS | 3D/WebXR/WebGL |
+endlegend
+
+@enduml

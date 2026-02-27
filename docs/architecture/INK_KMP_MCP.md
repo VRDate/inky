@@ -154,6 +154,60 @@ actual class InkStory(private val story: dynamic) {
 
 See: [`ink-kmp-classes.puml`](ink-kmp-classes.puml)
 
+## Per-Framework Ink Runtime
+
+Each framework has its own ink compiler/runtime. GraalJS is to KT what OneJS is to Unity — an embedded JS engine alongside the native engine.
+
+| Framework | Compiler | Runtime | JS Engine | Entry Point |
+|-----------|----------|---------|-----------|-------------|
+| **KT/JVM** (MCP server) | GraalJS + inkjs | GraalJS + inkjs | GraalVM Polyglot | `InkEngine.kt` → `ink-full.js` |
+| **C#/Unity** | ink-csharp `Ink.Compiler` | ink-csharp `Ink.Runtime.Story` | OneJS (bridges JS → C#) | `InkOneJsBinding.cs` |
+| **JS/Electron** (Inky desktop) | inklecate subprocess | inkjs directly | N/A (native JS) | `inklecate.js` |
+| **JS/Browser** (inkey web) | inkjs directly | inkjs directly | N/A (native JS) | `InkRuntimeAdapter.ts` |
+
+See: [`ink-per-framework-runtime.puml`](ink-per-framework-runtime.puml)
+
+## Inky Editor Stack
+
+Inky = JS compiler + editor. Two apps, shared grammar (`@inky/ink-language`):
+
+| App | Editor | Content Type | Collaboration | Package |
+|-----|--------|-------------|---------------|---------|
+| **ink-electron** (desktop) | ACE | Ink source (.ink) | None | `ace-ink-mode/ace-ink.js` |
+| **ink-js/inkey** (web) | CodeMirror 6 | Ink source + embedded blocks | Yjs (`y-codemirror.next`) | `@inky/codemirror-ink` |
+| **ink-js/inkey** (web) | Remirror/ProseMirror | MD + \`\`\`ink blocks | Yjs (`y-prosemirror`) | `@inky/remirror-ink` |
+| **ink-js/inkey** (web) | InkPlayer | Play mode (readonly) | — | `react-ink-editor/InkPlayer.tsx` |
+
+Key React components (`@inky/react-ink-editor`):
+- `InkCodeEditor.tsx` — CodeMirror 6 editor (ink source, edit mode)
+- `InkProseEditor.tsx` — Remirror markdown editor (MD + ink blocks, edit mode)
+- `InkPlayer.tsx` — Story player (play mode, uses inkjs directly)
+- `InkEditorProvider.tsx` — Context provider (Yjs doc + runtime)
+- `ModeToggle.tsx` — Edit/Play mode toggle
+
+## Multi-Protocol Architecture
+
+Four protocols work together to create LLM MCP agents + editor UI PWA with BabylonJS WebXR and Unity WebGL interop:
+
+| Protocol | Transport | Encoding | Purpose |
+|----------|-----------|----------|---------|
+| **MCP** | SSE / stdio / REST | JSON-RPC | LLM ↔ ink tools (79 tools) |
+| **Yjs** | HocusPocus WebSocket | CRDT Y.Doc | Real-time collaborative editing |
+| **RSocket** | WebSocket (`/rsocket`) | msgpack | Event-driven asset pipeline (EDA) |
+| **OneJS** | In-process (`__inkBridge`) | JSON string | Unity ↔ JS bridge (no network) |
+
+See: [`ink-rsocket-transport.puml`](ink-rsocket-transport.puml)
+
+### RSocket Transport Per Framework
+
+| Framework | RSocket Transport | Why |
+|-----------|------------------|-----|
+| KT/JVM (server) | In-process (event bus origin) | Server-side, events originate here |
+| C#/Unity + OneJS | In-process via `__inkBridge` | Same process, no network needed |
+| JS/BabylonJS (WebXR) | WebSocket → Ktor `/rsocket` | Browser to server |
+| JS/Electron (Inky) | WebSocket → Ktor `/rsocket` | Desktop to server |
+| inkey PWA | WebSocket → Ktor `/rsocket` | Browser to server |
+
 ## MCP Server Architecture
 
 ### What is MCP?
@@ -176,11 +230,14 @@ See: [`ink-kmp-classes.puml`](ink-kmp-classes.puml)
 | WebDAV client | Sardine | 5.12 |
 | Collab | Yjs (HocusPocus) | via WebSocket |
 | Pipeline | Apache Camel | 4.18 |
+| EDA events | RSocket-Kotlin | 0.16.0 |
+| Event encoding | jackson-dataformat-msgpack | 0.9.8 |
+| Test data | faker-kotlin (serpro69) | 2.0.0-rc.7 |
 | Build | Gradle | 9.3.1 |
 | Launcher | JBang | latest |
 | JDK | Oracle GraalVM 21 | via SDKMAN |
 
-### 71 MCP Tools
+### 79 MCP Tools
 
 | Group | Count | Engine |
 |-------|-------|--------|
@@ -196,7 +253,9 @@ See: [`ink-kmp-classes.puml`](ink-kmp-classes.puml)
 | Principals | 4 | InkVCardEngine (ez-vcard) |
 | Auth | 2 | InkAuthEngine (Keycloak OIDC) |
 | WebDAV+Backup | 10 | InkWebDavEngine (Sardine + FS) |
-| **Total** | **71** | |
+| Asset Pipeline | 6 | InkAssetEventEngine + EmojiAssetManifest + InkFakerEngine |
+| TTS | 2 | ChatterboxTtsEngine (ONNX) |
+| **Total** | **79** | |
 
 #### Ink Core (17 tools)
 
@@ -272,13 +331,33 @@ See [INK_SKILL_FOR_LLMS.md](../INK_SKILL_FOR_LLMS.md) for full tool descriptions
 | `webdav_backup` / `webdav_list_backups` / `webdav_restore` | Timestamp backup sets |
 | `webdav_working_copy` | LLM working copy for edit |
 
+#### Asset Pipeline (6 tools) — EmojiAssetManifest + InkFakerEngine
+
+| Tool | Description |
+|------|-------------|
+| `resolve_emoji` | Resolve emoji → AssetCategory (animset, grip, mesh) |
+| `parse_asset_tags` | Parse ink tags → list of AssetRef |
+| `emit_asset_event` | Manually emit an asset event to the bus |
+| `list_asset_events` | List recent events for a session |
+| `generate_ink_vars` | Generate ink VARs from emoji MD table data |
+| `generate_story_md` | Generate story MD with characters + items |
+
+#### TTS (2 tools) — ChatterboxTtsEngine (ONNX)
+
+| Tool | Description |
+|------|-------------|
+| `synthesize_voice` | Synthesize speech from FLAC voice ref |
+| `list_voices` | List available voice references |
+
 ### Transport
 
-- **SSE** (Server-Sent Events): `GET /sse` → event stream, `POST /message` → JSON-RPC
-- **REST API**: Direct `POST /api/compile`, `POST /api/start`, etc.
-- **stdio** (planned): For local MCP client integration
+- **MCP SSE** (Server-Sent Events): `GET /sse` → event stream, `POST /message` → JSON-RPC
+- **MCP REST**: Direct `POST /api/compile`, `POST /api/start`, etc.
+- **MCP stdio** (planned): For local MCP client integration
+- **Yjs WebSocket**: `WS /collab/{docId}` → HocusPocus CRDT sync
+- **RSocket WebSocket**: `WS /rsocket` → msgpack asset events (fireAndForget, requestStream, requestChannel)
 
-See: [`mcp-server-sequence.puml`](mcp-server-sequence.puml)
+See: [`mcp-server-sequence.puml`](mcp-server-sequence.puml), [`ink-rsocket-transport.puml`](ink-rsocket-transport.puml)
 
 ### Quick Start
 
@@ -340,18 +419,73 @@ mcp-server/
     ├── InkAuthEngine.kt         # Keycloak OIDC + LLM BasicAuth
     ├── InkWebDavEngine.kt       # Sardine WebDAV + FS + backups
     ├── McpTypes.kt              # MCP JSON-RPC types
-    ├── McpTools.kt              # 71 tool definitions + handlers
-    └── McpRouter.kt             # Ktor SSE + REST + WebDAV routing
+    ├── McpTools.kt              # 79 tool definitions + handlers
+    ├── McpRouter.kt             # Ktor SSE + REST + RSocket + WebDAV routing
+    ├── EmojiAssetManifest.kt    # Emoji → asset category mapping
+    ├── InkAssetEventEngine.kt   # Tag → asset event processor
+    ├── AssetEventBus.kt         # RSocket + msgpack event bus
+    ├── InkFakerEngine.kt        # faker-kotlin test data generator
+    └── ChatterboxTtsEngine.kt   # ONNX voice cloning TTS
+
+ink-electron/
+├── renderer/
+│   ├── editorView.js            # ACE editor for ink source
+│   ├── ace-ink-mode/ace-ink.js  # ACE ink language mode
+│   ├── controller.js            # UI orchestration
+│   └── index.html               # ACE script tags
+└── main-process/
+    └── inklecate.js             # C# compiler subprocess
+
+ink-js/inkey/packages/
+├── ink-language/                # Shared grammar (ACE, CM6, Remirror)
+│   └── src/ink-grammar.ts
+├── codemirror-ink/              # @inky/codemirror-ink (CodeMirror 6)
+│   └── src/
+│       ├── index.ts
+│       ├── ink-highlight.ts
+│       ├── ink-complete.ts
+│       ├── ink-fold.ts
+│       └── ink-yjs.ts           # y-codemirror.next collab
+├── remirror-ink/                # @inky/remirror-ink (ProseMirror)
+│   └── src/
+│       ├── InkExtension.ts
+│       ├── ink-schema.ts
+│       ├── ink-node-view.ts
+│       └── ink-yjs.ts           # y-prosemirror collab
+└── react-ink-editor/            # @inky/react-ink-editor
+    └── src/
+        ├── InkCodeEditor.tsx    # CodeMirror 6 component
+        ├── InkProseEditor.tsx   # Remirror component
+        ├── InkPlayer.tsx        # Play mode (inkjs)
+        ├── InkEditorProvider.tsx # Yjs + runtime context
+        ├── ModeToggle.tsx       # Edit ↔ Play toggle
+        ├── InkRuntimeAdapter.ts # 3 backends (inkjs, OneJS, MCP)
+        ├── AssetEventClient.ts  # RSocket WS client
+        └── BabylonJsAssetLoader.ts # glTF mesh + anim
+
+ink-unity/
+├── InkOneJsBinding.cs           # 11-method OneJS bridge
+├── InkAssetEventReceiver.cs     # Asset event consumer
+├── InkTtsBridge.cs              # ONNX TTS for Unity
+└── InkBabylonExporter.cs        # Unity → BabylonJS glTF export
+
+ink-csharp/
+├── compiler/Compiler.cs         # Native C# ink compiler
+└── ink-engine-runtime/Story.cs  # Native C# ink runtime
 
 docs/architecture/
 ├── INK_KMP_MCP.md               # This document
-├── ink-mcp-tools.puml           # 71-tool architecture diagram
-├── mcp-server-sequence.puml     # Session sequence diagram
+├── INK_ASSET_PIPELINE.md        # Asset event pipeline architecture
+├── ink-mcp-tools.puml           # 79-tool architecture diagram
+├── ink-per-framework-runtime.puml # Per-framework compiler/runtime
+├── ink-asset-event-pipeline.puml  # Asset event flow diagram
+├── ink-rsocket-transport.puml   # Multi-protocol transport sequence
+├── mcp-server-sequence.puml     # MCP session sequence diagram
 ├── camel-llm-pipeline.puml      # Camel + JLama pipeline
 ├── ink-collab-yjs.puml          # Yjs collaboration + auth
 ├── sillytavern-ink-integration.puml  # SillyTavern integration
-├── ink-kmp-architecture.puml    # KMP component diagram
-└── ink-kmp-classes.puml         # KMP class diagram
+├── ink-kmp-architecture.puml    # Multi-protocol component diagram
+└── ink-kmp-classes.puml         # KMP + asset pipeline class diagram
 ```
 
 ## References
@@ -363,6 +497,12 @@ docs/architecture/
 - [GraalJS](https://www.graalvm.org/latest/reference-manual/js/) — Polyglot JS engine
 - [Ktor](https://ktor.io/) — Kotlin web framework
 - [MCP Spec](https://modelcontextprotocol.io/) — Model Context Protocol
+- [RSocket](https://rsocket.io/) — Reactive streams over network
+- [AsyncAPI](https://www.asyncapi.com/) — Event-driven API specification
+- [Yjs](https://yjs.dev/) — CRDT for real-time collaboration
+- [CodeMirror 6](https://codemirror.net/) — Extensible code editor
+- [Remirror](https://remirror.io/) — ProseMirror React framework
+- [BabylonJS](https://www.babylonjs.com/) — WebXR 3D engine
 - [JBang](https://www.jbang.dev/) — Java/Kotlin script runner
 - [SDKMAN](https://sdkman.io/) — JDK/tool manager
 - [KMP](https://kotlinlang.org/docs/multiplatform/kmp-overview.html) — Kotlin Multiplatform

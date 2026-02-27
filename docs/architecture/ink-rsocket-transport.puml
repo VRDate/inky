@@ -1,0 +1,153 @@
+@startuml ink-rsocket-transport
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam sequenceMessageAlign center
+
+title Ink Multi-Protocol Transport — MCP + Yjs + RSocket EDA
+footer Per-Framework RSocket Interactions + Protocol Interplay
+
+' ───────── Participants ─────────
+box "LLM Agent" #FFEBEE
+    actor "Claude/GPT" as LLM
+end box
+
+box "KT/JVM Server\n(Ktor)" #E3F2FD
+    participant "McpRouter\n(SSE/stdio)" as MCP
+    participant "InkEngine\n(GraalJS)" as ENGINE
+    participant "InkAssetEventEngine" as ASSET
+    participant "AssetEventBus" as BUS
+    participant "ColabEngine\n(HocusPocus)" as COLAB
+    participant "RSocket Server\n(/rsocket)" as RSOCKET
+end box
+
+box "JS/Browser\n(inkey PWA)" #E0F7FA
+    participant "InkEditorProvider\n(Yjs Y.Doc)" as EDITOR
+    participant "InkRuntimeAdapter\n(MCP backend)" as ADAPTER
+    participant "AssetEventClient\n(RSocket WS)" as CLIENT
+    participant "BabylonJS\n(WebXR)" as BABYLON
+end box
+
+box "C#/Unity\n(WebGL)" #F3E5F5
+    participant "InkOneJsBinding\n(__inkBridge)" as BRIDGE
+    participant "InkAssetEventReceiver" as RECEIVER
+end box
+
+box "JS/Electron\n(Inky desktop)" #E8F5E9
+    participant "ACE Editor\n(editorView)" as ACE
+    participant "inklecate\n(subprocess)" as INKLECATE
+end box
+
+' ═══════════ Protocol 1: MCP (LLM ↔ Tools) ═══════════
+== MCP: LLM Tool Invocation ==
+
+LLM -> MCP : JSON-RPC: compile_ink(source)
+MCP -> ENGINE : compile(source)
+ENGINE --> MCP : CompileResult{json, errors}
+MCP --> LLM : tool result
+
+LLM -> MCP : start_story(source)
+MCP -> ENGINE : startSession(source)
+ENGINE --> MCP : (sessionId, ContinueResult)
+MCP --> LLM : {sessionId, text, choices, **tags**}
+
+LLM -> MCP : continue_story(sessionId)
+MCP -> ENGINE : continueStory(sessionId)
+ENGINE --> MCP : ContinueResult{text, tags}
+
+' ═══════════ Protocol 2: Yjs (Collaborative Editing) ═══════════
+== Yjs: Real-Time Collaborative Editing ==
+
+EDITOR -> COLAB : WebSocket connect\n/collab/{docId}
+COLAB --> EDITOR : Y.Doc sync + awareness
+
+note over EDITOR, COLAB
+  CodeMirror 6 ↔ y-codemirror.next ↔ Y.Text
+  Remirror ↔ y-prosemirror ↔ Y.XmlFragment
+  Cursor positions shared via awareness
+end note
+
+EDITOR -> COLAB : Y.Doc update\n(ink source edit)
+COLAB --> EDITOR : broadcast to\nother editors
+
+' ═══════════ Protocol 3: RSocket EDA (Asset Events) ═══════════
+== RSocket: Event-Driven Asset Pipeline ==
+
+note over ENGINE, BUS
+  Tags from ContinueResult trigger asset events
+  # anim:sword_slash  # mesh:weapon_sword_01
+  # voice:gandalf_en  # sfx:metal_clang
+end note
+
+ENGINE -> ASSET : tags + sessionId
+ASSET -> ASSET : resolveTag(key, value)\nvia EmojiAssetManifest
+ASSET -> BUS : publish(channel, AssetEvent)\n(msgpack serialized)
+
+' --- inkey PWA (WebSocket RSocket) ---
+group inkey PWA — WebSocket RSocket
+    CLIENT -> RSOCKET : requestStream(sessionId)
+    RSOCKET --> CLIENT : Stream<AssetEvent>
+    BUS -> RSOCKET : push events
+    RSOCKET --> CLIENT : MeshLoadEvent\n{emoji:🗡️, mesh:weapon_sword_01}
+    CLIENT -> BABYLON : SceneLoader.ImportMesh(glTF)
+    RSOCKET --> CLIENT : AnimPlayEvent\n{animSet:sword_1h, clip:slash}
+    CLIENT -> BABYLON : AnimationGroup.start()
+end
+
+' --- Unity WebGL (in-process) ---
+group Unity WebGL — In-Process (OneJS)
+    BRIDGE -> BRIDGE : GetAssetEvents(sessionId)
+    BRIDGE -> RECEIVER : ProcessEvent(assetJson)
+    note over BRIDGE, RECEIVER
+        No network: OneJS calls C# directly
+        __inkBridge.GetAssetEvents()
+        returns JSON array of AssetRef
+    end note
+    RECEIVER -> RECEIVER : AssetBundle.LoadAsync(prefab)
+    RECEIVER -> RECEIVER : Animator.Play(animSetId)
+end
+
+' --- Electron (WebSocket RSocket) ---
+group Electron Inky — WebSocket RSocket
+    ACE -> INKLECATE : compile .ink file
+    INKLECATE --> ACE : JSON output
+    ACE -> RSOCKET : requestStream(sessionId)
+    RSOCKET --> ACE : Stream<AssetEvent>
+    note over ACE
+        Asset events shown
+        in preview panel
+    end note
+end
+
+' ═══════════ Voice Synth (RSocket requestChannel) ═══════════
+== RSocket requestChannel: Voice Synthesis ==
+
+CLIENT -> RSOCKET : requestChannel\n(VoiceSynthEvent)
+note over RSOCKET
+  ChatterboxTtsEngine (ONNX)
+  FLAC voice ref → cloned voice
+  Streams WAV chunks back
+end note
+RSOCKET --> CLIENT : Stream<WAV chunks>
+CLIENT -> BABYLON : AudioEngine.play(WAV)
+
+' ═══════════ Inventory Change (bidirectional) ═══════════
+== Inventory Change → Ink Script Block ==
+
+ENGINE -> ASSET : InventoryChangeEvent\n(equip, 🗡️, sword)
+ASSET -> ASSET : EmojiAssetManifest\nresolve 🗡️ → sword_1h
+ASSET -> BUS : publish ink/inventory/change
+BUS -> RSOCKET : broadcast
+RSOCKET --> CLIENT : InventoryChangeEvent
+CLIENT -> BABYLON : equip animation\n+ sword mesh load
+ASSET -> ENGINE : trigger ink block\n=== equip_sword ===
+ENGINE -> ASSET : more tags\n→ recursive events
+
+legend right
+  | Protocol | Transport | Encoding | Pattern |
+  | MCP | SSE / stdio / REST | JSON-RPC | request-response |
+  | Yjs | HocusPocus WebSocket | Y.Doc binary | CRDT sync |
+  | RSocket | WebSocket (/rsocket) | msgpack | stream / channel |
+  | OneJS | In-process (__inkBridge) | JSON string | method call |
+endlegend
+
+@enduml

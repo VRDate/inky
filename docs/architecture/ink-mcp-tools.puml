@@ -2,8 +2,8 @@
 !theme plain
 skinparam backgroundColor #FEFEFE
 
-title Inky MCP Server — 71 Tool Architecture
-footer v0.3.0 | Ktor + GraalJS + Camel + LangChain4j + PlantUML + Yjs + iCal4j + ez-vcard + Keycloak + Sardine
+title Inky MCP Server — 79 Tool Architecture
+footer v0.4.0 | Ktor + GraalJS + Camel + LangChain4j + PlantUML + Yjs + iCal4j + ez-vcard + Keycloak + Sardine + RSocket + msgpack + faker-kotlin
 
 ' ── Tool Groups ──
 package "Ink Core (17 tools)" as inkCore #C8E6C9 {
@@ -113,6 +113,20 @@ package "WebDAV + Backup (10 tools)" as webdav #B3E5FC {
     card "webdav_working_copy" as w10
 }
 
+package "Asset Pipeline (6 tools)" as assetPipeline #B2DFDB {
+    card "resolve_emoji" as ap1
+    card "parse_asset_tags" as ap2
+    card "emit_asset_event" as ap3
+    card "list_asset_events" as ap4
+    card "generate_ink_vars" as ap5
+    card "generate_story_md" as ap6
+}
+
+package "TTS (2 tools)" as tts #FFCCBC {
+    card "synthesize_voice" as tts1
+    card "list_voices" as tts2
+}
+
 ' ── Engines ──
 rectangle "InkEngine\n(GraalJS + inkjs)" as inkEngine #90EE90
 rectangle "InkDebugEngine" as debugEngine #90CAF9
@@ -126,6 +140,11 @@ rectangle "InkCalendarEngine\n(iCal4j)" as calendarEngine #C5E1A5
 rectangle "InkVCardEngine\n(ez-vcard)" as vcardEngine #BCAAA4
 rectangle "InkAuthEngine\n(Keycloak OIDC)" as authEngine #B0BEC5
 rectangle "InkWebDavEngine\n(Sardine + FS)" as webDavEngine #81D4FA
+rectangle "EmojiAssetManifest" as manifestEngine #80CBC4
+rectangle "InkAssetEventEngine\n(tag → event)" as assetEventEngine #80CBC4
+rectangle "AssetEventBus\n(RSocket + msgpack)" as eventBus #80CBC4
+rectangle "InkFakerEngine\n(faker-kotlin)" as fakerEngine #80CBC4
+rectangle "ChatterboxTtsEngine\n(ONNX)" as ttsEngine #FFAB91
 
 ' ── Wiring ──
 inkCore --> inkEngine
@@ -140,12 +159,21 @@ calendar --> calendarEngine
 principals --> vcardEngine
 auth --> authEngine
 webdav --> webDavEngine
+assetPipeline --> assetEventEngine
+assetPipeline --> manifestEngine
+assetPipeline --> fakerEngine
+tts --> ttsEngine
 
 debugEngine --> inkEngine : wraps
 pumlEngine --> editEngine : parses ink
 vcardEngine --> authEngine : LLM credentials
 colabEngine --> authEngine : role gate
 webDavEngine --> vcardEngine : access control
+assetEventEngine --> manifestEngine : resolves emoji
+assetEventEngine --> eventBus : publishes events
+assetEventEngine --> inkEngine : triggers ink blocks
+fakerEngine --> manifestEngine : generates data
+ttsEngine --> eventBus : voice events
 
 legend right
   | Group | Count |
@@ -161,7 +189,9 @@ legend right
   |<#D7CCC8>| Principals: 4 |
   |<#CFD8DC>| Auth: 2 |
   |<#B3E5FC>| WebDAV+Backup: 10 |
-  | **Total** | **71** |
+  |<#B2DFDB>| Asset Pipeline: 6 |
+  |<#FFCCBC>| TTS: 2 |
+  | **Total** | **79** |
 endlegend
 
 @enduml

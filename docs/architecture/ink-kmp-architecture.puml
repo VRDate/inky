@@ -4,8 +4,8 @@ skinparam backgroundColor #FEFEFE
 skinparam packageStyle rectangle
 skinparam componentStyle rectangle
 
-title Ink Ecosystem — KMP + MCP Architecture
-footer Inky MCP Server • GraalJS • blade-ink • inkjs
+title Ink Ecosystem — Multi-Protocol Architecture
+footer MCP • Yjs Collab • RSocket EDA • ACE • CodeMirror • Remirror • BabylonJS WebXR • Unity WebGL
 
 ' ───────── Color palette ─────────
 skinparam component {
@@ -15,6 +15,8 @@ skinparam component {
     BackgroundColor<<cs>> #F3E5F5
     BackgroundColor<<mcp>> #FFEBEE
     BackgroundColor<<kmp>> #E0F7FA
+    BackgroundColor<<eda>> #B2DFDB
+    BackgroundColor<<collab>> #F3E5F5
 }
 
 ' ───────── Top: Ink Language ─────────
@@ -26,14 +28,32 @@ package "Ink Language (inkle)" as ink {
     INKLECATE --> INKJSON
 }
 
-' ───────── JS Runtime Ecosystem ─────────
-package "JavaScript Ecosystem" as jseco {
+' ───────── Shared Grammar ─────────
+package "@inky/ink-language\n(shared grammar)" as grammar {
+    [ink-grammar.ts] as GRAMMAR
+    [ink-keywords.ts] as KEYWORDS
+}
+
+' ───────── JS Editor Ecosystem ─────────
+package "JavaScript Editor Ecosystem" as jseco {
+    package "Inky Desktop (Electron)" as elApp <<js>> {
+        [ACE Editor\n+ ace-ink-mode] as ACE <<js>>
+        [inklecate subprocess\n+ inkjs runtime] as EL_RUNTIME <<js>>
+    }
+
+    package "inkey Web (PWA)" as inkeyApp <<kmp>> {
+        [CodeMirror 6\n(@inky/codemirror-ink)] as CM6 <<kmp>>
+        [Remirror\n(@inky/remirror-ink)\nMD + ```ink blocks] as REMIRROR <<kmp>>
+        [InkPlayer.tsx\n(play mode)] as PLAYER <<kmp>>
+        [ModeToggle\n(edit ↔ play)] as TOGGLE <<kmp>>
+    }
+
     [inkjs\n(JS compiler+runtime)] as INKJS <<js>>
     [bidify.js\n(RTL bidi markers)] as BIDIFY <<js>>
-    [Inky Editor\n(Electron app)] as INKY <<js>>
 
-    INKJS --> INKY : used by
-    BIDIFY --> INKY : used by
+    INKJS --> EL_RUNTIME : used by
+    INKJS --> PLAYER : used by
+    BIDIFY --> EL_RUNTIME : used by
 }
 
 ' ───────── JVM/KMP Ecosystem ─────────
@@ -51,12 +71,34 @@ package "JVM / KMP Ecosystem" as jvmeco {
     }
 
     package "Inky MCP Server\n(Ktor + GraalJS)" as mcpserver <<mcp>> {
-        [InkEngine.kt\n(GraalJS bridge)] as ENGINE
-        [McpTools.kt\n(17 tools)] as TOOLS
-        [McpRouter.kt\n(SSE transport)] as ROUTER
+        [InkEngine.kt\n(GraalJS ≈ OneJS)] as ENGINE
+        [McpTools.kt\n(79 tools)] as TOOLS
+        [McpRouter.kt\n(SSE + RSocket)] as ROUTER
+        [InkAssetEventEngine\n+ EmojiAssetManifest] as ASSET <<eda>>
+        [AssetEventBus\n(RSocket + msgpack)] as BUS <<eda>>
+        [ColabEngine\n(Yjs HocusPocus)] as COLAB <<collab>>
         ENGINE --> TOOLS
         TOOLS --> ROUTER
+        TOOLS --> ASSET
+        ASSET --> BUS
+        ENGINE --> COLAB
     }
+}
+
+' ───────── C# / Unity ─────────
+package "C# / Unity" as cseco {
+    package "ink-csharp\n(native runtime)" as csink <<cs>> {
+        [Ink.Compiler] as CS_COMP <<cs>>
+        [Ink.Runtime.Story] as CS_STORY <<cs>>
+    }
+
+    package "OneJS Bridge\n(JS ↔ C#)" as onejs <<cs>> {
+        [InkOneJsBinding.cs\n(11 methods)] as ONEJS <<cs>>
+        [InkAssetEventReceiver.cs] as CS_RECEIVER <<cs>>
+    }
+
+    ONEJS --> CS_COMP : uses
+    ONEJS --> CS_STORY : manages
 }
 
 ' ───────── KMP Target Layer ─────────
@@ -67,12 +109,21 @@ package "KMP Targets (Proposed)" as kmp <<kmp>> {
     [WASM\n(WasmJS, WASI)] as KMP_WASM
 }
 
-' ───────── Consumers ─────────
-package "Consumers" as consumers {
+' ───────── Consumers / Renderers ─────────
+package "Consumers / Renderers" as consumers {
     [LLM / AI Agent\n(Claude, GPT)] as LLM
+    [BabylonJS\n(WebXR / glTF)] as BABYLON
+    [Unity\n(WebGL / AssetBundles)] as UNITY
+    [inkey Editor\n(PWA)] as INKEY_PWA
     [Game Engine\n(LibGDX, Godot)] as GAME
-    [Web App\n(Browser)] as WEBAPP
-    [Mobile App\n(Android, iOS)] as MOBILE
+}
+
+' ───────── Protocol Layer ─────────
+package "Protocols" as protocols {
+    [MCP\n(SSE/stdio/REST)\nJSON-RPC] as PROTO_MCP <<mcp>>
+    [Yjs\n(HocusPocus WS)\nCRDT sync] as PROTO_YJS <<collab>>
+    [RSocket\n(WS + msgpack)\nEDA events] as PROTO_RSOCKET <<eda>>
+    [OneJS\n(__inkBridge)\nin-process] as PROTO_ONEJS <<cs>>
 }
 
 ' ───────── Connections ─────────
@@ -80,16 +131,30 @@ INKJS ..> ENGINE : loaded via\nGraalJS
 BIDIFY ..> ENGINE : loaded via\nGraalJS
 INK --> INKJS : compiles
 INK --> BIC : compiles
+INK --> CS_COMP : compiles
+
+GRAMMAR --> ACE : syntax
+GRAMMAR --> CM6 : syntax
+GRAMMAR --> REMIRROR : syntax
 
 BIR --> KMP_JVM : direct use
 BIRS --> KMP_NATIVE : via FFI
 INKJS --> KMP_JS : via require()
 INKJS --> KMP_WASM : via wasm-bindgen\nor Javy
 
-ROUTER --> LLM : MCP SSE/stdio
+' Protocol connections
+ROUTER --> PROTO_MCP
+PROTO_MCP --> LLM : tool invocation
+COLAB --> PROTO_YJS
+PROTO_YJS --> INKEY_PWA : collab sync
+BUS --> PROTO_RSOCKET
+PROTO_RSOCKET --> BABYLON : asset events\n(WebSocket)
+PROTO_RSOCKET --> INKEY_PWA : asset events\n(WebSocket)
+ONEJS --> PROTO_ONEJS
+PROTO_ONEJS --> UNITY : asset events\n(in-process)
+
 KMP_JVM --> GAME : blade-ink API
-KMP_JS --> WEBAPP : inkjs API
-KMP_NATIVE --> MOBILE : FFI bindings
-KMP_WASM --> WEBAPP : wasm module
+KMP_JS --> INKEY_PWA : inkjs API
+KMP_NATIVE --> GAME : FFI bindings
 
 @enduml
