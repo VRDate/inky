@@ -217,13 +217,37 @@ The MCP server is a **multi-tenant** application server — not just an API. It 
 | Concern | Technology | Description |
 |---------|-----------|-------------|
 | **Identity** | Keycloak OIDC + JWT | Multi-tenant authentication |
-| **Principals** | ez-vcard per user | User/LLM identity cards |
-| **Sessions** | Per-user folders | LLM model user sessions + ink story state |
+| **Principals** | ez-vcard (jCard in JWT) | User + LLM model identity, both under org parent |
+| **Sessions** | Per-user folders | LLM model + user sessions, org/user/ hierarchy |
 | **Collaboration** | Yjs (HocusPocus WS) | Real-time shared editing |
 | **Storage** | WebDAV (Sardine + FS) | domain/user/shared/ folder hierarchy |
 | **PWA UI** | Ktor static + SPA | Serves inkey editor as PWA |
 
 User flow: authenticate via OIDC → vCard principal created → user session folder provisioned → Yjs collab room joined → MCP tools available.
+
+### Principal Identity Model
+
+Both users and LLM models have vCard identity with jCard JWT claims, under an org parent folder:
+
+```
+ink-scripts/
+  example.com/                    ← org domain
+    org.vcf                       ← org vCard (grants edit to subfolders)
+    alice.vcf                     ← user vCard (alice@example.com)
+    alice/                        ← user session folder
+      script.ink                  ← user's ink scripts
+    claude-sonnet.vcf             ← LLM model vCard
+    claude-sonnet/                ← LLM model session folder
+      session_001.ink             ← LLM-generated story
+```
+
+| Principal | vCard | jCard JWT Claim | Folder | Access |
+|-----------|-------|-----------------|--------|--------|
+| **Org** | `domain/org.vcf` | — | `domain/` | Grants edit to all subfolders |
+| **User** | `domain/user.vcf` | `"jcard"` claim in OIDC JWT | `domain/user/` | Edit own, read shared |
+| **LLM Model** | `domain/model.vcf` | `"jcard"` claim in BasicAuth JWT | `domain/model/` | Edit own via MCP tools |
+
+Identity mapping: Keycloak UUID → vCard UID (1:1). MCP URI: `mcp://model_name:jwt_token@host:port/tool_name`.
 
 ### Client Surfaces
 

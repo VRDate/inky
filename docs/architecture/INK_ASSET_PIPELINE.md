@@ -15,6 +15,8 @@ The asset pipeline connects ink story runtime to six client surfaces and 3D rend
 | **Unity WebGL** | 3D rendering client | AssetBundle prefabs + animation |
 | **BabylonJS WebXR** | 3D rendering client | glTF meshes + WebXR immersive |
 
+All clients authenticate via OIDC. Both users and LLM models have vCard identity with jCard JWT claims, under an org parent folder (`domain/org.vcf` → `domain/user/` or `domain/model/`).
+
 ### Protocols
 
 | Protocol | Transport | Encoding | Purpose |
