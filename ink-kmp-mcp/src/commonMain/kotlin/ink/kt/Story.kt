@@ -81,6 +81,34 @@ class Story : VariablesState.VariableChanged {
     /** Error handler callback. Assign to handle errors/warnings during evaluation. */
     var onError: ErrorHandler? = null
 
+    // ── Event callbacks (ported from inkjs) ──────────────────────────────
+    // JS: this.onDidContinue = null;  etc.
+    // These 5 callbacks match the inkjs Story API 1:1 for Kotlin/JS compatibility.
+
+    /** Called after story continuation completes (after Continue/ContinueAsync finishes). */
+    var onDidContinue: (() -> Unit)? = null
+
+    /** Called when a choice is made via chooseChoiceIndex. */
+    var onMakeChoice: ((Choice) -> Unit)? = null
+
+    /**
+     * Called before evaluating a function via evaluateFunction.
+     * Params: functionName, arguments.
+     */
+    var onEvaluateFunction: ((String, Array<out Any?>) -> Unit)? = null
+
+    /**
+     * Called after a function is evaluated via evaluateFunction.
+     * Params: functionName, arguments, textOutput, returnValue.
+     */
+    var onCompleteEvaluateFunction: ((String, Array<out Any?>, String, Any?) -> Unit)? = null
+
+    /**
+     * Called when choosePathString is invoked.
+     * Params: path, arguments.
+     */
+    var onChoosePathString: ((String, Array<Any?>?) -> Unit)? = null
+
     // ── Constructors ───────────────────────────────────────────────────
 
     /**
@@ -422,6 +450,9 @@ class Story : VariablesState.VariableChanged {
             if (recursiveContinueCount == 1)
                 changedVariablesToObserve = state.variablesState.completeVariableObservation()
             asyncContinueActive = false
+
+            // JS: if (this.onDidContinue !== null) this.onDidContinue();
+            onDidContinue?.invoke()
         }
 
         recursiveContinueCount--
@@ -460,7 +491,12 @@ class Story : VariablesState.VariableChanged {
         }
     }
 
-    private fun continueSingleStep(): Boolean {
+    /**
+     * Execute a single step of story evaluation.
+     * Public to match inkjs API — enables fine-grained stepping for debuggers.
+     * @return true if the step ended in a newline.
+     */
+    fun continueSingleStep(): Boolean {
         profiler?.preStep()
 
         step()
@@ -622,6 +658,10 @@ class Story : VariablesState.VariableChanged {
         inkAssert(choiceIdx in choices.indices, "choice out of range")
 
         val choiceToChoose = choices[choiceIdx]
+
+        // JS: if (this.onMakeChoice !== null) this.onMakeChoice(choiceToChoose);
+        onMakeChoice?.invoke(choiceToChoose)
+
         state.callStack.currentThread = choiceToChoose.threadAtGeneration!!
 
         choosePath(choiceToChoose.targetPath!!)
@@ -634,6 +674,9 @@ class Story : VariablesState.VariableChanged {
 
     fun choosePathString(path: String, resetCallstack: Boolean = true, arguments: Array<Any?>? = null) {
         ifAsyncWeCant("call ChoosePathString right now")
+
+        // JS: if (this.onChoosePathString !== null) this.onChoosePathString(path, args);
+        onChoosePathString?.invoke(path, arguments)
 
         if (resetCallstack) {
             resetCallstack()
@@ -1652,6 +1695,9 @@ class Story : VariablesState.VariableChanged {
         try { knotContainerWithName(functionName) != null } catch (_: Exception) { false }
 
     fun evaluateFunction(functionName: String, textOutput: StringBuilder?, arguments: Array<Any?>?): Any? {
+        // JS: if (this.onEvaluateFunction !== null) this.onEvaluateFunction(functionName, args);
+        onEvaluateFunction?.invoke(functionName, arguments ?: emptyArray())
+
         ifAsyncWeCant("evaluate a function")
 
         if (functionName.isNullOrBlank())
@@ -1665,14 +1711,23 @@ class Story : VariablesState.VariableChanged {
 
         state.startFunctionEvaluationFromGame(funcContainer, arguments)
 
+        val stringOutput = StringBuilder()
         while (canContinue()) {
             val text = continueStory()
+            stringOutput.append(text)
             textOutput?.append(text)
         }
 
+        val textOutputStr = stringOutput.toString()
         state.resetOutput(outputStreamBefore)
 
-        return state.completeFunctionEvaluationFromGame()
+        val result = state.completeFunctionEvaluationFromGame()
+
+        // JS: if (this.onCompleteEvaluateFunction != null)
+        //       this.onCompleteEvaluateFunction(functionName, args, textOutput, result);
+        onCompleteEvaluateFunction?.invoke(functionName, arguments ?: emptyArray(), textOutputStr, result)
+
+        return result
     }
 
     // ── State snapshot / restore ────────────────────────────────────────

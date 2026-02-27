@@ -918,6 +918,11 @@ package "6. Runtime" #E3F2FD {
         - recursiveContinueCount : Int
         + state : StoryState
         + onError : ErrorHandler?
+        + onDidContinue : (() -> Unit)?
+        + onMakeChoice : ((Choice) -> Unit)?
+        + onEvaluateFunction : ((String, Array<Any?>) -> Unit)?
+        + onCompleteEvaluateFunction : ((String, Array<Any?>, String, Any?) -> Unit)?
+        + onChoosePathString : ((String, Array<Any?>?) -> Unit)?
         + currentChoices : List<Choice> <<get>>
         + currentText : String <<get>>
         + currentTags : List<String> <<get>>
@@ -938,6 +943,7 @@ package "6. Runtime" #E3F2FD {
         + continueStory() : String
         + continueMaximally() : String
         + continueAsync(millisecsLimitAsync: Float)
+        + continueSingleStep() : Boolean
         + asyncContinueComplete() : Boolean
         + chooseChoiceIndex(choiceIdx: Int)
         + choosePathString(path, resetCallstack, arguments)
@@ -1462,12 +1468,12 @@ note as GAPS
   **1. JS → ink.kt gaps (inkjs has, ink.kt missing)**
 
   | Feature | inkjs | ink.kt | Priority |
-  | onDidContinue callback | ✅ | ⬜ | HIGH — event-driven UI |
-  | onMakeChoice callback | ✅ | ⬜ | HIGH — event-driven UI |
-  | onEvaluateFunction callback | ✅ | ⬜ | MED — debugging |
-  | onCompleteEvaluateFunction | ✅ | ⬜ | MED — debugging |
-  | onChoosePathString callback | ✅ | ⬜ | MED — debugging |
-  | ContinueSingleStep() | ✅ | ⬜ | LOW — debugging |
+  | onDidContinue callback | ✅ | ✅ | ✅ Ported |
+  | onMakeChoice callback | ✅ | ✅ | ✅ Ported |
+  | onEvaluateFunction callback | ✅ | ✅ | ✅ Ported |
+  | onCompleteEvaluateFunction | ✅ | ✅ | ✅ Ported |
+  | onChoosePathString callback | ✅ | ✅ | ✅ Ported |
+  | ContinueSingleStep() | ✅ | ✅ public | ✅ Ported |
   | $() / $$() var shorthand | ✅ | ✅ operator[] | ✅ Done |
 
   **2. mica → ink.kt gaps (mica has, ink.kt missing)**
@@ -1505,11 +1511,11 @@ note as GAPS
   **5. Porting priority (what to do next)**
 
   | Priority | Task | Source | Target |
-  | 1 | Event callbacks (5 hooks) | inkjs Story | ink.kt Story |
+  | 1 | ~~Event callbacks (5 hooks)~~ | inkjs Story | ✅ Done |
   | 2 | InkParser (.ink at runtime) | mica | ink.kt |
   | 3 | Expression evaluator | mica | ink.kt |
   | 4 | StoryInterrupt flow override | mica | ink.kt |
-  | 5 | ContinueSingleStep() | inkjs Story | ink.kt Story |
+  | 5 | ~~ContinueSingleStep()~~ | inkjs Story | ✅ Done |
   | 6 | Symbol syntax constants | mica | ink.kt |
 end note
 

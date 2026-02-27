@@ -812,13 +812,13 @@ note as N3
   **JS-unique features to port to ink.kt (Kotlin/JS)**
 
   | Feature | inkjs | ink.kt | Action |
-  | onDidContinue | ✅ callback | ⬜ | Port as fun interface |
-  | onMakeChoice | ✅ callback | ⬜ | Port as fun interface |
-  | onEvaluateFunction | ✅ callback | ⬜ | Port as fun interface |
-  | onCompleteEvaluateFunction | ✅ callback | ⬜ | Port as fun interface |
-  | onChoosePathString | ✅ callback | ⬜ | Port as fun interface |
-  | ContinueSingleStep() | ✅ method | ⬜ | Port to Story.kt |
-  | currentFlowIsDefaultFlow | ✅ property | ⬜ | Port to Story.kt |
+  | onDidContinue | ✅ callback | ✅ var | ✅ Ported as lambda |
+  | onMakeChoice | ✅ callback | ✅ var | ✅ Ported as lambda |
+  | onEvaluateFunction | ✅ callback | ✅ var | ✅ Ported as lambda |
+  | onCompleteEvaluateFunction | ✅ callback | ✅ var | ✅ Ported as lambda |
+  | onChoosePathString | ✅ callback | ✅ var | ✅ Ported as lambda |
+  | ContinueSingleStep() | ✅ method | ✅ public | ✅ Ported |
+  | currentFlowIsDefaultFlow | ✅ property | ✅ fun | ✅ Already existed |
 
   **Ported differently (idiomatic Kotlin equivalents)**
 
