@@ -1,8 +1,17 @@
 package ink.kt
 
 /**
- * Represents an addressable path within ink content.
- * Paths can be relative (starting with ".") or absolute.
+ * Immutable path to content in the ink hierarchy (e.g., "knot.stitch.0").
+ *
+ * Three-way comparison:
+ * - C#: `Ink.Runtime.Path` — Component is nested struct
+ * - Java: `Path` — Component is nested static class
+ * - JS: `Path` — Component is nested class
+ *
+ * Kotlin improvements:
+ * - **`data class Component`** — auto equals/hashCode vs manual Java implementation
+ * - **`buildString`** replaces StringBuilder pattern for `toString()`
+ * - **`companion object` constants** — `Null` path singleton
  */
 class Path {
     private val _components: MutableList<Component> = mutableListOf()

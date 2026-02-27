@@ -1,10 +1,16 @@
 package ink.kt
 
 /**
- * Internal structure used to point to a particular/current point in the story.
- * Where Path is a set of components that make content fully addressable, this
- * is a reference to the current container and the index of the current piece
- * of content within that container.
+ * Points to a specific position within a Container (container + index).
+ *
+ * Three-way comparison:
+ * - C#: `Ink.Runtime.Pointer` — struct (value type)
+ * - Java: `Pointer` — class (reference type, mutable)
+ * - JS: `Pointer` — class
+ *
+ * Kotlin improvements:
+ * - **`companion object { val Null }`** — null-object pattern
+ * - **`resolve()` extension** — cleaner than Java's static method
  */
 data class Pointer(
     var container: Container? = null,

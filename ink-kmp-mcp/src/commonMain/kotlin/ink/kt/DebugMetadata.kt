@@ -3,6 +3,16 @@ package ink.kt
 import kotlin.math.max
 import kotlin.math.min
 
+/**
+ * Source file location metadata attached to ink objects for error reporting.
+ *
+ * Three-way comparison:
+ * - C#: `Ink.Runtime.DebugMetadata` — same fields
+ * - Java: `DebugMetadata` — same fields, separate file
+ * - JS: `DebugMetadata` — same
+ *
+ * Kotlin: Simple data holder, no significant changes between ports.
+ */
 class DebugMetadata {
     var startLineNumber: Int = 0
     var endLineNumber: Int = 0

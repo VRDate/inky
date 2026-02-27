@@ -1,15 +1,16 @@
 package ink.kt
 
 /**
- * Defines a list type in ink — the set of possible items and their integer values.
+ * Definition of a single ink LIST type with its named items and integer values.
  *
- * All three implementations (C#, Java, JS) are identical in structure:
- * - Stores name→value mapping for quick lookup by item name
- * - Lazily builds full InkListItem→value mapping when needed
+ * Three-way comparison:
+ * - C#: `Ink.Runtime.ListDefinition` — Dictionary<InkListItem, int>
+ * - Java: `ListDefinition` — HashMap<InkListItem, Integer>
+ * - JS: `ListDefinition` — same
  *
  * Kotlin improvements:
- * - Lazy property for items (instead of null-check pattern in Java/C#)
- * - Direct map operations instead of Entry iteration
+ * - **`LinkedHashMap`** preserves insertion order
+ * - **`itemForValue()` / `valueForItem()`** — same API as Java/C#
  */
 class ListDefinition(
     val name: String?,

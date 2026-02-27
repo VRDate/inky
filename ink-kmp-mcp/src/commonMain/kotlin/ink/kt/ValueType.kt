@@ -1,10 +1,14 @@
 package ink.kt
 
 /**
- * Order is significant for type coercion.
- * If types aren't directly compatible for an operation,
- * they're coerced to the same type, downward.
- * Higher value types "infect" an operation.
+ * Enum of all value types in the ink runtime.
+ *
+ * Three-way comparison:
+ * - C#: `Ink.Runtime.ValueType` — enum
+ * - Java: `ValueType` — enum
+ * - JS: uses string/number type discrimination
+ *
+ * Kotlin: Same enum. Bool, Int, Float, String, DivertTarget, VariablePointer, List.
  */
 enum class ValueType {
     // Used in coercion

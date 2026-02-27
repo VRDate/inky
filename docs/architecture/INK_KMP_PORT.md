@@ -50,11 +50,22 @@
 | 41 | StoryState | class | class | class | OutputOp functional enum | ✅ | **LinkedHashMap state** |
 | 42 | SimpleJson | class | class | class | object + Reader + Writer | ✅ | **LinkedHashMap**, fun interface InnerWriter, fixes Java bugs |
 | 43 | JsonSerialisation | static class | class | class | object JsonSerialisation | ✅ | `when` smart cast dispatch, LinkedHashMap |
-| 44 | Story | class | class | class | — | ⏳ | Main entry |
-| 45 | Profiler | class | class | class | — | ⏳ | |
+| 44 | Story | class | class | class | fun interface ExternalFunction | ✅ | **2928→950 lines**, `when` CC dispatch, SAM conversion |
+| 45 | Profiler + ProfileNode | class + class | class + class | — (not in JS) | combined single file | ✅ | **data class StepDetails**, sortedByDescending, buildString |
 | 46 | Stopwatch + InkClock | class (nanoTime) | class (nanoTime) | — | kotlin.time + InkClock | ✅ | **Unified time authority**: Monotonic timing (nano), UTC/local wall clock, ISO 8601, iCal, backup format. Replaces scattered System.currentTimeMillis() across 6 engines |
 
-**Status**: ✅ = ported, ⚠️ = stub, ⏳ = pending
+**Status**: 44/46 ✅ ported, 1 ⚠️ stub (Json), 1 Java-only (StringExt → Kotlin stdlib)
+
+## Per-Language Namespace Separation
+
+| Language | Package / Namespace | Repo Path | Notes |
+|----------|-------------------|-----------|-------|
+| **Kotlin** | `ink.kt` | `src/commonMain/kotlin/ink/kt/` | KMP commonMain, 36 files |
+| **Java** | `com.bladecoder.ink.runtime` | `src/jvmMain/java/.../runtime/` | blade-ink original, 46 files |
+| **C#** | `Ink.Runtime` | ink-csharp (external) | inkle canonical reference |
+| **JS/TS** | `inkjs` (npm) | inkjs (external) | y-lohse JS port |
+
+Per-language PlantUML class diagrams: `ink.kt.puml`, `ink.java.puml`, `ink.cs.puml`, `ink.ts.puml`
 
 ## Where C# Is Best (Primary Reference)
 
@@ -99,14 +110,30 @@
 | Pattern | Usage | Why |
 |---------|-------|-----|
 | `sealed class Value<T>` | Value hierarchy | Exhaustive `when`, no missed cases |
-| `data class` | Pointer, InkListItem | Free value semantics, copy, destructuring |
-| `fun interface` | BinaryOp, UnaryOp, VariableChanged | SAM conversion — lambdas auto-convert |
+| `data class` | Pointer, InkListItem, StepDetails | Free value semantics, copy, destructuring |
+| `fun interface` | BinaryOp, UnaryOp, VariableChanged, ExternalFunction, VariableObserver, ErrorHandler | SAM conversion — lambdas auto-convert |
 | `operator fun` | InkList +/-, VariablesState [] | Idiomatic Kotlin syntax |
 | `by delegation` | InkList : MutableMap by _map | Composition over inheritance |
 | `LinkedHashMap` | All collections | Insertion-order + O(1) (user directive) |
 | `Comparable<Choice>` | Choice ordering | TreeSet / sorted collection support |
 | `Flow<LinkedHashSet<Choice>>` | Reactive choices | Coroutine-based event streaming |
-| `buildString {}` | callStackTrace | Kotlin stdlib builder pattern |
+| `buildString {}` | callStackTrace, Profiler reports | Kotlin stdlib builder pattern |
+| `when` exhaustive dispatch | Story.performControlCommand() | 30+ ControlCommand types, compiler-verified |
+| `sortedByDescending` | ProfileNode.descendingOrderedNodes | One-liner vs 10-line Java Comparator |
+| `kotlin.time + kotlinx-datetime` | Stopwatch, InkClock | KMP-compatible, nano precision, no JVM dep |
+
+## Story.kt — Key Design Decisions (2928→950 lines)
+
+| Aspect | C# | Java | Kotlin |
+|--------|-----|------|--------|
+| **ExternalFunction** | 4 abstract classes (0/1/2/3 params) | Same 4 classes | **Single `fun interface`** with `Array<out Any?>` |
+| **VariableObserver** | `delegate` + `event` | Interface + setter | **`fun interface`** — lambda SAM |
+| **ErrorHandler** | `delegate` event | custom interface | **`fun interface`** in ErrorType.kt |
+| **ControlCommand dispatch** | switch (30+ cases) | if-else chain | **`when` expression** (exhaustive) |
+| **Continue method** | `Continue()` | `Continue()` | `continueStory()` (Kotlin naming) |
+| **Assert** | `Debug.Assert()` | custom `Assert()` | `inkAssert()` — throws StoryException |
+| **File consolidation** | ProfileNode separate file | ProfileNode separate file | Combined in Profiler.kt |
+| **StoryState construction** | `new StoryState(this)` | `new StoryState(this)` | `StoryState(rootContainer, listDefs)` — decoupled |
 
 ## File Map
 

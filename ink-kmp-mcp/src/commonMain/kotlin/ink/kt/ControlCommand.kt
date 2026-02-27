@@ -1,5 +1,17 @@
 package ink.kt
 
+/**
+ * Control flow command in the ink runtime (eval start/end, string mode, etc.).
+ *
+ * Three-way comparison:
+ * - C#: `Ink.Runtime.ControlCommand` — CommandType enum, same commands
+ * - Java: `ControlCommand` — CommandType enum, separate file
+ * - JS: `ControlCommand` — numeric constants
+ *
+ * Kotlin improvements:
+ * - **`enum class CommandType`** — type-safe vs Java enum
+ * - **`when` exhaustiveness** — compiler-checked command dispatch in Story.kt
+ */
 class ControlCommand(var commandType: CommandType = CommandType.NotSet) : InkObject() {
 
     enum class CommandType {

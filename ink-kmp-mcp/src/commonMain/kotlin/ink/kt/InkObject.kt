@@ -1,8 +1,17 @@
 package ink.kt
 
 /**
- * Base class for all ink runtime content.
- * Named "InkObject" in Kotlin (RTObject in Java, Object in C#).
+ * Base class for all ink runtime objects in the content tree.
+ *
+ * Three-way comparison:
+ * - C#: `Ink.Runtime.InkObject` (renamed from Object to avoid System.Object collision)
+ * - Java: `RTObject` (renamed to avoid java.lang.Object collision)
+ * - JS: `InkObject` (same name as C#)
+ *
+ * Kotlin improvements:
+ * - **Named `InkObject`** — matches C#/JS naming, clearer than Java's `RTObject`
+ * - **Nullable parent** — `var parent: Container?` vs Java's null-checked getter
+ * - **Package**: `ink.kt` vs `com.bladecoder.ink.runtime` (Java) vs `Ink.Runtime` (C#)
  */
 open class InkObject {
     var parent: Container? = null

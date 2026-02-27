@@ -1,9 +1,14 @@
 package ink.kt
 
 /**
- * Exception that represents an error when running a Story at runtime.
- * An exception being thrown of this type is typically when there's a bug
- * in your ink, rather than in the ink engine itself!
+ * Exception for ink story runtime errors (typically bugs in ink source, not engine).
+ *
+ * Three-way comparison:
+ * - C#: `Ink.Runtime.StoryException` — extends Exception
+ * - Java: `StoryException` — extends Exception
+ * - JS: extends Error (JS standard)
+ *
+ * Kotlin: Same. `useEndLineNumber` flag for error position reporting.
  */
 class StoryException(message: String? = null) : Exception(message) {
     var useEndLineNumber: Boolean = false

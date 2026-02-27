@@ -1,0 +1,811 @@
+@startuml ink-js-classes
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam classAttributeIconSize 0
+
+' ── Teal/green theme for JavaScript classes (inkjs) ──
+' Goal: port missing JS to Kotlin/JS with same JS syntax
+' Most UI code is pure JS (not TS) — inkjs is the reference
+skinparam class {
+    BackgroundColor #E0F2F1
+    BorderColor #00695C
+    HeaderBackgroundColor #00897B
+    FontColor #212121
+    HeaderFontColor #FFFFFF
+    StereotypeFontColor #004D40
+    AttributeFontColor #37474F
+}
+skinparam package {
+    BackgroundColor #F1F8E9
+    BorderColor #33691E
+    FontColor #1B5E20
+}
+skinparam note {
+    BackgroundColor #FFF8E1
+    BorderColor #F9A825
+    FontColor #4E342E
+}
+skinparam arrow {
+    Color #00695C
+}
+
+title inkjs — TypeScript/JavaScript Ink Runtime Class Diagram\n(npm inkjs — JS port of inkle/ink C# runtime)
+footer inkjs (y-lohse/inkjs) | npm inkjs | CommonJS + ESM | Story API compatible with C#/Java/Kotlin ports
+
+' ═══════════════════════════════════════════════════════════
+' CORE CLASSES
+' ═══════════════════════════════════════════════════════════
+
+package "Core" #E0F2F1 {
+
+    class InkObject <<(T,#009688) TS>> {
+        +parent: Container | null
+        +ownDebugMetadata: DebugMetadata | null
+        --
+        +{readonly} debugMetadata: DebugMetadata | null
+        +{readonly} path: Path
+        +{readonly} rootContentContainer: Container | null
+        --
+        +resolvePath(path: Path): SearchResult
+        +convertPathToRelative(globalPath: Path): Path
+        +compactPathString(otherPath: Path): string
+        +debugLineNumberOfPath(path: Path): number | null
+        +copy(): InkObject
+    }
+
+    class Container <<(T,#009688) TS>> {
+        +name: string | null
+        +content: InkObject[]
+        +namedContent: Map<string, INamedContent>
+        +visitsShouldBeCounted: boolean
+        +turnIndexShouldBeCounted: boolean
+        +countingAtStartOnly: boolean
+        +countFlags: number
+        --
+        +{readonly} hasValidName: boolean
+        +{readonly} namedOnlyContent: Map<string, InkObject>
+        --
+        +addContent(contentObj: InkObject): void
+        +insertContent(contentObj: InkObject, index: number): void
+        +addContentsOfContainer(other: Container): void
+        +addToNamedContentOnly(named: INamedContent): void
+        +contentAtPath(path: Path, partialStart?: number, len?: number): SearchResult
+        +buildStringOfHierarchy(): string
+    }
+
+    class Path <<(T,#009688) TS>> {
+        +isRelative: boolean
+        --
+        +{readonly} head: Path.Component | null
+        +{readonly} tail: Path
+        +{readonly} length: number
+        +{readonly} lastComponent: Path.Component | null
+        +{readonly} componentsString: string
+        --
+        +getComponent(index: number): Path.Component
+        +pathByAppendingPath(path: Path): Path
+        +pathByAppendingComponent(c: Path.Component): Path
+        +containsNamedComponent(): boolean
+        +equals(other: Path): boolean
+        +toString(): string
+    }
+
+    class "Path.Component" as PathComponent <<(T,#009688) TS>> {
+        +index: number
+        +name: string | null
+        --
+        +{readonly} isIndex: boolean
+        +{readonly} isParent: boolean
+        --
+        +toString(): string
+        +equals(other: Path.Component): boolean
+        +{static} toParent(): Path.Component
+    }
+
+    class SearchResult <<(T,#009688) TS>> {
+        +obj: InkObject | null
+        +approximate: boolean
+        --
+        +{readonly} correctObj: InkObject | null
+        +{readonly} container: Container | null
+    }
+
+    class Pointer <<(T,#009688) TS>> {
+        +container: Container | null
+        +index: number
+        --
+        +{readonly} isNull: boolean
+        +{readonly} path: Path | null
+        --
+        +resolve(): InkObject | null
+        +assign(p: Pointer): void
+        +toString(): string
+        ..
+        +{static} Null: Pointer
+        +{static} startOf(container: Container): Pointer
+    }
+
+    class DebugMetadata <<(T,#009688) TS>> {
+        +startLineNumber: number
+        +endLineNumber: number
+        +startCharacterNumber: number
+        +endCharacterNumber: number
+        +fileName: string | null
+        +sourceName: string | null
+        --
+        +merge(dm: DebugMetadata): DebugMetadata
+        +toString(): string
+    }
+
+    interface INamedContent <<(T,#009688) TS>> {
+        +{readonly} name: string | null
+        +{readonly} hasValidName: boolean
+    }
+
+    Path *-- PathComponent : components
+}
+
+' ═══════════════════════════════════════════════════════════
+' CONTENT CLASSES (runtime instructions)
+' ═══════════════════════════════════════════════════════════
+
+package "Content" #E8F5E9 {
+
+    class ChoicePoint <<(T,#009688) TS>> {
+        +onceOnly: boolean
+        +hasCondition: boolean
+        +hasStartContent: boolean
+        +hasChoiceOnlyContent: boolean
+        +isInvisibleDefault: boolean
+        +flags: number
+        --
+        +{readonly} choiceTarget: Container
+        +pathOnChoice: Path | null
+        +pathStringOnChoice: string | null
+    }
+
+    class Choice <<(T,#009688) TS>> {
+        +text: string | null
+        +index: number
+        +sourcePath: string | null
+        +isInvisibleDefault: boolean
+        +originalThreadIndex: number
+        +tags: string[] | null
+        +threadAtGeneration: CallStack.Thread | null
+        --
+        +targetPath: Path | null
+        +pathStringOnChoice: string | null
+    }
+
+    class Divert <<(T,#009688) TS>> {
+        +stackPushType: PushPopType
+        +pushesToStack: boolean
+        +isExternal: boolean
+        +externalArgs: number
+        +isConditional: boolean
+        +variableDivertName: string | null
+        --
+        +{readonly} hasVariableTarget: boolean
+        +targetPath: Path | null
+        +{readonly} targetPointer: Pointer
+        +targetPathString: string | null
+    }
+
+    class Glue <<(T,#009688) TS>> {
+        +toString(): string
+    }
+
+    class Tag <<(T,#009688) TS>> {
+        +{readonly} text: string
+        +toString(): string
+    }
+
+    class Void <<(T,#009688) TS>> {
+    }
+
+    class ControlCommand <<(T,#009688) TS>> {
+        +commandType: CommandType
+        +copy(): InkObject
+        +toString(): string
+    }
+
+    enum CommandType <<(T,#009688) TS>> {
+        NotSet
+        EvalStart
+        EvalOutput
+        EvalEnd
+        Duplicate
+        PopEvaluatedValue
+        PopFunction
+        PopTunnel
+        BeginString
+        EndString
+        NoOp
+        ChoiceCount
+        Turns
+        TurnsSince
+        ReadCount
+        Random
+        SeedRandom
+        VisitIndex
+        SequenceShuffleIndex
+        StartThread
+        Done
+        End
+        ListFromInt
+        ListRange
+        ListRandom
+        BeginTag
+        EndTag
+    }
+
+    class VariableAssignment <<(T,#009688) TS>> {
+        +variableName: string | null
+        +isNewDeclaration: boolean
+        +isGlobal: boolean
+    }
+
+    class VariableReference <<(T,#009688) TS>> {
+        +name: string | null
+        +pathForCount: Path | null
+        --
+        +{readonly} containerForCount: Container | null
+        +pathStringForCount: string | null
+    }
+
+    class NativeFunctionCall <<(T,#009688) TS>> {
+        +name: string | null
+        +{readonly} numberOfParameters: number
+        --
+        +call(params: InkObject[]): InkObject | null
+        +callBinaryListOperation(params: InkObject[]): Value
+        +callListIncrementOperation(listIntParams: InkObject[]): Value
+        ..
+        +{static} callWithName(functionName: string): NativeFunctionCall
+        +{static} callExistsWithName(name: string): boolean
+    }
+
+    ControlCommand --> CommandType : uses
+}
+
+' ═══════════════════════════════════════════════════════════
+' VALUE CLASSES
+' ═══════════════════════════════════════════════════════════
+
+package "Values" #E0F7FA {
+
+    enum ValueType <<(T,#009688) TS>> {
+        Bool
+        Int
+        Float
+        List
+        String
+        DivertTarget
+        VariablePointer
+    }
+
+    abstract class "Value<T>" as Value <<(T,#009688) TS>> {
+        +value: T
+        --
+        +{abstract} {readonly} valueType: ValueType
+        +{abstract} {readonly} isTruthy: boolean
+        +{abstract} cast(newType: ValueType): Value | null
+        --
+        +{readonly} valueObject: any
+        +copy(): InkObject
+        +toString(): string
+        ..
+        +{static} Create(val: any): Value | null
+    }
+
+    class BoolValue <<(T,#009688) TS>> {
+        +value: boolean
+        --
+        +valueType = ValueType.Bool
+        +{readonly} isTruthy: boolean
+        +cast(newType: ValueType): Value | null
+        +toString(): string
+    }
+
+    class IntValue <<(T,#009688) TS>> {
+        +value: number
+        --
+        +valueType = ValueType.Int
+        +{readonly} isTruthy: boolean
+        +cast(newType: ValueType): Value | null
+    }
+
+    class FloatValue <<(T,#009688) TS>> {
+        +value: number
+        --
+        +valueType = ValueType.Float
+        +{readonly} isTruthy: boolean
+        +cast(newType: ValueType): Value | null
+    }
+
+    class StringValue <<(T,#009688) TS>> {
+        +value: string
+        +{readonly} isNewline: boolean
+        +{readonly} isInlineWhitespace: boolean
+        +{readonly} isNonWhitespace: boolean
+        --
+        +valueType = ValueType.String
+        +{readonly} isTruthy: boolean
+        +cast(newType: ValueType): Value | null
+    }
+
+    class DivertTargetValue <<(T,#009688) TS>> {
+        +targetPath: Path | null
+        --
+        +valueType = ValueType.DivertTarget
+        +{readonly} isTruthy: //throws//
+        +cast(newType: ValueType): Value | null
+    }
+
+    class VariablePointerValue <<(T,#009688) TS>> {
+        +variableName: string | null
+        +contextIndex: number
+        --
+        +valueType = ValueType.VariablePointer
+        +{readonly} isTruthy: //throws//
+        +cast(newType: ValueType): Value | null
+        +copy(): InkObject
+    }
+
+    class ListValue <<(T,#009688) TS>> {
+        +value: InkList
+        --
+        +valueType = ValueType.List
+        +{readonly} isTruthy: boolean
+        +cast(newType: ValueType): Value | null
+        ..
+        +{static} retainListOriginsForAssignment(old: InkObject, new: InkObject): void
+    }
+
+    Value <|-- BoolValue
+    Value <|-- IntValue
+    Value <|-- FloatValue
+    Value <|-- StringValue
+    Value <|-- DivertTargetValue
+    Value <|-- VariablePointerValue
+    Value <|-- ListValue
+    Value --> ValueType : uses
+}
+
+' ═══════════════════════════════════════════════════════════
+' LIST CLASSES
+' ═══════════════════════════════════════════════════════════
+
+package "Lists" #F1F8E9 {
+
+    class InkList <<(T,#009688) TS>> {
+        +origins: ListDefinition[] | null
+        --
+        +{readonly} originNames: string[] | null
+        +{readonly} maxItem: MapEntry<InkListItem, number>
+        +{readonly} minItem: MapEntry<InkListItem, number>
+        +{readonly} inverse: InkList
+        +{readonly} all: InkList
+        +{readonly} originOfMaxItem: ListDefinition | null
+        --
+        +union(other: InkList): InkList
+        +intersect(other: InkList): InkList
+        +without(other: InkList): InkList
+        +contains(other: InkList): boolean
+        +greaterThan(other: InkList): boolean
+        +lessThan(other: InkList): boolean
+        +maxAsList(): InkList
+        +minAsList(): InkList
+        +listWithSubRange(min: any, max: any): InkList
+        +setInitialOriginName(name: string): void
+        +setInitialOriginNames(names: string[]): void
+        +equals(other: InkList): boolean
+        +toString(): string
+    }
+
+    class InkListItem <<(T,#009688) TS>> {
+        +{readonly} originName: string | null
+        +{readonly} itemName: string | null
+        --
+        +{readonly} isNull: boolean
+        +{readonly} fullName: string
+        --
+        +toString(): string
+        +equals(other: InkListItem): boolean
+        ..
+        +{static} Null: InkListItem
+    }
+
+    class ListDefinition <<(T,#009688) TS>> {
+        +{readonly} name: string | null
+        +{readonly} items: Map<InkListItem, number>
+        --
+        +getValueForItem(item: InkListItem): number | null
+        +containsItem(item: InkListItem): boolean
+        +containsItemWithName(name: string): boolean
+        +getItemWithValue(value: number): InkListItem | null
+    }
+
+    class ListDefinitionsOrigin <<(T,#009688) TS>> {
+        +{readonly} lists: ListDefinition[]
+        --
+        +getListDefinition(name: string): ListDefinition | null
+        +findSingleItemListWithName(name: string): ListValue | null
+    }
+
+    InkList o-- InkListItem : keys
+    InkList --> ListDefinition : origins
+    ListDefinitionsOrigin o-- ListDefinition : holds
+    ListValue --> InkList : wraps
+}
+
+' ═══════════════════════════════════════════════════════════
+' STATE CLASSES
+' ═══════════════════════════════════════════════════════════
+
+package "State" #E8EAF6 {
+
+    class StoryState <<(T,#009688) TS>> {
+        +{readonly} currentText: string
+        +{readonly} currentTags: string[]
+        +{readonly} currentChoices: Choice[]
+        +{readonly} canContinue: boolean
+        +{readonly} hasError: boolean
+        +{readonly} hasWarning: boolean
+        +{readonly} callStack: CallStack
+        +{readonly} outputStream: InkObject[]
+        +variablesState: VariablesState
+        +evaluationStack: InkObject[]
+        +currentTurnIndex: number
+        +storySeed: number
+        +previousRandom: number
+        +divertedPointer: Pointer
+        +didSafeExit: boolean
+        +patch: StatePatch | null
+        +currentFlow: Flow
+        +{readonly} currentFlowName: string
+        +{readonly} aliveFlowNames: string[]
+        --
+        +currentPointer: Pointer
+        +previousPointer: Pointer
+        +inExpressionEvaluation: boolean
+        --
+        +goToStart(): void
+        +setChosenPath(path: Path, incrementTurn: boolean): void
+        +switchFlowInternal(flowName: string): void
+        +removeFlowInternal(flowName: string): void
+        +forceEnd(): void
+        +pushEvaluationStack(obj: InkObject): void
+        +popEvaluationStack(count?: number): InkObject | InkObject[]
+        +peekEvaluationStack(): InkObject
+        +pushToOutputStream(obj: InkObject): void
+        +popFromOutputStream(count: number): void
+        +resetOutput(objs?: InkObject[]): void
+        +visitCountForContainer(container: Container): number
+        +incrementVisitCountForContainer(container: Container): void
+        +turnsSinceForContainer(container: Container): number
+        +copyAndStartPatching(): StoryState
+        +applyAnyPatch(): void
+        +toJson(): string
+        +loadJson(jsonString: string): void
+        ..
+        +{static} INK_SAVE_STATE_VERSION: number
+        +{static} MIN_COMPATIBLE_LOAD_VERSION: number
+    }
+
+    class CallStack <<(T,#009688) TS>> {
+        +{readonly} elements: CallStack.Element[]
+        +{readonly} depth: number
+        +{readonly} currentElement: CallStack.Element
+        +currentThread: CallStack.Thread
+        +{readonly} canPop: boolean
+        +{readonly} canPopThread: boolean
+        +{readonly} elementIsEvaluateFromGame: boolean
+        --
+        +reset(): void
+        +push(type: PushPopType, evalStackHeight?: number, outputLen?: number): void
+        +pop(type?: PushPopType): void
+        +pushThread(): void
+        +popThread(): void
+        +forkThread(): CallStack.Thread
+        +threadWithIndex(index: number): CallStack.Thread | null
+        +getTemporaryVariableWithName(name: string, contextIdx?: number): InkObject | null
+        +setTemporaryVariable(name: string, value: InkObject, declareNew: boolean, contextIdx?: number): void
+        +contextForVariableNamed(name: string): number
+        +{readonly} callStackTrace: string
+    }
+
+    class "CallStack.Element" as CSElement <<(T,#009688) TS>> {
+        +type: PushPopType
+        +currentPointer: Pointer
+        +inExpressionEvaluation: boolean
+        +temporaryVariables: Map<string, InkObject>
+        +evaluationStackHeightWhenPushed: number
+        +functionStartInOutputStream: number
+        --
+        +copy(): CallStack.Element
+    }
+
+    class "CallStack.Thread" as CSThread <<(T,#009688) TS>> {
+        +callstack: CallStack.Element[]
+        +threadIndex: number
+        +previousPointer: Pointer
+        --
+        +copy(): CallStack.Thread
+    }
+
+    class Flow <<(T,#009688) TS>> {
+        +name: string
+        +callStack: CallStack
+        +outputStream: InkObject[]
+        +currentChoices: Choice[]
+        --
+        +loadFlowChoiceThreads(jChoiceThreads: Map, cs?: CallStack): void
+    }
+
+    class StatePatch <<(T,#009688) TS>> {
+        +globals: Map<string, InkObject>
+        +changedVariables: Set<string>
+        +visitCounts: Map<Container, number>
+        +turnIndices: Map<Container, number>
+        --
+        +getGlobal(name: string): InkObject | null
+        +setGlobal(name: string, value: InkObject): void
+        +addChangedVariable(name: string): void
+        +getVisitCount(container: Container): number | null
+        +setVisitCount(container: Container, count: number): void
+        +getTurnIndex(container: Container): number | null
+        +setTurnIndex(container: Container, index: number): void
+    }
+
+    class VariablesState <<(T,#009688) TS>> {
+        +variableChangedEvent: VariableChangedCallback | null
+        +patch: StatePatch | null
+        +callStack: CallStack
+        +{readonly} globalVariables: Map<string, InkObject>
+        --
+        +$(variableName: string): any
+        +$$(variableName: string, value: any): void
+        +assign(varAss: VariableAssignment, value: InkObject): void
+        +getVariableWithName(name: string, contextIdx?: number): InkObject | null
+        +getRawVariableWithName(name: string, contextIdx: number): InkObject | null
+        +globalVariableExistsWithName(name: string): boolean
+        +setGlobal(variableName: string, value: InkObject): void
+        +snapshotDefaultGlobals(): void
+        +applyPatch(): void
+        +setJsonToken(jToken: object): void
+        +runtimeObjectsEqual(a: InkObject, b: InkObject): boolean
+        +iterator(): Iterator<string>
+    }
+
+    enum PushPopType <<(T,#009688) TS>> {
+        Tunnel
+        Function
+        FunctionEvaluationFromGame
+    }
+
+    CallStack *-- CSElement : frames
+    CallStack *-- CSThread : threads
+    Flow *-- CallStack : owns
+    StoryState *-- Flow : currentFlow / namedFlows
+    StoryState *-- VariablesState : variablesState
+    StoryState --> StatePatch : patch
+    StoryState --> Pointer : currentPointer
+    VariablesState --> StatePatch : patch overlay
+    VariablesState --> CallStack : temp vars
+}
+
+' ═══════════════════════════════════════════════════════════
+' RUNTIME (Story — main entry point)
+' ═══════════════════════════════════════════════════════════
+
+package "Runtime" #FFF3E0 {
+
+    class Story <<(T,#009688) TS>> {
+        ' ── Constructor ──
+        +Story(jsonString: string)
+        ' ── Core narrative loop ──
+        +canContinue: boolean
+        +Continue(): string
+        +ContinueAsync(millisecsLimitAsync: number): void
+        +ContinueMaximally(): string
+        +ContinueSingleStep(): boolean
+        +{readonly} currentText: string
+        +{readonly} currentTags: string[]
+        +{readonly} currentChoices: Choice[]
+        +{readonly} currentErrors: string[]
+        +{readonly} currentWarnings: string[]
+        +{readonly} hasError: boolean
+        +{readonly} hasWarning: boolean
+        ' ── Choice selection ──
+        +ChooseChoiceIndex(choiceIdx: number): void
+        +ChoosePathString(path: string, resetCallstack?: boolean, args?: any[]): void
+        ' ── State management ──
+        +{readonly} state: StoryState
+        +ResetState(): void
+        +ResetErrors(): void
+        +ResetCallstack(): void
+        ' ── Variables ──
+        +{readonly} variablesState: VariablesState
+        +ObserveVariable(variableName: string, observer: VariableObserver): void
+        +ObserveVariables(variableNames: string[], observer: VariableObserver): void
+        +RemoveVariableObserver(observer?: VariableObserver, specificVariableName?: string): void
+        ' ── External functions ──
+        +BindExternalFunction(funcName: string, func: Function, lookaheadSafe?: boolean): void
+        +UnbindExternalFunction(funcName: string): void
+        +HasFunction(funcName: string): boolean
+        +EvaluateFunction(funcName: string, args?: any[]): any
+        ' ── Tags ──
+        +{readonly} globalTags: string[]
+        +TagsForContentAtPath(path: string): string[]
+        ' ── Flows ──
+        +SwitchFlow(flowName: string): void
+        +RemoveFlow(flowName: string): void
+        +SwitchToDefaultFlow(): void
+        +{readonly} aliveFlowNames: string[]
+        +{readonly} currentFlowName: string
+        +{readonly} currentFlowIsDefaultFlow: boolean
+        ' ── Save/Load ──
+        +{readonly} state: StoryState
+        ' ── Knot/stitch visit counts ──
+        +BuildStringOfHierarchy(): string
+        +{readonly} mainContentContainer: Container
+        ' ── Callback types ──
+        +onError: ErrorHandler | null
+        +onDidContinue: Function | null
+        +onMakeChoice: Function | null
+        +onEvaluateFunction: Function | null
+        +onCompleteEvaluateFunction: Function | null
+        +onChoosePathString: Function | null
+        ..
+        +{static} inkVersionCurrent: number
+        +{static} inkVersionMinimumCompatible: number
+        +allowExternalFunctionFallbacks: boolean
+    }
+}
+
+' ═══════════════════════════════════════════════════════════
+' SERIALIZATION
+' ═══════════════════════════════════════════════════════════
+
+package "Serialization" #F3E5F5 {
+
+    class SimpleJson <<(T,#009688) TS>> {
+        +{static} textToDictionary(text: string): object
+        +{static} textToArray(text: string): any[]
+    }
+
+    class "SimpleJson.Writer" as SJWriter <<(T,#009688) TS>> {
+        +writeObject(inner: Function): void
+        +writeObjectStart(): void
+        +writeObjectEnd(): void
+        +writeArrayStart(): void
+        +writeArrayEnd(): void
+        +writeProperty(name: string, inner: Function): void
+        +writePropertyStart(name: string): void
+        +writePropertyEnd(): void
+        +writePropertyNameStart(): void
+        +writePropertyNameEnd(): void
+        +writePropertyNameInner(str: string): void
+        +write(val: any): void
+        +writeStringStart(): void
+        +writeStringEnd(): void
+        +writeStringInner(str: string): void
+        +toString(): string
+    }
+
+    class JsonSerialisation <<(T,#009688) TS>> {
+        +{static} jTokenToRuntimeObject(token: any): InkObject | null
+        +{static} runtimeObjectToJToken(obj: InkObject): any
+        +{static} writeRuntimeContainer(writer: SimpleJson.Writer, container: Container): void
+        +{static} jArrayToRuntimeObjList(jArray: any[]): InkObject[]
+        +{static} writeDictionaryRuntimeObjs(writer: SimpleJson.Writer, dict: Map): void
+        +{static} writeListRuntimeObjs(writer: SimpleJson.Writer, list: InkObject[]): void
+    }
+
+    SimpleJson *-- SJWriter
+    JsonSerialisation --> SimpleJson : uses
+}
+
+' ═══════════════════════════════════════════════════════════
+' INHERITANCE HIERARCHY
+' ═══════════════════════════════════════════════════════════
+
+InkObject <|-- Container
+InkObject <|-- Value
+InkObject <|-- ChoicePoint
+InkObject <|-- Choice
+InkObject <|-- Divert
+InkObject <|-- Glue
+InkObject <|-- Tag
+InkObject <|-- Void
+InkObject <|-- ControlCommand
+InkObject <|-- VariableAssignment
+InkObject <|-- VariableReference
+InkObject <|-- NativeFunctionCall
+
+Container ..|> INamedContent : implements
+
+' ═══════════════════════════════════════════════════════════
+' KEY ASSOCIATIONS
+' ═══════════════════════════════════════════════════════════
+
+Story *-- StoryState : state
+Story *-- Container : mainContentContainer
+Story *-- ListDefinitionsOrigin : listDefinitions
+Story --> Choice : produces
+Story --> JsonSerialisation : save/load
+
+StoryState --> Container : rootContentContainer
+StoryState --> Choice : generatedChoices
+
+Container o-- InkObject : content[]
+Container --> SearchResult : contentAtPath()
+
+InkObject --> Path : path
+InkObject --> DebugMetadata : debugMetadata
+InkObject --> Container : parent
+
+Divert --> Path : targetPath
+ChoicePoint --> Path : pathOnChoice
+Choice --> Path : targetPath
+
+' ═══════════════════════════════════════════════════════════
+' NOTES
+' ═══════════════════════════════════════════════════════════
+
+note as N1
+  **inkjs vs C# / Java / Kotlin Comparison**
+  ══════════════════════════════════════════
+
+  **Platform & Distribution**
+  - JS is the most widely used ink port (npm: inkjs)
+  - Published as both CommonJS and ESM modules
+  - TypeScript types included (since inkjs 2.0+)
+  - Used in web games, Electron apps, Node.js backends
+
+  **API Parity**
+  - Story is the main entry point — same API as other ports
+  - All core methods: Continue(), ChooseChoiceIndex(),
+    variablesState, save/load, external functions
+  - canContinue / currentText / currentChoices / currentTags
+
+  **Missing Features (JS only)**
+  - **No Profiler / ProfileNode** (C#/Java/Kotlin only)
+  - No Stopwatch — uses Date.now() where needed
+  - No Stream overloads — string-only JSON I/O
+
+  **Language Differences**
+  - Prototype-based inheritance where C# uses class hierarchy
+  - No strict typing (TS adds optional types)
+  - JS runtime uses dynamic dispatch vs sealed/when in Kotlin
+  - Module system: CommonJS/ESM vs C# namespaces vs Java packages
+
+  **Variable Access**
+  - inkjs: story.variablesState.$("varName")
+  - C#:    story.variablesState["varName"]
+  - Java:  story.getVariablesState().get("varName")
+  - Kotlin: story.variablesState["varName"]  (operator)
+
+  **Serialization**
+  - JS: delegates to native JSON.parse + custom reviver
+  - C#/Java/Kotlin: custom SimpleJson reader/writer
+end note
+
+note as N2
+  **Value Type Mapping**
+  ════════════════════
+  JS number  <-> C# int / float
+  JS boolean <-> C# bool
+  JS string  <-> C# string
+  JS null    <-> C# void
+
+  In JS, Int and Float are both
+  "number" — the runtime distinguishes
+  via ValueType enum and rounding.
+end note
+
+N1 .. Story
+N2 .. Value
+
+@enduml

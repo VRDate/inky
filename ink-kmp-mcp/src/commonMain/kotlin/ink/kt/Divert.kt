@@ -1,5 +1,17 @@
 package ink.kt
 
+/**
+ * Ink divert instruction (->). Redirects story flow to target path.
+ *
+ * Three-way comparison:
+ * - C#: `Ink.Runtime.Divert` — same structure
+ * - Java: `Divert` — same, extends RTObject
+ * - JS: `Divert` — same
+ *
+ * Kotlin improvements:
+ * - **`when` expression** in `toString()` vs if-else chain
+ * - **String templates** for debug output
+ */
 class Divert(var stackPushType: PushPopType = PushPopType.Function) : InkObject() {
     private var _targetPath: Path? = null
     private var _targetPointer: Pointer = Pointer.Null

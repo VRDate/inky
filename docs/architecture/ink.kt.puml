@@ -1,0 +1,1397 @@
+@startuml ink.kt – Kotlin Ink Runtime Class Diagram
+
+' ==============================================================================
+' ink.kt — Kotlin Multiplatform Ink Runtime
+' Package: ink.kt
+' Source:  ink-kmp-mcp/src/commonMain/kotlin/ink/kt/
+'
+' Comprehensive class diagram generated from all 36 .kt source files.
+' ==============================================================================
+
+' ── Skin params ──────────────────────────────────────────────────────────────
+
+skinparam backgroundColor #FAFAFA
+skinparam shadowing false
+skinparam roundcorner 8
+
+skinparam class {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    HeaderBackgroundColor #1976D2
+    FontColor #212121
+    FontName JetBrains Mono
+    FontSize 11
+    HeaderFontColor #FFFFFF
+    HeaderFontSize 12
+    AttributeFontSize 10
+    StereotypeFontSize 9
+}
+
+skinparam interface {
+    BackgroundColor #E8F5E9
+    BorderColor #2E7D32
+    HeaderBackgroundColor #388E3C
+    FontColor #212121
+    HeaderFontColor #FFFFFF
+    FontSize 11
+}
+
+skinparam enum {
+    BackgroundColor #FFF3E0
+    BorderColor #E65100
+    HeaderBackgroundColor #F57C00
+    FontColor #212121
+    HeaderFontColor #FFFFFF
+    FontSize 11
+}
+
+skinparam object {
+    BackgroundColor #F3E5F5
+    BorderColor #6A1B9A
+    HeaderBackgroundColor #7B1FA2
+    FontColor #212121
+    HeaderFontColor #FFFFFF
+    FontSize 11
+}
+
+skinparam note {
+    BackgroundColor #FFFDE7
+    BorderColor #F9A825
+    FontSize 10
+    FontName JetBrains Mono
+}
+
+skinparam package {
+    BackgroundColor #ECEFF1
+    BorderColor #546E7A
+    FontSize 13
+    FontColor #37474F
+    FontStyle bold
+}
+
+' ── Three-Way Comparison Notes ───────────────────────────────────────────────
+
+note as N_OVERVIEW
+  **ink.kt — Kotlin Multiplatform Ink Runtime**
+  **Three-way comparison: Kotlin (ink.kt) vs C# (Ink.Runtime) vs Java (blade-ink)**
+
+  **Package naming:**
+    Kotlin:  ""ink.kt""
+    C#:      ""Ink.Runtime""
+    Java:    ""com.bladecoder.ink.runtime""
+
+  **Key consolidations in Kotlin port:**
+    Value.kt combines 8 separate Java files (BoolValue, IntValue, FloatValue,
+    StringValue, DivertTargetValue, VariablePointerValue, ListValue + abstract Value)
+    into a single sealed class hierarchy.
+
+  **Class naming differences:**
+    Kotlin ""InkObject"" = Java ""RTObject"" = C# ""Object""
+    Kotlin ""StoryException"" = Java ""StoryException"" = C# ""StoryException""
+    Kotlin ""ErrorHandler"" (fun interface) = Java ""ErrorHandler"" (interface) = C# delegate
+
+  **Kotlin-specific features used throughout:**
+    sealed class (Value hierarchy), data class (Pointer, InkListItem, DateComponents),
+    fun interface (SAM: BinaryOp, UnaryOp, ErrorHandler, VariableChanged, ExternalFunction,
+    VariableObserver, InnerWriter, OnDidLoadState), object singleton (SimpleJson,
+    JsonSerialisation, InkClock, Json), enum class (ValueType, PushPopType, ErrorType,
+    CommandType, OutputOp), when expressions (type dispatch), buildString,
+    operator overloading (+/- on InkList, get/set on VariablesState),
+    LinkedHashMap/LinkedHashSet (insertion-order + O(1) everywhere),
+    kotlin.time.TimeSource.Monotonic (Stopwatch), kotlinx.datetime.Clock.System (InkClock),
+    by delegation (InkList : MutableMap by _map), lazy properties (ListDefinition.items)
+end note
+
+' ══════════════════════════════════════════════════════════════════════════════
+' SECTION 1: CORE
+' ══════════════════════════════════════════════════════════════════════════════
+
+package "1. Core" #E3F2FD {
+
+    class InkObject <<open>> {
+        + parent : Container?
+        - _debugMetadata : DebugMetadata?
+        - _path : Path?
+        --
+        + ownDebugMetadata : DebugMetadata? <<get/set>>
+        + debugMetadata : DebugMetadata? <<get>>
+        + path : Path <<get>>
+        + rootContentContainer : Container? <<get>>
+        --
+        + debugLineNumberOfPath(path: Path?) : Int?
+        + resolvePath(path: Path) : SearchResult
+        + convertPathToRelative(globalPath: Path) : Path
+        + compactPathString(otherPath: Path) : String
+        + copy() : InkObject
+    }
+
+    note right of InkObject
+      **Kotlin:** ""InkObject"" (open class)
+      **Java:** ""RTObject""
+      **C#:** ""Object"" (in Ink.Runtime namespace)
+      Kotlin uses open class (not abstract)
+      for default copy() that throws.
+    end note
+
+    class Container {
+        - _name : String?
+        + content : MutableList<InkObject>
+        + namedContent : HashMap<String, INamedContent>
+        + visitsShouldBeCounted : Boolean
+        + turnIndexShouldBeCounted : Boolean
+        + countingAtStartOnly : Boolean
+        + namedOnlyContent : HashMap<String, InkObject> <<get>>
+        + countFlags : Int <<get/set>>
+        + hasValidName : Boolean <<get>>
+        --
+        + addContent(contentObj: InkObject)
+        + addContents(contentList: List<InkObject>)
+        + insertContent(contentObj: InkObject, index: Int)
+        + addToNamedContentOnly(namedContentObj: INamedContent)
+        + addContentsOfContainer(otherContainer: Container)
+        + contentAtPath(path: Path, ...) : SearchResult
+        + contentWithPathComponent(component: Path.Component) : InkObject?
+        + setName(value: String?)
+        + setNamedOnlyContent(value: HashMap<String, InkObject>)
+        + buildStringOfHierarchy() : String
+        .. companion ..
+        {static} COUNTFLAGS_VISITS : Int = 1
+        {static} COUNTFLAGS_TURNS : Int = 2
+        {static} COUNTFLAGS_COUNTSTARTONLY : Int = 4
+    }
+
+    note right of Container
+      Ported from blade-ink Java.
+      Implements INamedContent.
+      Uses when expressions for
+      contentWithPathComponent dispatch.
+    end note
+
+    class Path {
+        - _components : MutableList<Component>
+        + isRelative : Boolean <<get>>
+        - _componentsString : String?
+        + head : Component? <<get>>
+        + tail : Path <<get>>
+        + length : Int <<get>>
+        + lastComponent : Component? <<get>>
+        + componentsString : String <<get>>
+        --
+        + Path()
+        + Path(head: Component, tail: Path)
+        + Path(components: Collection<Component>, relative: Boolean)
+        + Path(componentsString: String)
+        + getComponent(index: Int) : Component
+        + containsNamedComponent() : Boolean
+        + pathByAppendingPath(pathToAppend: Path) : Path
+        + pathByAppendingComponent(c: Component) : Path
+        + equals(other: Any?) : Boolean
+        + hashCode() : Int
+        .. companion ..
+        {static} self : Path <<get>>
+    }
+
+    class "Path.Component" as PathComponent {
+        + index : Int
+        + name : String?
+        + isIndex : Boolean <<get>>
+        + isParent : Boolean <<get>>
+        --
+        + Component(index: Int)
+        + Component(name: String)
+        + equals(other: Any?) : Boolean
+        + hashCode() : Int
+        .. companion ..
+        {static} toParent() : Component
+    }
+
+    class SearchResult {
+        + obj : InkObject?
+        + approximate : Boolean
+        + correctObj : InkObject? <<get>>
+        + container : Container? <<get>>
+        --
+        + SearchResult(obj?, approximate)
+        + SearchResult(sr: SearchResult)
+    }
+
+    note right of SearchResult
+      Not a data class in Kotlin
+      (mutable fields). C#/Java
+      identical structure.
+    end note
+
+    class Pointer <<data class>> {
+        + container : Container?
+        + index : Int
+        + isNull : Boolean <<get>>
+        + path : Path? <<get>>
+        --
+        + Pointer(container?, index)
+        + Pointer(p: Pointer)
+        + assign(p: Pointer)
+        + resolve() : InkObject?
+        .. companion ..
+        {static} Null : Pointer
+        {static} startOf(container: Container) : Pointer
+    }
+
+    note right of Pointer
+      **Kotlin:** ""data class"" — value
+      equality, copy(), destructuring.
+      **C#:** ""struct"" (value type).
+      **Java:** regular class with assign().
+    end note
+
+    class DebugMetadata {
+        + startLineNumber : Int
+        + endLineNumber : Int
+        + startCharacterNumber : Int
+        + endCharacterNumber : Int
+        + fileName : String?
+        + sourceName : String?
+        --
+        + merge(dm: DebugMetadata) : DebugMetadata
+        + toString() : String
+    }
+
+    note right of DebugMetadata
+      Uses Kotlin ""when"" expression
+      for merge() range comparison
+      (vs if-chains in C#/Java).
+    end note
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' SECTION 2: CONTENT
+' ══════════════════════════════════════════════════════════════════════════════
+
+package "2. Content" #E3F2FD {
+
+    class ChoicePoint {
+        + onceOnly : Boolean
+        + hasCondition : Boolean
+        + hasStartContent : Boolean
+        + hasChoiceOnlyContent : Boolean
+        + isInvisibleDefault : Boolean
+        + choiceTarget : Container <<get>>
+        + pathOnChoice : Path? <<get/set>>
+        + pathStringOnChoice : String? <<get/set>>
+        + flags : Int <<get/set>>
+    }
+
+    class Choice {
+        + text : String?
+        + index : Int
+        + targetPath : Path?
+        + sourcePath : String?
+        + isInvisibleDefault : Boolean
+        + originalThreadIndex : Int
+        + tags : List<String>?
+        + threadAtGeneration : CallStack.Thread?
+        + pathStringOnChoice : String? <<get/set>>
+        --
+        + compareTo(other: Choice) : Int
+        + equals(other: Any?) : Boolean
+        + hashCode() : Int
+        + clone() : Choice
+    }
+
+    note right of Choice
+      **Kotlin:** Comparable<Choice>
+      for sorted collections.
+      equals/hashCode by index
+      for LinkedHashSet membership.
+      C#/Java lack Comparable.
+    end note
+
+    class Divert {
+        + stackPushType : PushPopType
+        + pushesToStack : Boolean
+        + isExternal : Boolean
+        + externalArgs : Int
+        + isConditional : Boolean
+        + variableDivertName : String?
+        + hasVariableTarget : Boolean <<get>>
+        + targetPath : Path? <<get/set>>
+        + targetPointer : Pointer <<get>>
+        + targetPathString : String? <<get/set>>
+        --
+        + equals(other: Any?) : Boolean
+        + hashCode() : Int
+        + toString() : String
+    }
+
+    note right of Divert
+      toString() uses Kotlin
+      ""buildString"" — replaces
+      StringBuilder pattern in
+      C#/Java.
+    end note
+
+    class Glue {
+        + toString() : String
+    }
+
+    class Tag {
+        + text : String
+        --
+        + Tag(text: String)
+        + toString() : String
+    }
+
+    class Void
+
+    class ControlCommand {
+        + commandType : CommandType
+        --
+        + copy() : InkObject
+        + toString() : String
+    }
+
+    enum "ControlCommand.CommandType" as CommandType {
+        NotSet
+        EvalStart
+        EvalOutput
+        EvalEnd
+        Duplicate
+        PopEvaluatedValue
+        PopFunction
+        PopTunnel
+        BeginString
+        EndString
+        NoOp
+        ChoiceCount
+        Turns
+        TurnsSince
+        ReadCount
+        Random
+        SeedRandom
+        VisitIndex
+        SequenceShuffleIndex
+        StartThread
+        Done
+        End
+        ListFromInt
+        ListRange
+        ListRandom
+        BeginTag
+        EndTag
+    }
+
+    class VariableAssignment {
+        + variableName : String?
+        + isNewDeclaration : Boolean
+        + isGlobal : Boolean
+    }
+
+    class VariableReference {
+        + name : String?
+        + pathForCount : Path?
+        + containerForCount : Container? <<get>>
+        + pathStringForCount : String? <<get/set>>
+    }
+
+    class NativeFunctionCall {
+        + name : String? <<get/set>>
+        + numberOfParameters : Int <<get>>
+        - _isPrototype : Boolean
+        - _operationFuncs : LinkedHashMap<ValueType, Any>?
+        - _prototype : NativeFunctionCall?
+        --
+        + NativeFunctionCall()
+        + NativeFunctionCall(name: String)
+        + call(parameters: List<InkObject>) : InkObject?
+        + toString() : String
+        .. companion ..
+        {static} Add, Subtract, Multiply, ... : String
+        {static} callExistsWithName(name: String) : Boolean
+        {static} callWithName(name: String) : NativeFunctionCall
+    }
+
+    interface "NativeFunctionCall.BinaryOp" as BinaryOp <<fun interface>> {
+        + invoke(left: Any?, right: Any?) : Any?
+    }
+
+    interface "NativeFunctionCall.UnaryOp" as UnaryOp <<fun interface>> {
+        + invoke(value: Any?) : Any?
+    }
+
+    note bottom of NativeFunctionCall
+      **Kotlin:** ""fun interface"" (SAM) for BinaryOp/UnaryOp
+      — lambdas auto-convert. LinkedHashMap registry.
+      **C#:** typed delegates ""BinaryOp<T>""/""UnaryOp<T>""
+      **Java:** interfaces with ""Object"" — verbose anonymous classes
+      **JS:** plain function callbacks
+    end note
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' SECTION 3: VALUES
+' ══════════════════════════════════════════════════════════════════════════════
+
+package "3. Values" #E3F2FD {
+
+    abstract class "Value<T>" as Value <<sealed>> {
+        + value : T
+        + valueType : ValueType <<abstract get>>
+        + isTruthy : Boolean <<abstract get>>
+        + valueObject : Any? <<get>>
+        --
+        + cast(newType: ValueType) : Value<*>? <<abstract>>
+        + copy() : InkObject
+        + toString() : String
+        # badCastException(targetType: ValueType) : StoryException
+        .. companion ..
+        {static} create(obj: Any?) : Value<*>?
+    }
+
+    note right of Value
+      **Kotlin:** ""sealed class"" hierarchy —
+      exhaustive ""when"", no runtime type bugs.
+      Consolidates 8 separate Java files into one.
+      **C#:** abstract Value + concrete subclasses
+      **Java:** AbstractValue + 7 separate files
+      ""when"" replaces if-chains in cast().
+    end note
+
+    class BoolValue {
+        + valueType : ValueType <<get>> = Bool
+        + isTruthy : Boolean <<get>>
+        --
+        + BoolValue(value: Boolean = false)
+        + cast(newType: ValueType) : Value<*>?
+        + toString() : String
+    }
+
+    class IntValue {
+        + valueType : ValueType <<get>> = Int
+        + isTruthy : Boolean <<get>>
+        --
+        + IntValue(value: Int = 0)
+        + cast(newType: ValueType) : Value<*>?
+    }
+
+    class FloatValue {
+        + valueType : ValueType <<get>> = Float
+        + isTruthy : Boolean <<get>>
+        --
+        + FloatValue(value: Float = 0.0f)
+        + cast(newType: ValueType) : Value<*>?
+    }
+
+    class StringValue {
+        + isNewline : Boolean
+        + isInlineWhitespace : Boolean
+        + isNonWhitespace : Boolean <<get>>
+        + valueType : ValueType <<get>> = String
+        + isTruthy : Boolean <<get>>
+        --
+        + StringValue(value: String = "")
+        + cast(newType: ValueType) : Value<*>?
+    }
+
+    note right of StringValue
+      Kotlin: ""toIntOrNull()""/""toFloatOrNull()""
+      C#: TryParse, Java: try/catch
+    end note
+
+    class DivertTargetValue {
+        + targetPath : Path? <<get/set>>
+        + valueType : ValueType <<get>> = DivertTarget
+        + isTruthy : Boolean <<get>> // throws
+        --
+        + DivertTargetValue(targetPath: Path? = null)
+        + cast(newType: ValueType) : Value<*>?
+    }
+
+    class VariablePointerValue {
+        + variableName : String? <<get/set>>
+        + contextIndex : Int
+        + valueType : ValueType <<get>> = VariablePointer
+        + isTruthy : Boolean <<get>> // throws
+        --
+        + VariablePointerValue(variableName?, contextIndex)
+        + cast(newType: ValueType) : Value<*>?
+        + copy() : InkObject
+    }
+
+    class ListValue {
+        + valueType : ValueType <<get>> = List
+        + isTruthy : Boolean <<get>>
+        --
+        + ListValue(list: InkList)
+        + ListValue()
+        + ListValue(singleItem: InkListItem, singleValue: Int)
+        + cast(newType: ValueType) : Value<*>?
+        .. companion ..
+        {static} retainListOriginsForAssignment(oldValue, newValue)
+    }
+
+    enum ValueType {
+        Bool
+        Int
+        Float
+        List
+        String
+        DivertTarget
+        VariablePointer
+    }
+
+    note right of ValueType
+      Ordinal order is significant
+      for type coercion. Higher
+      ordinal types "infect"
+      operations during coercion.
+    end note
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' SECTION 4: LISTS
+' ══════════════════════════════════════════════════════════════════════════════
+
+package "4. Lists" #E3F2FD {
+
+    class InkList <<MutableMap<InkListItem, Int> by _map>> {
+        - _map : LinkedHashMap<InkListItem, Int>
+        + origins : MutableList<ListDefinition>?
+        - _originNames : MutableList<String>?
+        + originOfMaxItem : ListDefinition? <<get>>
+        + originNames : MutableList<String>? <<get>>
+        + maxItem : Map.Entry<InkListItem, Int> <<get>>
+        + minItem : Map.Entry<InkListItem, Int> <<get>>
+        + orderedItems : List<Map.Entry<...>> <<get>>
+        + singleItem : InkListItem? <<get>>
+        + inverse : InkList <<get>>
+        + all : InkList <<get>>
+        --
+        + InkList()
+        + InkList(otherList: InkList)
+        + InkList(singleElement: Map.Entry<...>)
+        + union(otherList: InkList) : InkList
+        + without(listToRemove: InkList) : InkList
+        + intersect(otherList: InkList) : InkList
+        + hasIntersection(otherList: InkList) : Boolean
+        + containsList(otherList: InkList) : Boolean
+        + containsItemNamed(itemName: String) : Boolean
+        + greaterThan(otherList: InkList) : Boolean
+        + greaterThanOrEquals(otherList: InkList) : Boolean
+        + lessThan(otherList: InkList) : Boolean
+        + lessThanOrEquals(otherList: InkList) : Boolean
+        + maxAsList() : InkList
+        + minAsList() : InkList
+        + listWithSubRange(minBound: Any?, maxBound: Any?) : InkList
+        + addItem(item: InkListItem)
+        + addItem(itemName: String)
+        + setInitialOriginName(name: String)
+        + setInitialOriginNames(names: List<String>?)
+        + operator plus(other: InkList) : InkList
+        + operator minus(other: InkList) : InkList
+        + equals(other: Any?) : Boolean
+        + hashCode() : Int
+        .. companion ..
+        {static} fromString(myListItem: String, originStory: Story) : InkList
+    }
+
+    note right of InkList
+      **Kotlin:** ""MutableMap by _map"" delegation —
+      all Map methods delegated to LinkedHashMap.
+      ""operator plus/minus"" for ink list arithmetic.
+      **C#:** ""InkList : Dictionary<InkListItem, int>""
+      **Java:** ""InkList extends HashMap<InkListItem, Integer>""
+      Kotlin avoids Java's verbose ""CustomEntry"" hack.
+    end note
+
+    class InkListItem <<data class>> {
+        + originName : String?
+        + itemName : String?
+        + isNull : Boolean <<get>>
+        + fullName : String <<get>>
+        --
+        + InkListItem(originName?, itemName?)
+        + InkListItem(fullName: String)
+        + hashCode() : Int
+        .. companion ..
+        {static} Null : InkListItem
+    }
+
+    note right of InkListItem
+      **Kotlin:** ""data class"" — equals,
+      hashCode, copy, destructuring for free.
+      **C#:** ""struct"" (value type, readonly).
+      **Java:** regular class with verbose getters.
+    end note
+
+    class ListDefinition {
+        + name : String?
+        - itemNameToValues : Map<String, Int>
+        + items : Map<InkListItem, Int> <<lazy>>
+        --
+        + ListDefinition(name?, itemNameToValues)
+        + getValueForItem(item: InkListItem) : Int?
+        + containsItem(item: InkListItem) : Boolean
+        + containsItemWithName(itemName: String) : Boolean
+        + getItemWithValue(value: Int) : InkListItem?
+    }
+
+    note right of ListDefinition
+      Kotlin: ""by lazy"" for items property.
+      C#/Java: null-check init pattern.
+    end note
+
+    class ListDefinitionsOrigin {
+        - _lists : Map<String, ListDefinition>
+        - _allUnambiguousListValueCache : Map<String, ListValue>
+        + lists : List<ListDefinition> <<get>>
+        --
+        + ListDefinitionsOrigin(listDefs: List<ListDefinition>)
+        + getListDefinition(name: String) : ListDefinition?
+        + findSingleItemListWithName(name: String) : ListValue?
+    }
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' SECTION 5: STATE
+' ══════════════════════════════════════════════════════════════════════════════
+
+package "5. State" #E3F2FD {
+
+    class StoryState {
+        - rootContentContainer : Container
+        - listDefsOrigin : ListDefinitionsOrigin
+        - errorHandler : ErrorHandler?
+        + currentErrors : MutableList<String>?
+        + currentWarnings : MutableList<String>?
+        + currentTurnIndex : Int
+        + didSafeExit : Boolean
+        + divertedPointer : Pointer
+        + evaluationStack : MutableList<InkObject>
+        + storySeed : Int
+        + previousRandom : Int
+        + variablesState : VariablesState
+        + patch : StatePatch?
+        + callStack : CallStack <<get>>
+        + outputStream : MutableList<InkObject> <<get>>
+        + currentChoices : List<Choice> <<get>>
+        + canContinue : Boolean <<get>>
+        + hasError : Boolean <<get>>
+        + hasWarning : Boolean <<get>>
+        + currentPointer : Pointer <<get/set>>
+        + previousPointer : Pointer <<get/set>>
+        + inExpressionEvaluation : Boolean <<get/set>>
+        + currentText : String <<get>>
+        + currentTags : List<String> <<get>>
+        + currentPathString : String? <<get>>
+        + currentFlowName : String <<get>>
+        + currentFlowIsDefaultFlow : Boolean <<get>>
+        + aliveFlowNames : List<String> <<get>>
+        + inStringEvaluation : Boolean <<get>>
+        + onDidLoadState : OnDidLoadState?
+        --
+        + goToStart()
+        + setChosenPath(path: Path, incrementingTurnIndex: Boolean)
+        + pushEvaluationStack(obj: InkObject)
+        + popEvaluationStack() : InkObject
+        + popEvaluationStack(n: Int) : List<InkObject>
+        + peekEvaluationStack() : InkObject
+        + pushToOutputStream(obj: InkObject)
+        + popFromOutputStream(count: Int)
+        + resetOutput(objs: List<InkObject>?)
+        + popCallstack(popType: PushPopType?)
+        + forceEnd()
+        + switchFlowInternal(flowName: String)
+        + switchToDefaultFlowInternal()
+        + removeFlowInternal(flowName: String)
+        + addError(message: String, isWarning: Boolean)
+        + resetErrors()
+        + resetWarnings()
+        + visitCountForContainer(container: Container) : Int
+        + incrementVisitCountForContainer(container: Container)
+        + recordTurnIndexVisitToContainer(container: Container)
+        + turnsSinceForContainer(container: Container) : Int
+        + startFunctionEvaluationFromGame(funcContainer, arguments)
+        + completeFunctionEvaluationFromGame() : Any?
+        + tryExitFunctionEvaluationFromGame() : Boolean
+        + copyAndStartPatching(forBackgroundSave: Boolean) : StoryState
+        + restoreAfterPatch()
+        + applyAnyPatch()
+        + cleanOutputWhitespace(str: String) : String
+        + executeOutputOp(op: OutputOp)
+        .. companion ..
+        {static} INK_SAVE_STATE_VERSION : Int = 10
+        {static} MIN_COMPATIBLE_LOAD_VERSION : Int = 8
+        {static} DEFAULT_FLOW_NAME : String
+    }
+
+    note right of StoryState
+      **Kotlin:** fun interface ErrorHandler, OnDidLoadState (SAM).
+      enum class OutputOp — functional dispatch.
+      ""buildString"" for currentText/currentTags.
+      ""kotlin.random.Random"" for seed.
+      **C#:** delegates, Stream overloads.
+      **Java:** HashMap, verbose InnerWriter for JSON.
+    end note
+
+    interface "StoryState.ErrorHandler" as SSErrorHandler <<fun interface>> {
+        + onError(message: String, isWarning: Boolean)
+    }
+
+    interface "StoryState.OnDidLoadState" as OnDidLoadState <<fun interface>> {
+        + onLoaded()
+    }
+
+    enum "StoryState.OutputOp" as OutputOp {
+        DIRTY
+        TRIM_NEWLINES
+        REMOVE_GLUE
+        TRIM_FUNCTION_END
+    }
+
+    class CallStack {
+        - _threads : MutableList<Thread>
+        - _threadCounter : Int
+        - _startOfRoot : Pointer
+        + elements : List<Element> <<get>>
+        + depth : Int <<get>>
+        + currentElement : Element <<get>>
+        + currentElementIndex : Int <<get>>
+        + currentThread : Thread <<get/set>>
+        + canPop : Boolean <<get>>
+        + canPopThread : Boolean <<get>>
+        + elementIsEvaluateFromGame : Boolean <<get>>
+        + threads : List<Thread> <<get>>
+        + threadCounter : Int <<get>>
+        + callStackTrace : String <<get>>
+        --
+        + CallStack(rootContentContainer: Container)
+        + CallStack(toCopy: CallStack)
+        + reset()
+        + push(type: PushPopType, evalStackHeight, outputStreamLen)
+        + pop(type: PushPopType?)
+        + canPop(type: PushPopType?) : Boolean
+        + pushThread()
+        + popThread()
+        + forkThread() : Thread
+        + threadWithIndex(index: Int) : Thread?
+        + getTemporaryVariableWithName(name, contextIndex) : InkObject?
+        + setTemporaryVariable(name, value, declareNew, contextIndex)
+        + contextForVariableNamed(name: String) : Int
+        + setJsonToken(threads, threadCounter, startOfRoot)
+    }
+
+    note right of CallStack
+      **Fixed Java bug:** setTemporaryVariable
+      infinite recursion (3-arg calling itself
+      instead of 4-arg). Kotlin default params
+      eliminate the bug entirely.
+      ""buildString"" for callStackTrace.
+    end note
+
+    class "CallStack.Element" as CSElement {
+        + type : PushPopType
+        + currentPointer : Pointer
+        + inExpressionEvaluation : Boolean
+        + temporaryVariables : LinkedHashMap<String, InkObject>
+        + evaluationStackHeightWhenPushed : Int
+        + functionStartInOutputStream : Int
+        --
+        + Element(type, pointer, inExprEval)
+        + copy() : Element
+    }
+
+    class "CallStack.Thread" as CSThread {
+        + callstack : MutableList<Element>
+        + threadIndex : Int
+        + previousPointer : Pointer
+        --
+        + Thread()
+        + Thread(other: Thread)
+        + copy() : Thread
+    }
+
+    class Flow {
+        + name : String
+        + callStack : CallStack
+        + outputStream : MutableList<InkObject>
+        + currentChoices : MutableList<Choice>
+        --
+        + Flow(name: String, rootContentContainer: Container)
+        + loadFlowChoiceThreads(jChoiceThreads, activeCallStack)
+    }
+
+    note right of Flow
+      **Kotlin:** type-safe MutableList<InkObject>
+      output stream. JSON serialization deferred
+      to JsonSerialisation.kt (separation of concerns).
+      **C#:** WriteJson lambda delegates.
+      **Java:** InnerWriter anonymous classes.
+    end note
+
+    class StatePatch {
+        + globals : LinkedHashMap<String, InkObject>
+        + changedVariables : LinkedHashSet<String>
+        + visitCounts : LinkedHashMap<Container, Int>
+        + turnIndices : LinkedHashMap<Container, Int>
+        --
+        + StatePatch(toCopy: StatePatch? = null)
+        + getGlobal(name: String) : InkObject?
+        + setGlobal(name: String, value: InkObject)
+        + addChangedVariable(name: String)
+        + getVisitCount(container: Container) : Int?
+        + setVisitCount(container: Container, count: Int)
+        + getTurnIndex(container: Container) : Int?
+        + setTurnIndex(container: Container, index: Int)
+    }
+
+    note right of StatePatch
+      **Kotlin:** LinkedHashMap + LinkedHashSet
+      throughout (insertion-order + O(1)).
+      ""?.let"" for clean copy constructor.
+      **C#:** Dictionary, TryGet out-param.
+      **Java:** HashMap, null-check getters.
+    end note
+
+    class VariablesState <<Iterable<String>>> {
+        - _globalVariables : LinkedHashMap<String, InkObject>
+        - _defaultGlobalVariables : LinkedHashMap<String, InkObject>?
+        - _batchObservingVariableChanges : Boolean
+        - _changedVariablesForBatchObs : LinkedHashSet<String>?
+        + variableChangedEvent : VariableChanged?
+        + patch : StatePatch?
+        + callStack : CallStack <<get/set>>
+        + globalVariables : LinkedHashMap<String, InkObject> <<get>>
+        + dontSaveDefaultValues : Boolean
+        --
+        + VariablesState(callStack, listDefsOrigin)
+        + operator get(variableName: String) : Any?
+        + operator set(variableName: String, value: Any?)
+        + iterator() : Iterator<String>
+        + assign(varAss: VariableAssignment, value: InkObject)
+        + getVariableWithName(name, contextIndex) : InkObject?
+        + getRawVariableWithName(name, contextIndex) : InkObject?
+        + valueAtVariablePointer(pointer: VariablePointerValue) : InkObject?
+        + globalVariableExistsWithName(name: String) : Boolean
+        + tryGetDefaultVariableValue(name: String) : InkObject?
+        + setGlobal(variableName: String, value: InkObject)
+        + runtimeObjectsEqual(obj1, obj2) : Boolean
+        + startVariableObservation()
+        + completeVariableObservation() : LinkedHashMap<String, InkObject>
+        + notifyObservers(changedVars: Map<String, InkObject>)
+        + applyPatch()
+        + setJsonToken(jToken: Map<String, Any?>)
+        + snapshotDefaultGlobals()
+        .. companion ..
+        {static} dontSaveDefaultValuesGlobal : Boolean
+    }
+
+    note right of VariablesState
+      **Kotlin:** ""operator get/set"" —
+      ""state["var"]"" = value (like C# indexer).
+      ""fun interface VariableChanged"" (SAM).
+      ""when"" for runtimeObjectsEqual.
+      **C#:** IEnumerable<string>, delegate, indexer.
+      **Java:** Iterable<String>, interface, get/set.
+    end note
+
+    interface "VariablesState.VariableChanged" as VarChanged <<fun interface>> {
+        + onVariableChanged(variableName: String, newValue: InkObject)
+    }
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' SECTION 6: RUNTIME
+' ══════════════════════════════════════════════════════════════════════════════
+
+package "6. Runtime" #E3F2FD {
+
+    class Story {
+        - mainContentContainer : Container?
+        - listDefinitions : ListDefinitionsOrigin?
+        - allowExternalFunctionFallbacks : Boolean
+        - externals : HashMap<String, ExternalFunctionDef>
+        - hasValidatedExternals : Boolean
+        - temporaryEvaluationContainer : Container?
+        - variableObservers : HashMap<String, MutableList<VariableObserver>>?
+        - profiler : Profiler?
+        - asyncContinueActive : Boolean
+        - stateSnapshotAtLastNewline : StoryState?
+        - recursiveContinueCount : Int
+        + state : StoryState
+        + onError : ErrorHandler?
+        + currentChoices : List<Choice> <<get>>
+        + currentText : String <<get>>
+        + currentTags : List<String> <<get>>
+        + currentErrors : List<String>? <<get>>
+        + currentWarnings : List<String>? <<get>>
+        + variablesState : VariablesState <<get>>
+        + listDefinitionsOrigin : ListDefinitionsOrigin? <<get>>
+        + hasError : Boolean <<get>>
+        + hasWarning : Boolean <<get>>
+        + currentFlowName : String <<get>>
+        + aliveFlowNames : List<String> <<get>>
+        + mainContent : Container <<get>>
+        + allowExternalFallbacks : Boolean <<get/set>>
+        --
+        + Story(contentContainer: Container, lists?)
+        + Story(jsonString: String)
+        + canContinue() : Boolean
+        + continueStory() : String
+        + continueMaximally() : String
+        + continueAsync(millisecsLimitAsync: Float)
+        + asyncContinueComplete() : Boolean
+        + chooseChoiceIndex(choiceIdx: Int)
+        + choosePathString(path, resetCallstack, arguments)
+        + switchFlow(flowName: String)
+        + removeFlow(flowName: String)
+        + switchToDefaultFlow()
+        + bindExternalFunction(funcName, func, lookaheadSafe)
+        + unbindExternalFunction(funcName: String)
+        + getExternalFunction(name: String) : ExternalFunction?
+        + getGlobalTags() : List<String>?
+        + tagsForContentAtPath(path: String) : List<String>?
+        + observeVariable(variableName, observer)
+        + observeVariables(variableNames, observer)
+        + removeVariableObserver(observer, specificVariableName?)
+        + evaluateExpression(exprContainer: Container) : InkObject?
+        + evaluateFunction(functionName, arguments?) : Any?
+        + evaluateFunction(functionName, textOutput, arguments) : Any?
+        + hasFunction(functionName: String) : Boolean
+        + contentAtPath(path: Path) : SearchResult
+        + startProfiling() : Profiler
+        + endProfiling()
+        + toJson() : String
+        + resetState()
+        + resetCallstack()
+        + resetErrors()
+        + validateExternalBindings()
+        + buildStringOfHierarchy() : String
+        + copyStateForBackgroundThreadSave() : StoryState
+        + backgroundSaveComplete()
+        + onVariableChanged(variableName, newValue)
+        .. companion ..
+        {static} INK_VERSION_CURRENT : Int = 21
+        {static} INK_VERSION_MINIMUM_COMPATIBLE : Int = 18
+    }
+
+    note right of Story
+      **Kotlin:** implements ""VariablesState.VariableChanged"" (fun interface).
+      ""fun interface ExternalFunction"" — replaces 4 Java abstract classes
+      (ExternalFunction0/1/2/3). SAM lambda binding.
+      ""fun interface VariableObserver"" — SAM lambda binding.
+      ""when"" expressions for ControlCommand dispatch.
+      **C#:** Story : Object — delegates, Stream overloads.
+      **Java:** Story implements VariableChanged — 2928 lines.
+    end note
+
+    interface "Story.ExternalFunction" as ExtFunc <<fun interface>> {
+        + call(args: Array<out Any?>) : Any?
+    }
+
+    interface "Story.VariableObserver" as VarObserver <<fun interface>> {
+        + call(variableName: String, newValue: Any?)
+    }
+
+    class Profiler {
+        - continueWatch : Stopwatch
+        - stepWatch : Stopwatch
+        - snapWatch : Stopwatch
+        - continueTotal : Double
+        - snapTotal : Double
+        - stepTotal : Double
+        + rootNode : ProfileNode
+        - numContinues : Int
+        - stepDetails : MutableList<StepDetails>
+        --
+        + report() : String
+        + stepLengthReport() : String
+        + megalog() : String
+        ~ preContinue()
+        ~ postContinue()
+        ~ preStep()
+        ~ step(callstack: CallStack)
+        ~ postStep()
+        ~ preSnapshot()
+        ~ postSnapshot()
+        .. companion ..
+        {static} formatMillisecs(num: Double) : String
+    }
+
+    note right of Profiler
+      **Kotlin:** ProfileNode as top-level class
+      (same file). ""data class StepDetails"".
+      ""buildString"", ""sortedByDescending"".
+      **C#:** Profiler + ProfileNode (separate files).
+      **Java:** Profiler + ProfileNode (separate files).
+      **JS:** not implemented.
+    end note
+
+    class ProfileNode {
+        + key : String?
+        - nodes : HashMap<String, ProfileNode>?
+        - selfMillisecs : Double
+        + totalMillisecs : Double
+        - selfSampleCount : Int
+        - totalSampleCount : Int
+        + openInUI : Boolean
+        + hasChildren : Boolean <<get>>
+        + descendingOrderedNodes : List<...>? <<get>>
+        + ownReport : String <<get>>
+        --
+        + ProfileNode(key: String? = null)
+        ~ addSample(stack: Array<String>, duration: Double)
+        + toString() : String
+    }
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' SECTION 7: SERIALIZATION
+' ══════════════════════════════════════════════════════════════════════════════
+
+package "7. Serialization" #F3E5F5 {
+
+    object SimpleJson {
+        + textToDictionary(text: String) : LinkedHashMap<String, Any?>
+        + textToArray(text: String) : List<Any?>
+    }
+
+    class "SimpleJson.Reader" as SJReader <<internal>> {
+        - text : String
+        - offset : Int
+        - rootObject : Any?
+        --
+        + Reader(text: String)
+        + toDictionary() : LinkedHashMap<String, Any?>
+        + toArray() : List<Any?>
+        - readObject() : Any?
+        - readDictionary() : LinkedHashMap<String, Any?>
+        - readArray() : MutableList<Any?>
+        - readString() : String
+        - readNumber() : Any
+        - tryRead(textToRead: String) : Boolean
+        - expect(expectedStr: String)
+        - skipWhitespace()
+    }
+
+    note right of SJReader
+      Recursive descent JSON reader.
+      **Kotlin:** ""internal"" visibility.
+      **C#:** ""private"" nested class.
+      **Java:** package-private static inner.
+    end note
+
+    class "SimpleJson.Writer" as SJWriter {
+        - sb : StringBuilder
+        - stateStack : ArrayDeque<StateElement>
+        --
+        + writeObject(inner: InnerWriter)
+        + writeObjectStart()
+        + writeObjectEnd()
+        + writeProperty(name: String, inner: InnerWriter)
+        + writeProperty(name: String, content: String)
+        + writeProperty(name: String, content: Int)
+        + writeProperty(name: String, content: Boolean)
+        + writePropertyStart(name: String)
+        + writePropertyEnd()
+        + writePropertyNameStart()
+        + writePropertyNameEnd()
+        + writePropertyNameInner(str: String)
+        + writeArrayStart()
+        + writeArrayEnd()
+        + write(i: Int)
+        + write(f: Float)
+        + write(str: String, escape: Boolean)
+        + write(b: Boolean)
+        + writeNull()
+        + writeStringStart()
+        + writeStringEnd()
+        + writeStringInner(str: String, escape: Boolean)
+        + clear()
+        + toString() : String
+    }
+
+    note right of SJWriter
+      StringBuilder only (no Stream).
+      commonMain compatible. ArrayDeque
+      stack (no synchronized overhead).
+      **C#:** supports StringWriter + Stream.
+      **Java:** StringWriter + OutputStream.
+    end note
+
+    interface "SimpleJson.InnerWriter" as InnerWriter <<fun interface>> {
+        + write(w: Writer)
+    }
+
+    object JsonSerialisation {
+        + writeListRuntimeObjs(writer, list)
+        + writeDictionaryRuntimeObjs(writer, dictionary)
+        + writeIntDictionary(writer, dict)
+        + writeRuntimeObject(writer, obj)
+        + writeRuntimeContainer(writer, container, withoutName)
+        + writeChoice(writer, choice)
+        + jArrayToRuntimeObjList(jArray, skipLast) : MutableList<InkObject>
+        + jObjectToDictionaryRuntimeObjs(jObject) : LinkedHashMap<String, InkObject>
+        + jObjectToIntDictionary(jObject) : LinkedHashMap<String, Int>
+        + jTokenToRuntimeObject(token: Any?) : InkObject?
+        + listDefinitionsToJToken(origin) : LinkedHashMap<String, Any?>
+        + jTokenToListDefinitions(obj: Any?) : ListDefinitionsOrigin
+        - controlCommandNames : Array<String>
+    }
+
+    note right of JsonSerialisation
+      **Kotlin:** ""object"" singleton.
+      ""when (obj)"" with smart casts for
+      read/write dispatch (vs if-instanceof).
+      **C#:** static class Json.
+      **Java:** static class Json.
+      Zero 3rd-party deps. Pure Kotlin stdlib.
+    end note
+
+    object Json <<internal>> {
+        + jTokenToRuntimeObject(token: Any?) : InkObject?
+    }
+
+    note right of Json
+      Thin delegate to
+      JsonSerialisation —
+      preserves call sites
+      used by VariablesState.
+    end note
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' SECTION 8: INFRASTRUCTURE
+' ══════════════════════════════════════════════════════════════════════════════
+
+package "8. Infrastructure" #ECEFF1 {
+
+    class Stopwatch {
+        - timeSource : TimeSource.Monotonic
+        - mark : TimeSource.Monotonic.ValueTimeMark?
+        - stoppedDuration : Duration
+        - running : Boolean
+        + elapsed : Duration <<get>>
+        + elapsedMilliseconds : Long <<get>>
+        + elapsedNanoseconds : Long <<get>>
+        + elapsedMicroseconds : Long <<get>>
+        --
+        + start()
+        + stop()
+        + reset()
+    }
+
+    note right of Stopwatch
+      **Kotlin:** kotlin.time.TimeSource.Monotonic
+      — 30 lines, cross-platform, nano precision.
+      **C#:** System.Diagnostics.Stopwatch.
+      **Java:** custom Stopwatch, System.nanoTime()
+      — 147 lines.
+    end note
+
+    object InkClock {
+        + clockSource : () -> Long
+        + nanoClockSource : () -> Long
+        --
+        + epochMillis() : Long
+        + epochNanos() : Long
+        + epochSeconds() : Long
+        + utcIso8601() : String
+        + utcBackupTimestamp() : String
+        + utcICalTimestamp() : String
+        + localIso8601(offsetHours, offsetMinutes) : String
+        + utcDateComponents(epochMs?) : DateComponents
+        + localDateComponents(offsetHours, offsetMinutes, epochMs?) : DateComponents
+        + timeSeed() : Int
+        + epochMillisMinusDays(days: Long) : Long
+        + durationBetween(startMs, endMs) : Duration
+        + resetToSystemClock()
+        + setFixedClock(fixedMs: Long)
+    }
+
+    note right of InkClock
+      **Kotlin:** kotlinx-datetime Clock.System.
+      Pluggable clockSource for testing.
+      Replaces System.currentTimeMillis()
+      across 6 engines.
+    end note
+
+    class DateComponents <<data class>> {
+        + year : Int
+        + month : Int
+        + day : Int
+        + hour : Int
+        + minute : Int
+        + second : Int
+        + millisecond : Int
+        + nanosecond : Long
+        + dayOfWeek : Int
+        + dayOfYear : Int
+    }
+
+    class StoryException {
+        + useEndLineNumber : Boolean
+        --
+        + StoryException(message: String?)
+    }
+
+    enum ErrorType {
+        Author
+        Warning
+        Error
+    }
+
+    interface ErrorHandler <<fun interface>> {
+        + error(message: String, type: ErrorType)
+    }
+
+    note right of ErrorHandler
+      **Kotlin:** ""fun interface"" (SAM).
+      **Java:** interface ErrorHandler.
+      **C#:** delegate.
+      Package-level fun interface.
+    end note
+
+    enum PushPopType {
+        Tunnel
+        Function
+        FunctionEvaluationFromGame
+    }
+
+    interface INamedContent {
+        + name : String? <<get>>
+        + hasValidName : Boolean <<get>>
+    }
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' RELATIONSHIPS: Inheritance
+' ══════════════════════════════════════════════════════════════════════════════
+
+' Core inheritance
+Container --|> InkObject
+Container ..|> INamedContent
+
+' Content inheritance
+ChoicePoint --|> InkObject
+Choice --|> InkObject
+Divert --|> InkObject
+Glue --|> InkObject
+Tag --|> InkObject
+Void --|> InkObject
+ControlCommand --|> InkObject
+VariableAssignment --|> InkObject
+VariableReference --|> InkObject
+NativeFunctionCall --|> InkObject
+
+' Value hierarchy (sealed class)
+Value --|> InkObject
+BoolValue --|> Value
+IntValue --|> Value
+FloatValue --|> Value
+StringValue --|> Value
+DivertTargetValue --|> Value
+VariablePointerValue --|> Value
+ListValue --|> Value
+
+' Story implements VariablesState.VariableChanged
+Story ..|> VarChanged
+
+' Exception hierarchy
+StoryException --|> Exception
+
+' ══════════════════════════════════════════════════════════════════════════════
+' RELATIONSHIPS: Associations
+' ══════════════════════════════════════════════════════════════════════════════
+
+' Core associations
+InkObject "0..1" --> "parent" Container
+Container "1" *--> "*" InkObject : content
+Container "1" *--> "*" INamedContent : namedContent
+PathComponent "1..*" --* Path : _components
+SearchResult --> "0..1" InkObject : obj
+Pointer --> "0..1" Container : container
+
+' Content associations
+ChoicePoint --> Path : _pathOnChoice
+Choice --> Path : targetPath
+Choice --> "0..1" CSThread : threadAtGeneration
+Divert --> Path : _targetPath
+ControlCommand --> CommandType
+
+' Value associations
+DivertTargetValue --> Path : targetPath
+ListValue --> InkList : value
+
+' List associations
+InkList --> "*" InkListItem : keys
+InkList --> "*" ListDefinition : origins
+ListDefinition --> "*" InkListItem : items
+ListDefinitionsOrigin --> "*" ListDefinition : _lists
+ListDefinitionsOrigin --> "*" ListValue : _allUnambiguousListValueCache
+
+' State associations
+StoryState --> Container : rootContentContainer
+StoryState --> ListDefinitionsOrigin : listDefsOrigin
+StoryState --> VariablesState : variablesState
+StoryState --> StatePatch : patch
+StoryState --> Flow : currentFlow
+StoryState --> "*" Flow : namedFlows
+Flow --> CallStack : callStack
+Flow --> "*" Choice : currentChoices
+Flow --> "*" InkObject : outputStream
+CallStack --> "*" CSThread : _threads
+CSThread --> "*" CSElement : callstack
+CSElement --> Pointer : currentPointer
+VariablesState --> CallStack : _callStack
+VariablesState --> ListDefinitionsOrigin : _listDefsOrigin
+VariablesState --> StatePatch : patch
+StatePatch --> "*" Container : visitCounts / turnIndices
+
+' Runtime associations
+Story --> StoryState : state
+Story --> Container : mainContentContainer
+Story --> ListDefinitionsOrigin : listDefinitions
+Story --> Profiler : profiler
+Profiler --> "*" Stopwatch : continueWatch, stepWatch, snapWatch
+Profiler --> ProfileNode : rootNode
+
+' Serialization associations
+JsonSerialisation ..> SimpleJson : uses Writer
+Json ..> JsonSerialisation : delegates to
+
+' Nested class ownership
+NativeFunctionCall +-- BinaryOp
+NativeFunctionCall +-- UnaryOp
+SimpleJson +-- SJReader
+SimpleJson +-- SJWriter
+SimpleJson +-- InnerWriter
+CallStack +-- CSElement
+CallStack +-- CSThread
+StoryState +-- SSErrorHandler
+StoryState +-- OnDidLoadState
+StoryState +-- OutputOp
+Story +-- ExtFunc
+Story +-- VarObserver
+VariablesState +-- VarChanged
+ControlCommand +-- CommandType
+
+' ══════════════════════════════════════════════════════════════════════════════
+' LEGEND
+' ══════════════════════════════════════════════════════════════════════════════
+
+legend bottom right
+  |= Color |= Meaning |
+  | <#E3F2FD> | Kotlin class (ink.kt package) |
+  | <#E8F5E9> | Interface / fun interface |
+  | <#FFF3E0> | Enum class |
+  | <#F3E5F5> | Object singleton |
+  | <#ECEFF1> | Infrastructure / utilities |
+  |= Symbol |= Meaning |
+  | --|> | Inheritance (extends / sealed) |
+  | ..|> | Interface implementation |
+  | *--> | Composition (owns) |
+  | --> | Association (references) |
+  | +-- | Nested class ownership |
+  | ..> | Dependency (uses) |
+endlegend
+
+@enduml

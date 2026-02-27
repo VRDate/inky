@@ -1,5 +1,15 @@
 package ink.kt
 
+/**
+ * Runtime instruction that reads a variable value.
+ *
+ * Three-way comparison:
+ * - C#: `Ink.Runtime.VariableReference` — same fields
+ * - Java: `VariableReference` — same
+ * - JS: `VariableReference` — same
+ *
+ * Kotlin: Same structure. `name` (variable name) and optional `pathForCount`.
+ */
 class VariableReference(var name: String? = null) : InkObject() {
 
     var pathForCount: Path? = null

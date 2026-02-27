@@ -1,10 +1,17 @@
 package ink.kt
 
 /**
- * Runtime container for ink content. Containers hold ordered content lists
- * and named sub-containers (knots, stitches, functions, etc.).
+ * Runtime container for ink content. Holds ordered content list + named sub-containers.
  *
- * Ported from blade-ink Java (RTObject → InkObject, Java collections → Kotlin).
+ * Three-way comparison:
+ * - C#: `Ink.Runtime.Container` — Dictionary<string, INamedContent>
+ * - Java: `Container` — HashMap<String, INamedContent>
+ * - JS: `Container` — same structure
+ *
+ * Kotlin improvements:
+ * - **LinkedHashMap** preserves insertion order for named content
+ * - **`content: MutableList<InkObject>`** typed list vs raw Object list
+ * - **Property syntax** for countersAtStartOnly, visitsShouldBeCounted, etc.
  */
 class Container : InkObject(), INamedContent {
     private var _name: String? = null

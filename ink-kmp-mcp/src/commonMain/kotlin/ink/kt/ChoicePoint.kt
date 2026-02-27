@@ -1,5 +1,16 @@
 package ink.kt
 
+/**
+ * Compile-time choice structure. Resolved at runtime into a Choice.
+ *
+ * Three-way comparison:
+ * - C#: `Ink.Runtime.ChoicePoint` — same fields
+ * - Java: `ChoicePoint` — same, flag bitmask for conditions
+ * - JS: `ChoicePoint` — same
+ *
+ * Kotlin: Same flag-based approach as Java/C#. Properties for hasCondition,
+ * hasStartContent, etc. each backed by bit flags.
+ */
 class ChoicePoint(var onceOnly: Boolean = true) : InkObject() {
     private var _pathOnChoice: Path? = null
 

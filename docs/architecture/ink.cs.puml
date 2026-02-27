@@ -1,0 +1,901 @@
+@startuml ink-csharp-runtime
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam classAttributeIconSize 0
+
+' ── Purple theme for C# classes ──
+skinparam class {
+    BackgroundColor #E8D5F5
+    BorderColor #7B1FA2
+    HeaderBackgroundColor #CE93D8
+    FontColor #311B92
+    ArrowColor #7B1FA2
+    StereotypeFontColor #6A1B9A
+}
+skinparam package {
+    BackgroundColor #F3E5F5
+    BorderColor #9C27B0
+    FontColor #4A148C
+}
+skinparam note {
+    BackgroundColor #FFF9C4
+    BorderColor #F9A825
+    FontColor #333333
+}
+
+title Ink C# Runtime — Class Diagram (Reference Implementation)\nNamespace: Ink.Runtime (inkle/ink)
+footer C# Reference (inkle) | Java Port (blade-ink) | Kotlin Port (ink-kmp) | JS Port (inkjs)
+
+' ╔══════════════════════════════════════════════════════════════════════╗
+' ║  CORE                                                               ║
+' ╚══════════════════════════════════════════════════════════════════════╝
+
+package "Core" #F3E5F5 {
+
+    interface INamedContent <<interface>> {
+        + {abstract} name : string { get }
+        + {abstract} hasValidName : bool { get }
+    }
+
+    class "Object\n(InkObject)" as InkObject {
+        + parent : Container
+        + ownDebugMetadata : DebugMetadata
+        + debugMetadata : DebugMetadata { get }
+        + path : Path { get }
+        + rootContentContainer : Container { get }
+        --
+        + DebugLineNumberOfPath(path: Path) : int?
+        + ResolvePath(path: Path) : SearchResult
+        + ConvertPathToRelative(globalPath: Path) : Path
+        + CompactPathString(otherPath: Path) : string
+        + Copy() : Object
+    }
+
+    class Container {
+        + content : List<Object>
+        + namedContent : Dictionary<string, INamedContent>
+        + namedOnlyContent : Dictionary<string, Object>
+        + visitsShouldBeCounted : bool
+        + turnIndexShouldBeCounted : bool
+        + countingAtStartOnly : bool
+        + countFlags : int
+        --
+        + name : string { get; set }
+        + hasValidName : bool { get }
+        --
+        + AddContent(contentObj: Object)
+        + InsertContent(contentObj: Object, index: int)
+        + AddContentsOfContainer(otherContainer: Container)
+        + AddToNamedContentOnly(namedContentObj: INamedContent)
+        + ContentAtPath(path: Path, ...) : SearchResult
+        + ContentWithPathComponent(component: Path.Component) : Object
+        + BuildStringOfHierarchy() : string
+        __constants__
+        + {static} CountFlags_Visits = 1
+        + {static} CountFlags_Turns = 2
+        + {static} CountFlags_CountStartOnly = 4
+    }
+
+    class Path {
+        - _components : List<Component>
+        - _componentsString : string
+        + isRelative : bool
+        --
+        + head : Component { get }
+        + tail : Path { get }
+        + length : int { get }
+        + lastComponent : Component { get }
+        + componentsString : string { get }
+        --
+        + Path()
+        + Path(head: Component, tail: Path)
+        + Path(components: IEnumerable<Component>, relative: bool)
+        + Path(componentsString: string)
+        + GetComponent(index: int) : Component
+        + ContainsNamedComponent() : bool
+        + PathByAppendingPath(pathToAppend: Path) : Path
+        + PathByAppendingComponent(c: Component) : Path
+        __static__
+        + {static} self : Path { get }
+    }
+
+    class "Path.Component" as PathComponent {
+        + index : int { get }
+        + name : string { get }
+        + isIndex : bool { get }
+        + isParent : bool { get }
+        --
+        + Component(index: int)
+        + Component(name: string)
+        + {static} ToParent() : Component
+    }
+
+    class SearchResult <<struct>> {
+        + obj : Object
+        + approximate : bool
+        + correctObj : Object { get }
+        + container : Container { get }
+    }
+
+    class Pointer <<struct>> {
+        + container : Container
+        + index : int
+        --
+        + isNull : bool { get }
+        + path : Path { get }
+        --
+        + Resolve() : Object
+        + {static} Null : Pointer
+        + {static} StartOf(container: Container) : Pointer
+    }
+
+    class DebugMetadata {
+        + startLineNumber : int
+        + endLineNumber : int
+        + startCharacterNumber : int
+        + endCharacterNumber : int
+        + fileName : string
+        + sourceName : string
+        --
+        + Merge(dm: DebugMetadata) : DebugMetadata
+    }
+
+    Path +-- PathComponent
+}
+
+' ╔══════════════════════════════════════════════════════════════════════╗
+' ║  CONTENT                                                            ║
+' ╚══════════════════════════════════════════════════════════════════════╝
+
+package "Content" #F3E5F5 {
+
+    class ChoicePoint {
+        + onceOnly : bool
+        + hasCondition : bool
+        + hasStartContent : bool
+        + hasChoiceOnlyContent : bool
+        + isInvisibleDefault : bool
+        + choiceTarget : Container { get }
+        + pathOnChoice : Path { get; set }
+        + pathStringOnChoice : string { get; set }
+        + flags : int { get; set }
+    }
+
+    class Choice {
+        + text : string
+        + index : int
+        + targetPath : Path
+        + sourcePath : string
+        + isInvisibleDefault : bool
+        + originalThreadIndex : int
+        + tags : List<string>
+        + threadAtGeneration : CallStack.Thread
+        + pathStringOnChoice : string { get; set }
+    }
+
+    class Divert {
+        + stackPushType : PushPopType
+        + pushesToStack : bool
+        + isExternal : bool
+        + externalArgs : int
+        + isConditional : bool
+        + variableDivertName : string
+        + hasVariableTarget : bool { get }
+        + targetPath : Path { get; set }
+        + targetPointer : Pointer { get }
+        + targetPathString : string { get; set }
+    }
+
+    class Glue {
+    }
+
+    class Tag {
+        + text : string
+    }
+
+    class Void {
+    }
+
+    class ControlCommand {
+        + commandType : CommandType
+        --
+        + Copy() : Object
+    }
+
+    enum "ControlCommand.CommandType" as CommandType {
+        NotSet
+        EvalStart
+        EvalOutput
+        EvalEnd
+        Duplicate
+        PopEvaluatedValue
+        PopFunction
+        PopTunnel
+        BeginString
+        EndString
+        NoOp
+        ChoiceCount
+        Turns
+        TurnsSince
+        ReadCount
+        Random
+        SeedRandom
+        VisitIndex
+        SequenceShuffleIndex
+        StartThread
+        Done
+        End
+        ListFromInt
+        ListRange
+        ListRandom
+        BeginTag
+        EndTag
+    }
+
+    class VariableAssignment {
+        + variableName : string
+        + isNewDeclaration : bool
+        + isGlobal : bool
+    }
+
+    class VariableReference {
+        + name : string
+        + pathForCount : Path
+        + containerForCount : Container { get }
+        + pathStringForCount : string { get; set }
+    }
+
+    class NativeFunctionCall {
+        + name : string { get; set }
+        + numberOfParameters : int { get }
+        --
+        + Call(parameters: List<Object>) : Object
+        __static constants__
+        + {static} Add = "+"
+        + {static} Subtract = "-"
+        + {static} Multiply = "*"
+        + {static} Divide = "/"
+        + {static} Mod = "%"
+        + {static} Negate = "_"
+        + {static} Equal = "=="
+        + {static} Greater = ">"
+        + {static} Less = "<"
+        + {static} Not = "!"
+        + {static} And = "&&"
+        + {static} Or = "||"
+        + {static} Has = "?"
+        + {static} Hasnt = "!?"
+        + {static} Min = "MIN"
+        + {static} Max = "MAX"
+        + {static} Pow = "POW"
+        + {static} Floor = "FLOOR"
+        + {static} Ceiling = "CEILING"
+        + {static} CastInt = "INT"
+        + {static} CastFloat = "FLOAT"
+        + {static} Intersect = "^"
+        + {static} ListMin = "LIST_MIN"
+        + {static} ListMax = "LIST_MAX"
+        + {static} All = "LIST_ALL"
+        + {static} Count = "LIST_COUNT"
+        + {static} ValueOfList = "LIST_VALUE"
+        + {static} Invert = "LIST_INVERT"
+        __static__
+        + {static} CallExistsWithName(name: string) : bool
+        + {static} CallWithName(name: string) : NativeFunctionCall
+    }
+
+    ControlCommand +-- CommandType
+}
+
+' ╔══════════════════════════════════════════════════════════════════════╗
+' ║  VALUES                                                             ║
+' ╚══════════════════════════════════════════════════════════════════════╝
+
+package "Values" #F3E5F5 {
+
+    enum ValueType {
+        Bool
+        Int
+        Float
+        List
+        String
+        DivertTarget
+        VariablePointer
+    }
+
+    abstract class "Value<T>" as Value {
+        + value : T
+        + {abstract} valueType : ValueType { get }
+        + {abstract} isTruthy : bool { get }
+        + valueObject : object { get }
+        --
+        + {abstract} Cast(newType: ValueType) : Value
+        + Copy() : Object
+        + {static} Create(obj: object) : Value
+    }
+
+    class BoolValue {
+        + value : bool
+        + valueType : ValueType { get } = Bool
+        + isTruthy : bool { get }
+        + Cast(newType: ValueType) : Value
+    }
+
+    class IntValue {
+        + value : int
+        + valueType : ValueType { get } = Int
+        + isTruthy : bool { get }
+        + Cast(newType: ValueType) : Value
+    }
+
+    class FloatValue {
+        + value : float
+        + valueType : ValueType { get } = Float
+        + isTruthy : bool { get }
+        + Cast(newType: ValueType) : Value
+    }
+
+    class StringValue {
+        + value : string
+        + isNewline : bool { get }
+        + isInlineWhitespace : bool { get }
+        + isNonWhitespace : bool { get }
+        + valueType : ValueType { get } = String
+        + isTruthy : bool { get }
+        + Cast(newType: ValueType) : Value
+    }
+
+    class DivertTargetValue {
+        + targetPath : Path { get; set }
+        + valueType : ValueType { get } = DivertTarget
+        + isTruthy : bool { get }
+        + Cast(newType: ValueType) : Value
+    }
+
+    class VariablePointerValue {
+        + variableName : string { get; set }
+        + contextIndex : int
+        + valueType : ValueType { get } = VariablePointer
+        + isTruthy : bool { get }
+        + Cast(newType: ValueType) : Value
+        + Copy() : Object
+    }
+
+    class ListValue {
+        + value : InkList
+        + valueType : ValueType { get } = List
+        + isTruthy : bool { get }
+        + Cast(newType: ValueType) : Value
+        --
+        + ListValue()
+        + ListValue(list: InkList)
+        + ListValue(singleItem: InkListItem, singleValue: int)
+        + {static} RetainListOriginsForAssignment(oldValue: Object, newValue: Object)
+    }
+}
+
+' ╔══════════════════════════════════════════════════════════════════════╗
+' ║  LISTS                                                              ║
+' ╚══════════════════════════════════════════════════════════════════════╝
+
+package "Lists" #F3E5F5 {
+
+    class "InkList\n: Dictionary<InkListItem, int>" as InkList {
+        + origins : List<ListDefinition>
+        + originNames : List<string> { get }
+        + originOfMaxItem : ListDefinition { get }
+        --
+        + maxItem : KeyValuePair { get }
+        + minItem : KeyValuePair { get }
+        + orderedItems : List<KeyValuePair> { get }
+        + inverse : InkList { get }
+        + all : InkList { get }
+        --
+        + InkList()
+        + InkList(otherList: InkList)
+        + InkList(singleElement: KeyValuePair)
+        --
+        + Union(otherList: InkList) : InkList
+        + Without(listToRemove: InkList) : InkList
+        + Intersect(otherList: InkList) : InkList
+        + HasIntersection(otherList: InkList) : bool
+        + ContainsList(otherList: InkList) : bool
+        + ContainsItemNamed(itemName: string) : bool
+        + GreaterThan(otherList: InkList) : bool
+        + GreaterThanOrEquals(otherList: InkList) : bool
+        + LessThan(otherList: InkList) : bool
+        + LessThanOrEquals(otherList: InkList) : bool
+        + MaxAsList() : InkList
+        + MinAsList() : InkList
+        + ListWithSubRange(minBound: object, maxBound: object) : InkList
+        + AddItem(item: InkListItem)
+        + AddItem(itemName: string)
+        + SetInitialOriginName(initialOriginName: string)
+        + SetInitialOriginNames(initialOriginNames: List<string>)
+    }
+
+    class InkListItem <<struct>> {
+        + originName : string { get }
+        + itemName : string { get }
+        + isNull : bool { get }
+        + fullName : string { get }
+        --
+        + InkListItem(originName: string, itemName: string)
+        + InkListItem(fullName: string)
+        + {static} Null : InkListItem
+    }
+
+    class ListDefinition {
+        + name : string { get }
+        + items : Dictionary<InkListItem, int> { get }
+        --
+        + ListDefinition(name: string, items: Dictionary<string, int>)
+        + GetValueForItem(item: InkListItem) : int?
+        + ContainsItem(item: InkListItem) : bool
+        + ContainsItemWithName(itemName: string) : bool
+        + GetItemWithValue(value: int) : InkListItem?
+    }
+
+    class ListDefinitionsOrigin {
+        + lists : List<ListDefinition> { get }
+        --
+        + ListDefinitionsOrigin(listDefs: List<ListDefinition>)
+        + GetListDefinition(name: string) : ListDefinition
+        + FindSingleItemListWithName(name: string) : ListValue
+    }
+}
+
+' ╔══════════════════════════════════════════════════════════════════════╗
+' ║  STATE                                                              ║
+' ╚══════════════════════════════════════════════════════════════════════╝
+
+package "State" #F3E5F5 {
+
+    class StoryState {
+        + currentErrors : List<string>
+        + currentWarnings : List<string>
+        + currentTurnIndex : int
+        + didSafeExit : bool
+        + divertedPointer : Pointer
+        + evaluationStack : List<Object>
+        + storySeed : int
+        + previousRandom : int
+        + variablesState : VariablesState
+        + patch : StatePatch
+        + currentFlow : Flow
+        + namedFlows : Dictionary<string, Flow>
+        --
+        + callStack : CallStack { get }
+        + outputStream : List<Object> { get }
+        + currentChoices : List<Choice> { get }
+        + canContinue : bool { get }
+        + hasError : bool { get }
+        + hasWarning : bool { get }
+        + currentPointer : Pointer { get; set }
+        + previousPointer : Pointer { get; set }
+        + currentText : string { get }
+        + currentTags : List<string> { get }
+        + currentPathString : string { get }
+        + currentFlowName : string { get }
+        + aliveFlowNames : List<string> { get }
+        + inExpressionEvaluation : bool { get; set }
+        + inStringEvaluation : bool { get }
+        __constants__
+        + {static} kInkSaveStateVersion = 10
+        + {static} kMinCompatibleLoadVersion = 8
+        + {static} kDefaultFlowName = "DEFAULT_FLOW"
+        --
+        + GoToStart()
+        + SetChosenPath(path: Path, incrementingTurnIndex: bool)
+        + SwitchFlow_Internal(flowName: string)
+        + SwitchToDefaultFlow_Internal()
+        + RemoveFlow_Internal(flowName: string)
+        + PushEvaluationStack(obj: Object)
+        + PopEvaluationStack() : Object
+        + PeekEvaluationStack() : Object
+        + PushToOutputStream(obj: Object)
+        + PopFromOutputStream(count: int)
+        + ResetOutput(objs: List<Object>)
+        + PopCallstack(popType: PushPopType)
+        + ForceEnd()
+        + StartFunctionEvaluationFromGame(funcContainer: Container, args: object[])
+        + CompleteFunctionEvaluationFromGame() : object
+        + VisitCountForContainer(container: Container) : int
+        + IncrementVisitCountForContainer(container: Container)
+        + RecordTurnIndexVisitToContainer(container: Container)
+        + TurnsSinceForContainer(container: Container) : int
+        + CopyAndStartPatching() : StoryState
+        + RestoreAfterPatch()
+        + ApplyAnyPatch()
+        + AddError(message: string, isWarning: bool)
+        + ResetErrors()
+        + ToJson() : string
+        + LoadJson(json: string)
+    }
+
+    class CallStack {
+        + elements : List<Element> { get }
+        + depth : int { get }
+        + currentElement : Element { get }
+        + currentThread : Thread { get; set }
+        + canPop : bool { get }
+        + canPopThread : bool { get }
+        + elementIsEvaluateFromGame : bool { get }
+        + callStackTrace : string { get }
+        --
+        + CallStack(rootContentContainer: Container)
+        + CallStack(toCopy: CallStack)
+        + Reset()
+        + Push(type: PushPopType, ...)
+        + Pop(type: PushPopType)
+        + CanPop(type: PushPopType) : bool
+        + PushThread()
+        + PopThread()
+        + ForkThread() : Thread
+        + ThreadWithIndex(index: int) : Thread
+        + GetTemporaryVariableWithName(name: string, contextIndex: int) : Object
+        + SetTemporaryVariable(name: string, value: Object, declareNew: bool, contextIndex: int)
+        + ContextForVariableNamed(name: string) : int
+    }
+
+    class "CallStack.Element" as Element {
+        + type : PushPopType
+        + currentPointer : Pointer
+        + inExpressionEvaluation : bool
+        + temporaryVariables : Dictionary<string, Object>
+        + evaluationStackHeightWhenPushed : int
+        + functionStartInOutputStream : int
+        --
+        + Copy() : Element
+    }
+
+    class "CallStack.Thread" as Thread {
+        + callstack : List<Element>
+        + threadIndex : int
+        + previousPointer : Pointer
+        --
+        + Thread()
+        + Thread(toCopy: Thread)
+        + Copy() : Thread
+    }
+
+    class Flow {
+        + name : string
+        + callStack : CallStack
+        + outputStream : List<Object>
+        + currentChoices : List<Choice>
+        --
+        + Flow(name: string, rootContentContainer: Container)
+        + LoadFlowChoiceThreads(jChoiceThreads: Dictionary, ...)
+    }
+
+    class StatePatch {
+        + globals : Dictionary<string, Object>
+        + changedVariables : HashSet<string>
+        + visitCounts : Dictionary<Container, int>
+        + turnIndices : Dictionary<Container, int>
+        --
+        + StatePatch(toCopy: StatePatch)
+        + GetGlobal(name: string) : Object
+        + SetGlobal(name: string, value: Object)
+        + AddChangedVariable(name: string)
+        + GetVisitCount(container: Container) : int?
+        + SetVisitCount(container: Container, count: int)
+        + GetTurnIndex(container: Container) : int?
+        + SetTurnIndex(container: Container, index: int)
+    }
+
+    class "VariablesState\n: IEnumerable<string>" as VariablesState {
+        + globalVariables : Dictionary<string, Object> { get }
+        + patch : StatePatch
+        + callStack : CallStack { get; set }
+        + variableChangedEvent : VariableChanged
+        + dontSaveDefaultValues : bool
+        --
+        + this[variableName: string] : object { get; set }
+        + GetEnumerator() : IEnumerator<string>
+        --
+        + Assign(varAss: VariableAssignment, value: Object)
+        + GetVariableWithName(name: string, contextIndex: int) : Object
+        + GetRawVariableWithName(name: string, contextIndex: int) : Object
+        + GlobalVariableExistsWithName(name: string) : bool
+        + SetGlobal(variableName: string, value: Object)
+        + ApplyPatch()
+        + SnapshotDefaultGlobals()
+        + RuntimeObjectsEqual(obj1: Object, obj2: Object) : bool
+        + TryGetDefaultVariableValue(name: string) : Object
+        __delegate__
+        + <<delegate>> VariableChanged(variableName: string, newValue: Object)
+    }
+
+    CallStack +-- Element
+    CallStack +-- Thread
+}
+
+' ╔══════════════════════════════════════════════════════════════════════╗
+' ║  RUNTIME                                                            ║
+' ╚══════════════════════════════════════════════════════════════════════╝
+
+package "Runtime" #F3E5F5 {
+
+    class Story {
+        + state : StoryState { get }
+        + onError : ErrorHandler
+        + listDefinitionsOrigin : ListDefinitionsOrigin { get }
+        + allowExternalFunctionFallbacks : bool
+        __constants__
+        + {static} inkVersionCurrent = 21
+        + {static} inkVersionMinimumCompatible = 18
+        --
+        + Story(jsonString: string)
+        + Story(contentContainer: Container, lists: List<ListDefinition>)
+        --
+        ..continue..
+        + canContinue : bool { get }
+        + Continue() : string
+        + ContinueAsync(millisecsLimitAsync: float)
+        + ContinueMaximally() : string
+        + asyncContinueComplete : bool { get }
+        ..output..
+        + currentText : string { get }
+        + currentTags : List<string> { get }
+        + currentChoices : List<Choice> { get }
+        + currentFlowName : string { get }
+        ..interaction..
+        + ChooseChoiceIndex(choiceIdx: int)
+        + ChoosePathString(path: string, resetCallstack: bool, args: object[])
+        ..tags..
+        + globalTags : List<string> { get }
+        + TagsForContentAtPath(path: string) : List<string>
+        ..state..
+        + ResetState()
+        + ResetCallstack()
+        + ResetErrors()
+        ..save / load..
+        + ToJson() : string
+        + ToJson(writer: SimpleJson.Writer)
+        + LoadState(json: string)
+        ..external functions..
+        + BindExternalFunction(funcName: string, func: ExternalFunction, lookaheadSafe: bool)
+        + UnbindExternalFunction(funcName: string)
+        ..variable observation..
+        + ObserveVariable(variableName: string, observer: VariableObserver)
+        + ObserveVariables(variableNames: List<string>, observer: VariableObserver)
+        + RemoveVariableObserver(observer: VariableObserver, specificVariableName: string)
+        ..flow management..
+        + SwitchFlow(flowName: string)
+        + SwitchToDefaultFlow()
+        + RemoveFlow(flowName: string)
+        + aliveFlowNames : List<string> { get }
+        ..functions..
+        + EvaluateFunction(functionName: string, args: object[]) : object
+        + HasFunction(functionName: string) : bool
+        ..profiling..
+        + StartProfiling() : Profiler
+        + EndProfiling()
+        __delegates__
+        + <<delegate>> ExternalFunction(args: object[]) : object
+        + <<delegate>> VariableObserver(variableName: string, newValue: object)
+    }
+
+    class Profiler {
+        + rootNode : ProfileNode
+        --
+        + Report() : string
+        + StepLengthReport() : string
+        + Megalog() : string
+        --
+        ~ PreContinue()
+        ~ PostContinue()
+        ~ PreStep()
+        ~ Step(callstack: CallStack)
+        ~ PostStep()
+        ~ PreSnapshot()
+        ~ PostSnapshot()
+        __static__
+        + {static} FormatMillisecs(num: double) : string
+    }
+
+    class ProfileNode {
+        + key : string
+        + totalMillisecs : double { get }
+        + hasChildren : bool { get }
+        + openInUI : bool
+        + descendingOrderedNodes : List { get }
+        + ownReport : string { get }
+        --
+        ~ AddSample(stack: string[], duration: double)
+    }
+}
+
+' ╔══════════════════════════════════════════════════════════════════════╗
+' ║  SERIALIZATION                                                      ║
+' ╚══════════════════════════════════════════════════════════════════════╝
+
+package "Serialization" #F3E5F5 {
+
+    class SimpleJson <<static>> {
+        + {static} TextToDictionary(text: string) : Dictionary<string, object>
+        + {static} TextToArray(text: string) : List<object>
+    }
+
+    class "SimpleJson.Reader" as JsonReader <<private>> {
+        - text : string
+        - offset : int
+        --
+        + Reader(text: string)
+        + ToDictionary() : Dictionary<string, object>
+        + ToArray() : List<object>
+    }
+
+    class "SimpleJson.Writer" as JsonWriter {
+        - _writer : StringBuilder
+        --
+        + WriteObjectStart()
+        + WriteObjectEnd()
+        + WritePropertyStart(name: string)
+        + WritePropertyEnd()
+        + WriteProperty(name: string, content: string)
+        + WriteProperty(name: string, content: int)
+        + WriteProperty(name: string, content: bool)
+        + WriteProperty(name: string, inner: InnerWriter)
+        + WriteArrayStart()
+        + WriteArrayEnd()
+        + Write(i: int)
+        + Write(f: float)
+        + Write(str: string, escape: bool)
+        + Write(b: bool)
+        + WriteNull()
+        + WriteStringStart()
+        + WriteStringEnd()
+        + WriteStringInner(str: string, escape: bool)
+        + ToString() : string
+    }
+
+    SimpleJson +-- JsonReader
+    SimpleJson +-- JsonWriter
+}
+
+' ╔══════════════════════════════════════════════════════════════════════╗
+' ║  INFRASTRUCTURE                                                     ║
+' ╚══════════════════════════════════════════════════════════════════════╝
+
+package "Infrastructure" #F3E5F5 {
+
+    enum PushPopType {
+        Tunnel
+        Function
+        FunctionEvaluationFromGame
+    }
+
+    enum ErrorType {
+        Author
+        Warning
+        Error
+    }
+
+    class "StoryException\n: System.Exception" as StoryException {
+        + useEndLineNumber : bool
+        --
+        + StoryException()
+        + StoryException(message: string)
+    }
+}
+
+' ╔══════════════════════════════════════════════════════════════════════╗
+' ║  INHERITANCE RELATIONSHIPS                                          ║
+' ╚══════════════════════════════════════════════════════════════════════╝
+
+' Core
+Container --|> InkObject
+Container ..|> INamedContent
+
+' Content — all extend InkObject (Object)
+ChoicePoint --|> InkObject
+Choice --|> InkObject
+Divert --|> InkObject
+Glue --|> InkObject
+Tag --|> InkObject
+Void --|> InkObject
+ControlCommand --|> InkObject
+VariableAssignment --|> InkObject
+VariableReference --|> InkObject
+NativeFunctionCall --|> InkObject
+
+' Values — sealed hierarchy under Value<T>
+Value --|> InkObject
+BoolValue --|> Value
+IntValue --|> Value
+FloatValue --|> Value
+StringValue --|> Value
+DivertTargetValue --|> Value
+VariablePointerValue --|> Value
+ListValue --|> Value
+
+' ╔══════════════════════════════════════════════════════════════════════╗
+' ║  COMPOSITION / USAGE RELATIONSHIPS                                  ║
+' ╚══════════════════════════════════════════════════════════════════════╝
+
+' Story is the main entry point
+Story --> StoryState : manages >
+Story --> Container : rootContentContainer >
+Story --> ListDefinitionsOrigin : listDefinitions >
+Story --> Profiler : optional >
+
+' StoryState composition
+StoryState --> CallStack : via currentFlow >
+StoryState --> VariablesState : variablesState >
+StoryState --> StatePatch : patch (optional) >
+StoryState --> Flow : currentFlow >
+StoryState --> Pointer : currentPointer >
+
+' Flow
+Flow --> CallStack : callStack >
+Flow --> Choice : currentChoices >
+
+' CallStack
+CallStack --> Element : callstack >
+CallStack --> Thread : threads >
+
+' VariablesState
+VariablesState --> CallStack : callStack >
+VariablesState --> StatePatch : patch >
+VariablesState --> ListDefinitionsOrigin : listDefsOrigin >
+
+' Lists
+InkList --> InkListItem : keys >
+InkList --> ListDefinition : origins >
+ListDefinitionsOrigin --> ListDefinition : lists >
+ListValue --> InkList : value >
+
+' Path / Pointer
+InkObject --> Container : parent >
+InkObject --> DebugMetadata : debugMetadata >
+Container --> InkObject : content >
+Pointer --> Container : container >
+Divert --> Path : targetPath >
+ChoicePoint --> Path : pathOnChoice >
+Choice --> Path : targetPath >
+
+' Profiling
+Profiler --> ProfileNode : rootNode >
+
+' ╔══════════════════════════════════════════════════════════════════════╗
+' ║  CROSS-PLATFORM COMPARISON NOTE                                     ║
+' ╚══════════════════════════════════════════════════════════════════════╝
+
+note as N_COMPARE
+  **Cross-Platform Comparison: C# vs Java vs Kotlin**
+
+  **Reference Implementation:**
+    C# (Inkle) is the canonical reference implementation.
+    Java (blade-ink) and Kotlin (ink-kmp) are ports of it.
+
+  **Namespace / Package:**
+    C#:     Ink.Runtime
+    Java:   com.bladecoder.ink.runtime
+    Kotlin: ink.kt
+
+  **Key Differences:**
+
+  | Feature               | C# (Reference)                        | Java (blade-ink)                  | Kotlin (ink-kmp)                  |
+  |-----------------------|---------------------------------------|-----------------------------------|-----------------------------------|
+  | Base class name       | Object                                | RTObject                          | InkObject                         |
+  | InkList base          | Dictionary<InkListItem, int>          | HashMap<InkListItem, Integer>     | LinkedHashMap (by delegation)     |
+  | InkListItem           | struct (value type)                   | class                             | data class                        |
+  | CallStack.Thread      | nested class                          | static inner class                | nested class                      |
+  | Flow                  | separate class                        | separate class                    | separate class                    |
+  | Stopwatch             | System.Diagnostics.Stopwatch          | custom (System.nanoTime)          | kotlin.time.TimeSource.Monotonic  |
+  | Named content         | INamedContent interface               | INamedContent interface           | INamedContent interface           |
+  | Value hierarchy       | abstract Value<T> + subclasses        | AbstractValue + subclasses        | sealed class Value<T>             |
+  | External functions    | delegate                              | 4 abstract classes (0/1/2/3 arg)  | fun interface (SAM)               |
+  | Variable observation  | delegate VariableChanged              | interface VariableChanged         | fun interface VariableChanged     |
+  | JSON writer callback  | Action<Writer>                        | InnerWriter interface             | fun interface InnerWriter         |
+  | Error handling        | delegate ErrorHandler                 | interface ErrorHandler            | fun interface ErrorHandler        |
+  | String formatting     | InvariantCulture                      | Locale defaults                   | Kotlin toString (locale-free)     |
+
+end note
+
+N_COMPARE .. Story
+
+@enduml

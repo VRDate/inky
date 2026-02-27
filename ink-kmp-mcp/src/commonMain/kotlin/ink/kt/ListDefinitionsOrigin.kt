@@ -1,10 +1,14 @@
 package ink.kt
 
 /**
- * Holds all list definitions in a story. Provides lookup by name and
- * an unambiguous item cache for quick resolution.
+ * Container for all LIST definitions in a story. Resolves list items by name.
  *
- * Identical across C#/Java/JS — straightforward port.
+ * Three-way comparison:
+ * - C#: `Ink.Runtime.ListDefinitionsOrigin` — same
+ * - Java: `ListDefinitionsOrigin` — same
+ * - JS: `ListDefinitionsOrigin` — same
+ *
+ * Kotlin: Same structure. `tryListGetDefinition()` API for name-based lookup.
  */
 class ListDefinitionsOrigin(listDefs: List<ListDefinition>) {
 

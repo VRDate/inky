@@ -1,6 +1,9 @@
 package ink.mcp
 
 import ink.model.*
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.*
 
 /**
@@ -208,11 +211,11 @@ class InkModelSerializersTest {
         assertEquals("object", schema["type"]?.jsonPrimitive?.content)
         val props = schema["properties"]?.jsonObject
         assertNotNull(props)
-        assertTrue(props.containsKey("seed"))
-        assertTrue(props.containsKey("locale"))
-        assertTrue(props.containsKey("count"))
-        assertTrue(props.containsKey("level"))
-        assertTrue(props.containsKey("categories"))
+        assertTrue(props.contains("seed"))
+        assertTrue(props.contains("locale"))
+        assertTrue(props.contains("count"))
+        assertTrue(props.contains("level"))
+        assertTrue(props.contains("categories"))
     }
 
     // ── kotlinx JsonElement bridge ───────────────────────────────

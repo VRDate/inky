@@ -1,0 +1,1055 @@
+@startuml ink-java-blade-ink
+
+' =============================================================================
+' PlantUML Class Diagram: blade-ink Java Runtime
+' Package: com.bladecoder.ink.runtime
+' Source:  ink-kmp-mcp/src/jvmMain/java/com/bladecoder/ink/runtime/
+' =============================================================================
+
+title **blade-ink Java Runtime** -- com.bladecoder.ink.runtime\nClass Diagram (46 source files)
+
+' -- Skin / Theme ---------------------------------------------------------
+skinparam backgroundColor #FFFDF5
+skinparam classBorderColor #B8860B
+skinparam classBackgroundColor #FFF3CD
+skinparam classHeaderBackgroundColor #FFD966
+skinparam classFontColor #3D2B00
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classStereotypeFontColor #8B6914
+skinparam arrowColor #B8860B
+skinparam packageBorderColor #DAA520
+skinparam packageBackgroundColor #FFFAEB
+skinparam packageFontColor #8B6914
+skinparam packageFontSize 13
+skinparam noteBorderColor #DAA520
+skinparam noteBackgroundColor #FFF8DC
+skinparam noteFontSize 10
+skinparam groupInheritance 2
+
+' -- Legend / Notes --------------------------------------------------------
+note as N1
+  **Java (blade-ink) -> Kotlin (ink.kt) migration notes**
+  ----
+  | **Java blade-ink** | **Kotlin ink.kt** |
+  | RTObject | InkObject |
+  | AbstractValue + 8 value files | consolidated Value.kt |
+  | Json | JsonSerialisation |
+  | Error.ErrorType enum | ErrorType top-level enum |
+  | StringExt | replaced by Kotlin stdlib |
+  | ProfileNode (separate file) | combined into Profiler.kt |
+  | SimpleJson.Reader / Writer | JsonParser / JsonWriter |
+  ----
+  C# ink-csharp is the canonical reference implementation.
+  blade-ink is a faithful Java port by bladecoder (Rafael Garcia).
+  ink.kt (this project) is a Kotlin Multiplatform port of blade-ink.
+end note
+
+
+' =========================================================================
+' 1. CORE
+' =========================================================================
+package "Core" <<Rectangle>> {
+
+  class RTObject {
+    - parent : Container
+    - path : Path
+    - debugMetadata : DebugMetadata
+    --
+    + getParent() : Container
+    + setParent(Container) : void
+    + getPath() : Path
+    + getDebugMetadata() : DebugMetadata
+    + setDebugMetadata(DebugMetadata) : void
+    + resolvePath(Path) : SearchResult
+    + convertPathToRelative(Path) : Path
+    + compactPathString(Path) : String
+    + getRootContentContainer() : Container
+    + debugLineNumberOfPath(Path) : Integer
+    + copy() : RTObject
+  }
+
+  class Container {
+    - name : String
+    - content : List<RTObject>
+    - namedContent : HashMap<String, INamedContent>
+    - visitsShouldBeCounted : boolean
+    - turnIndexShouldBeCounted : boolean
+    - countingAtStartOnly : boolean
+    --
+    + getName() : String
+    + getContent() : List<RTObject>
+    + getNamedContent() : HashMap<String, INamedContent>
+    + getCountFlags() : int
+    + setCountFlags(int) : void
+    + addContent(RTObject) : void
+    + insertContent(RTObject, int) : void
+    + contentAtPath(Path) : SearchResult
+    + contentAtPath(Path, int, int) : SearchResult
+    + buildStringOfHierarchy() : String
+    + hasValidName() : boolean
+  }
+
+  class Path {
+    - components : List<Component>
+    - isRelative : boolean
+    - componentsString : String
+    --
+    + getComponent(int) : Component
+    + isRelative() : boolean
+    + getHead() : Component
+    + getTail() : Path
+    + getLength() : int
+    + getLastComponent() : Component
+    + containsNamedComponent() : boolean
+    + pathByAppendingPath(Path) : Path
+    + pathByAppendingComponent(Component) : Path
+    + getComponentsString() : String
+    + {static} getSelf() : Path
+    + equals(Path) : boolean
+  }
+
+  class "Path.Component" as PathComponent {
+    - index : int
+    - name : String
+    --
+    + getIndex() : int
+    + getName() : String
+    + isIndex() : boolean
+    + isParent() : boolean
+    + {static} toParent() : Component
+  }
+
+  class SearchResult {
+    + obj : RTObject
+    + approximate : boolean
+    --
+    + correctObj() : RTObject
+    + getContainer() : Container
+  }
+
+  class Pointer {
+    + container : Container
+    + index : int
+    --
+    + assign(Pointer) : void
+    + resolve() : RTObject
+    + isNull() : boolean
+    + getPath() : Path
+    + {static} startOf(Container) : Pointer
+    + {static} Null : Pointer
+  }
+
+  class DebugMetadata {
+    + startLineNumber : int
+    + endLineNumber : int
+    + startCharacterNumber : int
+    + endCharacterNumber : int
+    + fileName : String
+    + sourceName : String
+    --
+    + merge(DebugMetadata) : DebugMetadata
+  }
+}
+
+
+' =========================================================================
+' 2. CONTENT
+' =========================================================================
+package "Content" <<Rectangle>> {
+
+  class ChoicePoint {
+    - hasChoiceOnlyContent : boolean
+    - hasStartContent : boolean
+    - isInvisibleDefault : boolean
+    - onceOnly : boolean
+    - hasCondition : boolean
+    - pathOnChoice : Path
+    --
+    + getChoiceTarget() : Container
+    + getFlags() : int
+    + setFlags(int) : void
+    + getPathOnChoice() : Path
+    + getPathStringOnChoice() : String
+    + isOnceOnly() : boolean
+    + hasCondition() : boolean
+  }
+
+  class Choice {
+    ~ targetPath : Path
+    ~ isInvisibleDefault : boolean
+    ~ tags : List<String>
+    ~ originalThreadIndex : int
+    ~ sourcePath : String
+    - index : int
+    - text : String
+    - threadAtGeneration : CallStack.Thread
+    --
+    + getIndex() : int
+    + getText() : String
+    + getTags() : List<String>
+    + getPathStringOnChoice() : String
+    + getThreadAtGeneration() : CallStack.Thread
+    + clone() : Choice
+  }
+
+  class Divert {
+    - externalArgs : int
+    - isConditional : boolean
+    - isExternal : boolean
+    - pushesToStack : boolean
+    - stackPushType : PushPopType
+    - targetPointer : Pointer
+    - targetPath : Path
+    - variableDivertName : String
+    --
+    + getTargetPath() : Path
+    + getTargetPathString() : String
+    + getTargetPointer() : Pointer
+    + getVariableDivertName() : String
+    + hasVariableTarget() : boolean
+    + isConditional() : boolean
+    + isExternal() : boolean
+    + getPushesToStack() : boolean
+    + getStackPushType() : PushPopType
+  }
+
+  class Glue {
+  }
+
+  class Tag {
+    - text : String
+    --
+    + getText() : String
+  }
+
+  class Void {
+  }
+
+  class ControlCommand {
+    - commandType : CommandType
+    --
+    + getCommandType() : CommandType
+    + setCommandType(CommandType) : void
+    + copy() : RTObject
+  }
+
+  enum "ControlCommand.CommandType" as CommandType {
+    NotSet
+    EvalStart
+    EvalOutput
+    EvalEnd
+    Duplicate
+    PopEvaluatedValue
+    PopFunction
+    PopTunnel
+    BeginString
+    EndString
+    NoOp
+    ChoiceCount
+    Turns
+    TurnsSince
+    ReadCount
+    Random
+    SeedRandom
+    VisitIndex
+    SequenceShuffleIndex
+    StartThread
+    Done
+    End
+    ListFromInt
+    ListRange
+    ListRandom
+    BeginTag
+    EndTag
+  }
+
+  class VariableAssignment {
+    - isGlobal : boolean
+    - isNewDeclaration : boolean
+    - variableName : String
+    --
+    + getVariableName() : String
+    + isGlobal() : boolean
+    + isNewDeclaration() : boolean
+  }
+
+  class VariableReference {
+    - name : String
+    - pathForCount : Path
+    --
+    + getName() : String
+    + getPathForCount() : Path
+    + getPathStringForCount() : String
+    + getContainerForCount() : Container
+  }
+
+  class NativeFunctionCall {
+    - name : String
+    - numberOfParameters : int
+    - isPrototype : boolean
+    - operationFuncs : HashMap<ValueType, Object>
+    - prototype : NativeFunctionCall
+    --
+    + getName() : String
+    + getNumberOfParameters() : int
+    + call(List<RTObject>) : RTObject
+    + {static} callExistsWithName(String) : boolean
+    + {static} callWithName(String) : NativeFunctionCall
+    .. operator constants ..
+    + {static} Add : String = "+"
+    + {static} Subtract : String = "-"
+    + {static} Multiply : String = "*"
+    + {static} Divide : String = "/"
+    + {static} Mod : String = "%"
+    + {static} Negate : String = "_"
+    + {static} Equal : String = "=="
+    + {static} NotEquals : String = "!="
+    + {static} Greater : String = ">"
+    + {static} Less : String = "<"
+    + {static} And : String = "&&"
+    + {static} Or : String = "||"
+    + {static} Not : String = "!"
+    + {static} Min : String = "MIN"
+    + {static} Max : String = "MAX"
+    + {static} Pow : String = "POW"
+    + {static} Floor : String = "FLOOR"
+    + {static} Ceiling : String = "CEILING"
+    + {static} Int : String = "INT"
+    + {static} Float : String = "FLOAT"
+    + {static} Has : String = "?"
+    + {static} Hasnt : String = "!?"
+    + {static} Intersect : String = "^"
+    + {static} ListMin : String = "LIST_MIN"
+    + {static} ListMax : String = "LIST_MAX"
+    + {static} All : String = "LIST_ALL"
+    + {static} Count : String = "LIST_COUNT"
+    + {static} ValueOfList : String = "LIST_VALUE"
+    + {static} Invert : String = "LIST_INVERT"
+  }
+}
+
+
+' =========================================================================
+' 3. VALUES
+' =========================================================================
+package "Values" <<Rectangle>> {
+
+  abstract class AbstractValue {
+    + {abstract} getValueType() : ValueType
+    + {abstract} isTruthy() : boolean
+    + {abstract} cast(ValueType) : AbstractValue
+    + {abstract} getValueObject() : Object
+    + {static} create(Object) : AbstractValue
+    + copy() : RTObject
+    # BadCastException(ValueType) : StoryException
+  }
+
+  abstract class "Value<T>" as Value_T {
+    # value : T
+    --
+    + getValue() : T
+    + setValue(T) : void
+    + getValueObject() : Object
+  }
+
+  class BoolValue {
+    + getValueType() : ValueType  ' Bool
+    + isTruthy() : boolean
+    + cast(ValueType) : AbstractValue
+  }
+
+  class IntValue {
+    + getValueType() : ValueType  ' Int
+    + isTruthy() : boolean
+    + cast(ValueType) : AbstractValue
+  }
+
+  class FloatValue {
+    + getValueType() : ValueType  ' Float
+    + isTruthy() : boolean
+    + cast(ValueType) : AbstractValue
+  }
+
+  class StringValue {
+    - isInlineWhitespace : boolean
+    - isNewline : boolean
+    --
+    + getValueType() : ValueType  ' String
+    + isTruthy() : boolean
+    + cast(ValueType) : AbstractValue
+    + isInlineWhitespace() : boolean
+    + isNewline() : boolean
+    + isNonWhitespace() : boolean
+  }
+
+  class DivertTargetValue {
+    + getValueType() : ValueType  ' DivertTarget
+    + getTargetPath() : Path
+    + setTargetPath(Path) : void
+    + isTruthy() : boolean
+    + cast(ValueType) : AbstractValue
+  }
+
+  class VariablePointerValue {
+    - contextIndex : int
+    --
+    + getValueType() : ValueType  ' VariablePointer
+    + getVariableName() : String
+    + getContextIndex() : int
+    + isTruthy() : boolean
+    + cast(ValueType) : AbstractValue
+    + copy() : RTObject
+  }
+
+  class ListValue {
+    + getValueType() : ValueType  ' List
+    + isTruthy() : boolean
+    + cast(ValueType) : AbstractValue
+    + {static} retainListOriginsForAssignment(RTObject, RTObject) : void
+  }
+
+  enum ValueType {
+    Bool
+    Int
+    Float
+    List
+    String
+    DivertTarget
+    VariablePointer
+  }
+}
+
+
+' =========================================================================
+' 4. LISTS
+' =========================================================================
+package "Lists" <<Rectangle>> {
+
+  class InkList << HashMap<InkListItem, Integer> >> {
+    - origins : List<ListDefinition>
+    - originNames : List<String>
+    --
+    + getOrigins() : List<ListDefinition>
+    + getOriginNames() : List<String>
+    + setInitialOriginName(String) : void
+    + setInitialOriginNames(List<String>) : void
+    + union(InkList) : InkList
+    + without(InkList) : InkList
+    + intersect(InkList) : InkList
+    + hasIntersection(InkList) : boolean
+    + getMaxItem() : Entry<InkListItem, Integer>
+    + getMinItem() : Entry<InkListItem, Integer>
+    + contains(InkList) : boolean
+    + contains(String) : boolean
+    + greaterThan(InkList) : boolean
+    + greaterThanOrEquals(InkList) : boolean
+    + lessThan(InkList) : boolean
+    + lessThanOrEquals(InkList) : boolean
+    + maxAsList() : InkList
+    + minAsList() : InkList
+    + getInverse() : InkList
+    + getAll() : InkList
+    + addItem(InkListItem) : void
+    + addItem(String) : void
+    + containsItemNamed(String) : boolean
+    + listWithSubRange(Object, Object) : InkList
+    + {static} fromString(String, Story) : InkList
+  }
+
+  class InkListItem {
+    - originName : String
+    - itemName : String
+    --
+    + getOriginName() : String
+    + getItemName() : String
+    + getFullName() : String
+    ~ isNull() : boolean
+    + {static} getNull() : InkListItem
+  }
+
+  class ListDefinition {
+    - name : String
+    - items : HashMap<InkListItem, Integer>
+    - itemNameToValues : HashMap<String, Integer>
+    --
+    + getName() : String
+    + getItems() : HashMap<InkListItem, Integer>
+    + getValueForItem(InkListItem) : Integer
+    + containsItem(InkListItem) : boolean
+    + containsItemWithName(String) : boolean
+    + getItemWithValue(int) : InkListItem
+  }
+
+  class ListDefinitionsOrigin {
+    - lists : HashMap<String, ListDefinition>
+    - allUnambiguousListValueCache : HashMap<String, ListValue>
+    --
+    + getListDefinition(String) : ListDefinition
+    + getLists() : List<ListDefinition>
+    ~ findSingleItemListWithName(String) : ListValue
+  }
+}
+
+
+' =========================================================================
+' 5. STATE
+' =========================================================================
+package "State" <<Rectangle>> {
+
+  class StoryState {
+    - currentErrors : List<String>
+    - currentWarnings : List<String>
+    - currentTurnIndex : int
+    - didSafeExit : boolean
+    - divertedPointer : Pointer
+    - evaluationStack : List<RTObject>
+    - story : Story
+    - storySeed : int
+    - previousRandom : int
+    - turnIndices : HashMap<String, Integer>
+    - variablesState : VariablesState
+    - visitCounts : HashMap<String, Integer>
+    - currentText : String
+    - currentTags : List<String>
+    - patch : StatePatch
+    - namedFlows : HashMap<String, Flow>
+    - currentFlow : Flow
+    --
+    + {static} kInkSaveStateVersion : int = 10
+    + {static} kMinCompatibleLoadVersion : int = 8
+    + {static} kDefaultFlowName : String
+    --
+    + toJson() : String
+    + toJson(OutputStream) : void
+    + loadJson(String) : void
+    + getCurrentPathString() : String
+    + previousPathString() : String
+    + getCurrentFlowName() : String
+    + currentFlowIsDefaultFlow() : boolean
+    + aliveFlowNames() : List<String>
+    + getOutputStream() : List<RTObject>
+    + visitCountAtPathString(String) : int
+    + forceEnd() : void
+    ~ addError(String, boolean) : void
+    ~ copyAndStartPatching(boolean) : StoryState
+  }
+
+  class CallStack {
+    - threadCounter : int
+    - startOfRoot : Pointer
+    - threads : List<Thread>
+    --
+    + canPop() : boolean
+    + canPop(PushPopType) : boolean
+    + canPopThread() : boolean
+    + getDepth() : int
+    + getCurrentElement() : Element
+    + getCurrentElementIndex() : int
+    + getElements() : List<Element>
+    + getcurrentThread() : Thread
+    + push(PushPopType) : void
+    + push(PushPopType, int, int) : void
+    + pop() : void
+    + pop(PushPopType) : void
+    + pushThread() : void
+    + popThread() : void
+    + forkThread() : Thread
+    + contextForVariableNamed(String) : int
+    + getTemporaryVariableWithName(String, int) : RTObject
+    + setTemporaryVariable(String, RTObject, boolean, int) : void
+    + getThreadWithIndex(int) : Thread
+    + writeJson(SimpleJson.Writer) : void
+    + setJsonToken(HashMap, Story) : void
+    ~ getCallStackTrace() : String
+  }
+
+  class "CallStack.Element" as CSElement {
+    + currentPointer : Pointer
+    + inExpressionEvaluation : boolean
+    + temporaryVariables : HashMap<String, RTObject>
+    + type : PushPopType
+    + evaluationStackHeightWhenPushed : int
+    + functionStartInOuputStream : int
+    --
+    + copy() : Element
+  }
+
+  class "CallStack.Thread" as CSThread {
+    + callstack : List<Element>
+    + previousPointer : Pointer
+    + threadIndex : int
+    --
+    + copy() : Thread
+    + writeJson(SimpleJson.Writer) : void
+  }
+
+  class Flow {
+    + name : String
+    + callStack : CallStack
+    + outputStream : List<RTObject>
+    + currentChoices : List<Choice>
+    --
+    + writeJson(SimpleJson.Writer) : void
+    + loadFlowChoiceThreads(HashMap, Story) : void
+  }
+
+  class StatePatch {
+    - globals : HashMap<String, RTObject>
+    - changedVariables : HashSet<String>
+    - visitCounts : HashMap<Container, Integer>
+    - turnIndices : HashMap<Container, Integer>
+    --
+    + getGlobal(String) : RTObject
+    + setGlobal(String, RTObject) : void
+    + addChangedVariable(String) : void
+    + getVisitCount(Container) : Integer
+    + setVisitCount(Container, int) : void
+    + getTurnIndex(Container) : Integer
+    + setTurnIndex(Container, int) : void
+    + getGlobals() : HashMap<String, RTObject>
+    + getChangedVariables() : HashSet<String>
+    + getVisitCounts() : HashMap<Container, Integer>
+    + getTurnIndices() : HashMap<Container, Integer>
+  }
+
+  class VariablesState << Iterable<String> >> {
+    - batchObservingVariableChanges : boolean
+    - callStack : CallStack
+    - changedVariablesForBatchObs : HashSet<String>
+    - globalVariables : HashMap<String, RTObject>
+    - defaultGlobalVariables : HashMap<String, RTObject>
+    - variableChangedEvent : VariableChanged
+    - listDefsOrigin : ListDefinitionsOrigin
+    - patch : StatePatch
+    --
+    + assign(VariableAssignment, RTObject) : void
+    + get(String) : Object
+    + set(String, Object) : void
+    + getVariableWithName(String) : RTObject
+    + getVariableChangedEvent() : VariableChanged
+    + setVariableChangedEvent(VariableChanged) : void
+    + startVariableObservation() : void
+    + completeVariableObservation() : HashMap<String, RTObject>
+    + notifyObservers(HashMap<String, RTObject>) : void
+    + iterator() : Iterator<String>
+    ~ applyPatch() : void
+    ~ writeJson(SimpleJson.Writer) : void
+    ~ setJsonToken(HashMap) : void
+    ~ snapshotDefaultGlobals() : void
+    + {static} dontSaveDefaultValues : boolean
+  }
+
+  interface "VariablesState.VariableChanged" as VariableChanged {
+    + variableStateDidChangeEvent(String, RTObject) : void
+  }
+}
+
+
+' =========================================================================
+' 6. RUNTIME
+' =========================================================================
+package "Runtime" <<Rectangle>> {
+
+  class Story << VariablesState.VariableChanged >> {
+    - mainContentContainer : Container
+    - listDefinitions : ListDefinitionsOrigin
+    - allowExternalFunctionFallbacks : boolean
+    - externals : HashMap<String, ExternalFunctionDef>
+    - hasValidatedExternals : boolean
+    - state : StoryState
+    - temporaryEvaluationContainer : Container
+    - variableObservers : HashMap<String, List<VariableObserver>>
+    --
+    + {static} inkVersionCurrent : int = 21
+    + {static} inkVersionMinimumCompatible : int = 18
+    --
+    + Continue() : String
+    + continueAsync(float) : void
+    + asyncContinueComplete() : boolean
+    + continueMaximally() : String
+    + canContinue() : boolean
+    + getCurrentText() : String
+    + getCurrentTags() : List<String>
+    + getCurrentChoices() : List<Choice>
+    + getCurrentErrors() : List<String>
+    + getCurrentWarnings() : List<String>
+    + hasError() : boolean
+    + hasWarning() : boolean
+    + getState() : StoryState
+    + getVariablesState() : VariablesState
+    + getListDefinitions() : ListDefinitionsOrigin
+    + getMainContentContainer() : Container
+    + chooseChoiceIndex(int) : void
+    + choosePathString(String) : void
+    + choosePathString(String, boolean, Object[]) : void
+    + evaluateExpression(Container) : RTObject
+    + getGlobalTags() : List<String>
+    + tagsForContentAtPath(String) : List<String>
+    + contentAtPath(Path) : SearchResult
+    + bindExternalFunction(String, ExternalFunction<?>, boolean) : void
+    + unbindExternalFunction(String) : void
+    + observeVariable(String, VariableObserver) : void
+    + observeVariables(List<String>, VariableObserver) : void
+    + removeVariableObserver(VariableObserver, String) : void
+    + startProfiling() : Profiler
+    + endProfiling() : void
+    + toJson() : String
+    + toJson(OutputStream) : void
+    + resetState() : void
+    + resetCallstack() : void
+    + buildStringOfHierarchy() : String
+    + getCurrentFlowName() : String
+    + currentFlowIsDefaultFlow() : boolean
+    + aliveFlowNames() : List<String>
+    + switchFlow(String) : void
+    + removeFlow(String) : void
+    + switchToDefaultFlow() : void
+    + validateExternalBindings() : void
+    + allowExternalFunctionFallbacks() : boolean
+  }
+
+  interface "Story.ExternalFunction<R>" as ExternalFunction {
+    + call(Object...) : R
+  }
+
+  abstract class "Story.ExternalFunction0<R>" as ExternalFunction0 {
+    # {abstract} call() : R
+  }
+
+  abstract class "Story.ExternalFunction1<T,R>" as ExternalFunction1 {
+    # {abstract} call(T) : R
+  }
+
+  abstract class "Story.ExternalFunction2<T1,T2,R>" as ExternalFunction2 {
+    # {abstract} call(T1, T2) : R
+  }
+
+  abstract class "Story.ExternalFunction3<T1,T2,T3,R>" as ExternalFunction3 {
+    # {abstract} call(T1, T2, T3) : R
+  }
+
+  interface "Story.VariableObserver" as VariableObserver {
+    + call(String, Object) : void
+  }
+
+  class Profiler {
+    - continueWatch : Stopwatch
+    - stepWatch : Stopwatch
+    - snapWatch : Stopwatch
+    - continueTotal : double
+    - snapTotal : double
+    - stepTotal : double
+    - currStepStack : String[]
+    - rootNode : ProfileNode
+    - numContinues : int
+    --
+    + getRootNode() : ProfileNode
+    + report() : String
+    + stepLengthReport() : String
+    + megalog() : String
+    ~ preContinue() : void
+    ~ postContinue() : void
+    ~ preStep() : void
+    ~ step(CallStack) : void
+    ~ postStep() : void
+    ~ preSnapshot() : void
+    ~ postSnapshot() : void
+    + {static} formatMillisecs(double) : String
+  }
+
+  class ProfileNode {
+    - nodes : HashMap<String, ProfileNode>
+    - selfMillisecs : double
+    - totalMillisecs : double
+    - selfSampleCount : int
+    - totalSampleCount : int
+    - key : String
+    + openInUI : boolean
+    --
+    + hasChildren() : boolean
+    + getKey() : String
+    + getTotalMillisecs() : int
+    + getOwnReport() : String
+    + getDescendingOrderedNodes() : Iterable<Entry<String, ProfileNode>>
+    ~ addSample(String[], double) : void
+    ~ addSample(String[], int, double) : void
+  }
+}
+
+
+' =========================================================================
+' 7. SERIALIZATION
+' =========================================================================
+package "Serialization" <<Rectangle>> {
+
+  class SimpleJson {
+    + {static} textToDictionary(String) : HashMap<String, Object>
+    + {static} textToArray(String) : List<Object>
+  }
+
+  class "SimpleJson.Reader" as SJReader {
+    - offset : int
+    - rootObject : Object
+    - text : String
+    --
+    ~ toHashMap() : HashMap<String, Object>
+    ~ toArray() : List<Object>
+    ~ readObject() : Object
+    ~ readHashMap() : HashMap<String, Object>
+    ~ readArray() : List<Object>
+    ~ readString() : String
+    ~ readNumber() : Object
+  }
+
+  class "SimpleJson.Writer" as SJWriter {
+    --
+    + writeObjectStart() : void
+    + writeObjectEnd() : void
+    + writeArrayStart() : void
+    + writeArrayEnd() : void
+    + writePropertyStart(String) : void
+    + writePropertyStart(int) : void
+    + writePropertyEnd() : void
+    + writeProperty(String, InnerWriter) : void
+    + writeProperty(String, String) : void
+    + writeProperty(String, int) : void
+    + writeProperty(String, boolean) : void
+    + write(int) : void
+    + write(float) : void
+    + write(String) : void
+    + write(boolean) : void
+    + writeNull() : void
+    + writeObject(InnerWriter) : void
+  }
+
+  interface "SimpleJson.InnerWriter" as InnerWriter {
+    + write(Writer) : void
+  }
+
+  class Json {
+    + {static} jArrayToRuntimeObjList(List<Object>) : List<RTObject>
+    + {static} jArrayToRuntimeObjList(List<Object>, boolean) : List<RTObject>
+    + {static} jTokenToRuntimeObject(Object) : RTObject
+    + {static} writeDictionaryRuntimeObjs(Writer, HashMap) : void
+    + {static} writeListRuntimeObjs(Writer, List<RTObject>) : void
+    + {static} writeIntDictionary(Writer, HashMap) : void
+    + {static} writeRuntimeObject(Writer, RTObject) : void
+    + {static} writeRuntimeContainer(Writer, Container) : void
+    + {static} writeChoice(Writer, Choice) : void
+    + {static} jObjectToHashMapRuntimeObjs(HashMap) : HashMap<String, RTObject>
+  }
+}
+
+
+' =========================================================================
+' 8. INFRASTRUCTURE
+' =========================================================================
+package "Infrastructure" <<Rectangle>> {
+
+  class Stopwatch {
+    - startTime : long
+    - stopTime : long
+    - running : boolean
+    --
+    + start() : void
+    + stop() : void
+    + reset() : void
+    + getElapsedTicks() : long
+    + getElapsedMilliseconds() : long
+    + getElapsedSeconds() : long
+    + getElapsedMinutes() : long
+    + getElapsedHours() : long
+    + getElapsed() : String
+  }
+
+  class StoryException << Exception >> {
+    + useEndLineNumber : boolean
+  }
+
+  class Error {
+  }
+
+  interface "Error.ErrorHandler" as ErrorHandler {
+    + error(String, ErrorType) : void
+  }
+
+  enum "Error.ErrorType" as ErrorType {
+    Author
+    Warning
+    Error
+  }
+
+  enum PushPopType {
+    Tunnel
+    Function
+    FunctionEvaluationFromGame
+  }
+
+  interface INamedContent {
+    + getName() : String
+    + hasValidName() : boolean
+  }
+
+  class StringExt {
+    + {static} join(String, List<T>) : String
+  }
+}
+
+
+' =========================================================================
+' INHERITANCE RELATIONSHIPS
+' =========================================================================
+
+' -- Core hierarchy --
+Container -up-|> RTObject
+Container .up.|> INamedContent
+
+' -- Content extends RTObject --
+ChoicePoint -up-|> RTObject
+Choice -up-|> RTObject
+Divert -up-|> RTObject
+Glue -up-|> RTObject
+Tag -up-|> RTObject
+Void -up-|> RTObject
+ControlCommand -up-|> RTObject
+VariableAssignment -up-|> RTObject
+VariableReference -up-|> RTObject
+NativeFunctionCall -up-|> RTObject
+
+' -- Value hierarchy --
+AbstractValue -up-|> RTObject
+Value_T -up-|> AbstractValue
+BoolValue -up-|> Value_T : T=Boolean
+IntValue -up-|> Value_T : T=Integer
+FloatValue -up-|> Value_T : T=Float
+StringValue -up-|> Value_T : T=String
+DivertTargetValue -up-|> Value_T : T=Path
+VariablePointerValue -up-|> Value_T : T=String
+ListValue -up-|> Value_T : T=InkList
+
+' -- Story implements VariableChanged --
+Story ..|> VariableChanged
+
+' -- ExternalFunction hierarchy --
+ExternalFunction0 ..|> ExternalFunction
+ExternalFunction1 ..|> ExternalFunction
+ExternalFunction2 ..|> ExternalFunction
+ExternalFunction3 ..|> ExternalFunction
+
+' -- ControlCommand inner enum --
+ControlCommand +-- CommandType
+
+' -- CallStack inner classes --
+CallStack +-- CSElement
+CallStack +-- CSThread
+
+' -- SimpleJson inner classes --
+SimpleJson +-- SJReader
+SimpleJson +-- SJWriter
+SimpleJson +-- InnerWriter
+
+' -- Error inner classes --
+Error +-- ErrorHandler
+Error +-- ErrorType
+
+' -- VariablesState inner interface --
+VariablesState +-- VariableChanged
+
+' -- Story inner classes --
+Story +-- ExternalFunction
+Story +-- ExternalFunction0
+Story +-- ExternalFunction1
+Story +-- ExternalFunction2
+Story +-- ExternalFunction3
+Story +-- VariableObserver
+
+' -- Path inner class --
+Path +-- PathComponent
+
+
+' =========================================================================
+' KEY ASSOCIATIONS
+' =========================================================================
+
+' -- Core associations --
+RTObject "0..1" o--> "parent" Container
+RTObject --> DebugMetadata : debugMetadata
+RTObject --> Path : path
+Container "1" *--> "*" RTObject : content
+Container "1" *--> "*" INamedContent : namedContent
+Pointer --> Container : container
+SearchResult --> RTObject : obj
+
+' -- Story main associations --
+Story "1" *--> "1" StoryState : state
+Story "1" *--> "1" Container : mainContentContainer
+Story "1" *--> "1" ListDefinitionsOrigin : listDefinitions
+Story "1" *--> "*" ExternalFunction : externals
+Story "1" *--> "*" VariableObserver : variableObservers
+
+' -- StoryState associations --
+StoryState "1" *--> "1" VariablesState : variablesState
+StoryState "1" o--> "1" Story : story
+StoryState "1" *--> "*" RTObject : evaluationStack
+StoryState "1" *--> "1" Flow : currentFlow
+StoryState "1" *--> "*" Flow : namedFlows
+StoryState "1" o--> "0..1" StatePatch : patch
+
+' -- Flow associations --
+Flow "1" *--> "1" CallStack : callStack
+Flow "1" *--> "*" RTObject : outputStream
+Flow "1" *--> "*" Choice : currentChoices
+
+' -- CallStack associations --
+CallStack "1" *--> "*" CSThread : threads
+CSThread "1" *--> "*" CSElement : callstack
+CSElement --> Pointer : currentPointer
+CSElement --> PushPopType : type
+
+' -- VariablesState associations --
+VariablesState --> CallStack : callStack
+VariablesState --> ListDefinitionsOrigin : listDefsOrigin
+VariablesState --> StatePatch : patch
+
+' -- Divert associations --
+Divert --> Path : targetPath
+Divert --> Pointer : targetPointer
+Divert --> PushPopType : stackPushType
+
+' -- Choice associations --
+Choice --> Path : targetPath
+Choice --> CSThread : threadAtGeneration
+
+' -- ChoicePoint associations --
+ChoicePoint --> Path : pathOnChoice
+
+' -- VariableReference associations --
+VariableReference --> Path : pathForCount
+
+' -- Value type associations --
+NativeFunctionCall ..> ValueType : operationFuncs key
+NativeFunctionCall ..> AbstractValue : creates via create()
+ListValue --> InkList : value
+
+' -- List associations --
+InkList "1" o--> "*" ListDefinition : origins
+InkList "1" *--> "*" InkListItem : keys
+ListDefinition "1" *--> "*" InkListItem : items
+ListDefinitionsOrigin "1" *--> "*" ListDefinition : lists
+ListDefinitionsOrigin ..> ListValue : cache
+
+' -- Profiler associations --
+Profiler "1" *--> "1" ProfileNode : rootNode
+Profiler "1" *--> "3" Stopwatch : watches
+ProfileNode "1" *--> "*" ProfileNode : nodes (children)
+
+' -- Serialization usage --
+Json ..> RTObject : serializes
+Json ..> SJWriter : uses
+StoryState ..> SJWriter : writeJson
+CallStack ..> SJWriter : writeJson
+Flow ..> SJWriter : writeJson
+VariablesState ..> SJWriter : writeJson
+
+@enduml

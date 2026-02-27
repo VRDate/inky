@@ -1,10 +1,14 @@
 package ink.kt
 
 /**
- * When looking up content within the story (e.g. in Container.contentAtPath),
- * the result is generally found, but if the story is modified, then when loading
- * up an old save state, some old paths may still exist. In this case we try to
- * recover by finding an approximate result.
+ * Result of searching for content by path. Holds found object + approximate flag.
+ *
+ * Three-way comparison:
+ * - C#: `Ink.Runtime.SearchResult` — struct with Container property
+ * - Java: `SearchResult` — class with mutable fields
+ * - JS: `SearchResult` — class
+ *
+ * Kotlin: Mutable result class, same as Java. C# version is a value-type struct.
  */
 class SearchResult(
     var obj: InkObject? = null,
