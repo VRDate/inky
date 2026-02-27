@@ -1,6 +1,7 @@
 plugins {
     kotlin("jvm") version "2.3.0"
     kotlin("plugin.serialization") version "2.3.0"
+    id("com.google.protobuf") version "0.9.4"
     application
 }
 
@@ -16,6 +17,8 @@ val graalVersion = "25.0.2"
 val camelVersion = "4.18.0"
 val langchain4jVersion = "1.11.0"
 val jlamaVersion = "0.8.4"
+val protobufVersion = "4.28.3"
+val fakerVersion = "2.0.0-rc.7"
 
 dependencies {
     // Ktor 3.x server
@@ -70,6 +73,21 @@ dependencies {
     // Sardine WebDAV client
     implementation("com.github.lookfirst:sardine:5.12")
 
+    // Protocol Buffers — unified ink.model contract (KT/TS/C#/Python codegen)
+    implementation("com.google.protobuf:protobuf-kotlin:$protobufVersion")
+    implementation("com.google.protobuf:protobuf-java-util:$protobufVersion")
+
+    // msgpack serialization for RSocket transport
+    implementation("org.msgpack:jackson-dataformat-msgpack:0.9.8")
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.17.2")
+
+    // kotlin-faker 2.0 (modular) — emoji category → faker methods
+    implementation("io.github.serpro69:kotlin-faker:$fakerVersion")
+    implementation("io.github.serpro69:kotlin-faker-games:$fakerVersion")
+
+    // Apache POI — XLSX formula evaluation for MD table formulas
+    implementation("org.apache.poi:poi-ooxml:5.2.5")
+
     // Logging
     implementation("ch.qos.logback:logback-classic:1.5.15")
 
@@ -106,6 +124,9 @@ sourceSets {
         kotlin.srcDirs("src")
         kotlin.exclude("test/**")
         resources.exclude("test/**")
+        proto {
+            srcDirs("src/main/proto")
+        }
     }
     test {
         kotlin.srcDirs("src/test/kotlin")
@@ -144,6 +165,22 @@ tasks.register<Jar>("fatJar") {
 
 kotlin {
     jvmToolchain(21)
+}
+
+// ── Protobuf code generation ─────────────────────────────────────
+// Generates Java/Kotlin classes from .proto files in src/main/proto/ink/model/
+// Generated code: build/generated/source/proto/main/java/ink/model/
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:$protobufVersion"
+    }
+    generateProtoTasks {
+        all().forEach { task ->
+            task.builtins {
+                named("java") {}
+            }
+        }
+    }
 }
 
 // ── PlantUML → SVG build task ──────────────────────────────────────

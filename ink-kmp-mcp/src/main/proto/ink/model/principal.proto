@@ -1,0 +1,28 @@
+syntax = "proto3";
+package ink.model;
+
+option java_package = "ink.model";
+option java_multiple_files = true;
+option csharp_namespace = "Ink.Model";
+
+// Principal identity types (auth + vcard unified).
+// Replaces: KT InkPrincipal, InkPrincipalInfo.
+// Used by: InkAuthEngine, InkVCardEngine, OIDC JWT claims.
+
+message InkPrincipal {
+  string id = 1;
+  string name = 2;
+  repeated string roles = 3;
+  bool is_llm = 4;
+  string email = 5;
+}
+
+message InkPrincipalInfo {
+  string id = 1;
+  string display_name = 2;
+  string email = 3;
+  string role = 4;
+  bool is_llm = 5;
+  string folder_path = 6;     // domain/user/ filesystem path
+  string mcp_uri = 7;         // mcp://model_name:jwt@host:port/tool
+}

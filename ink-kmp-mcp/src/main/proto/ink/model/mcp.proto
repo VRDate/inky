@@ -1,0 +1,69 @@
+syntax = "proto3";
+package ink.model;
+
+option java_package = "ink.model";
+option java_multiple_files = true;
+option csharp_namespace = "Ink.Model";
+
+// MCP protocol types.
+// Replaces: KT McpTypes.kt @Serializable classes.
+// Drives JSON-RPC serialization via protobuf-java-util JsonFormat.
+
+message JsonRpcRequest {
+  string jsonrpc = 1;
+  string id = 2;
+  string method = 3;
+  string params_json = 4;      // JSON string (flexible params)
+}
+
+message JsonRpcResponse {
+  string jsonrpc = 1;
+  string id = 2;
+  string result_json = 3;      // JSON string (flexible result)
+  JsonRpcError error = 4;
+}
+
+message JsonRpcError {
+  int32 code = 1;
+  string message = 2;
+  string data_json = 3;
+}
+
+message McpServerInfo {
+  string name = 1;
+  string version = 2;
+}
+
+message McpCapabilities {
+  McpToolCapability tools = 1;
+}
+
+message McpToolCapability {
+  bool list_changed = 1;
+}
+
+message McpInitializeResult {
+  string protocol_version = 1;
+  McpCapabilities capabilities = 2;
+  McpServerInfo server_info = 3;
+}
+
+message McpToolInfo {
+  string name = 1;
+  string description = 2;
+  string input_schema_json = 3;  // JSON Schema string
+}
+
+message McpToolsListResult {
+  repeated McpToolInfo tools = 1;
+}
+
+message McpContentBlock {
+  string type = 1;
+  string text = 2;
+}
+
+message McpToolResult {
+  repeated McpContentBlock content = 1;
+  bool is_error = 2;
+}
