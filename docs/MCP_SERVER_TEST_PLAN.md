@@ -757,4 +757,9 @@ mcp-server/src/test/kotlin/ink/mcp/
 - **LLM tests**: Mock JLama for unit tests; use real model only in integration/CI with GPU
 - **WebDAV sync**: Mock Sardine remote client; test local filesystem operations directly
 - **Auth tests**: Test with and without `KEYCLOAK_REALM_URL` to verify backward compatibility
-- **Steeltoe C# Unity integration**: Not yet implemented — test plan TBD when integration is built
+- **Steeltoe C# Unity integration**: Implemented in `ink-steeltoe/` (.NET 8 + Steeltoe 4.0) and `ink-unity/` (Unity WebGL + OneJS). Tests:
+  - `ink-steeltoe/tests/InkBridge.Tests/BidiTddInkTest.cs` — C# port of 28-stage BidiTddInk (xUnit, Ink.Runtime.Story)
+  - `ink-ai-assistant/test/bidi-tdd-stages.test.js` — Playwright E2E for ink-ai-assistant (28 stages, Electron + PWA)
+  - `mcp-server/src/test/kotlin/ink/mcp/BidiTddInkJavaTest.kt` — blade-ink-java variant of 28 stages (planned)
+  - `ink-unity/test/bidi-tdd-webgl.test.js` — Playwright → Unity WebGL build → 28 stages (planned)
+  - Cross-runtime matrix: JS (inkjs), GraalJS (inkjs), C# (Ink.Runtime), Java (blade-ink-java) all pass 28/28

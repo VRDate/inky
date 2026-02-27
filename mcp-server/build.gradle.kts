@@ -70,12 +70,24 @@ dependencies {
     // Sardine WebDAV client
     implementation("com.github.lookfirst:sardine:5.12")
 
+    // Flexmark Markdown parser (for Remirror MD + ink code blocks)
+    implementation("com.vladsch.flexmark:flexmark-all:0.64.8")
+
+    // Apache POI (Excel/spreadsheet tables in Markdown)
+    implementation("org.apache.poi:poi-ooxml:5.2.5")
+
+    // blade-ink-java (Java ink runtime for server-side ```ink block execution)
+    implementation("com.bladecoder.ink:blade-ink:1.2.1")
+
     // Logging
     implementation("ch.qos.logback:logback-classic:1.5.15")
 
     // Testing
     testImplementation("io.ktor:ktor-server-test-host:$ktorVersion")
     testImplementation("org.jetbrains.kotlin:kotlin-test:2.1.0")
+
+    // blade-ink-java for cross-runtime BidiTddInk tests
+    testImplementation("com.bladecoder.ink:blade-ink:1.2.1")
 }
 
 fun osClassifier(): String {

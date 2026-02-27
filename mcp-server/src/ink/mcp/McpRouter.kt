@@ -10,6 +10,7 @@ import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.server.http.content.*
 import io.ktor.server.sse.*
 import io.ktor.server.websocket.*
 import io.ktor.server.auth.*
@@ -139,6 +140,10 @@ fun startServer(
         }
 
         routing {
+            // ── Static files: React ink-editor app (served at /) ──
+            // Built React app is copied to resources/static/ by Gradle
+            staticResources("/static", "static")
+
             // Health check
             get("/health") {
                 call.respondText(
