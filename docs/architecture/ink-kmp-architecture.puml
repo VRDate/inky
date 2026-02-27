@@ -4,8 +4,8 @@ skinparam backgroundColor #FEFEFE
 skinparam packageStyle rectangle
 skinparam componentStyle rectangle
 
-title Ink Ecosystem — Multi-Protocol Architecture
-footer MCP • Yjs Collab • RSocket EDA • ACE • CodeMirror • Remirror • BabylonJS WebXR • Unity WebGL
+title Ink Ecosystem — Multi-Protocol Architecture\n(KMP commonMain: 31 classes ported from C#/Java/JS)
+footer MCP • Yjs Collab • RSocket EDA • KMP Runtime (31 classes) • ACE • CodeMirror • Remirror • BabylonJS WebXR • Unity WebGL
 
 ' ───────── Color palette ─────────
 skinparam component {
@@ -101,13 +101,26 @@ package "C# / Unity" as cseco {
     ONEJS --> CS_STORY : manages
 }
 
+' ───────── KMP commonMain Runtime (31 classes ported) ─────────
+package "ink-kmp-mcp/commonMain\n(31 classes — C#/Java/JS three-way port)" as kmpRuntime <<kmp>> {
+    [InkObject → Container\nValue<T> (sealed)\nGlue, Void, Tag, Divert\nChoicePoint, ControlCommand\nVariableAssignment/Reference] as KMP_CORE <<kmp>>
+    [CallStack + Element + Thread\nFlow, StatePatch\nVariablesState (fun interface)\nNativeFunctionCall (fun interface)] as KMP_ENGINE <<kmp>>
+    [StoryState\n(OutputOp functional enum)\n(LinkedHashMap state)\n(TreeMap<Choice>)] as KMP_STATE <<kmp>>
+    [InkList (LinkedHashMap delegation)\nListDefinition (lazy items)\nListDefinitionsOrigin\nInkListItem (data class)] as KMP_LIST <<kmp>>
+    KMP_CORE --> KMP_ENGINE
+    KMP_ENGINE --> KMP_STATE
+    KMP_CORE --> KMP_LIST
+}
+
 ' ───────── KMP Target Layer ─────────
-package "KMP Targets (Proposed)" as kmp <<kmp>> {
+package "KMP Targets" as kmp <<kmp>> {
     [JVM\n(Android, Desktop)] as KMP_JVM
     [JS\n(Browser, Node)] as KMP_JS
     [Native\n(iOS, Linux, macOS)] as KMP_NATIVE
     [WASM\n(WasmJS, WASI)] as KMP_WASM
 }
+
+kmpRuntime --> kmp : compiled to
 
 ' ───────── Client Surfaces ─────────
 package "Client Surfaces" as consumers {
@@ -143,6 +156,10 @@ BIR --> KMP_JVM : direct use
 BIRS --> KMP_NATIVE : via FFI
 INKJS --> KMP_JS : via require()
 INKJS --> KMP_WASM : via wasm-bindgen\nor Javy
+
+' KMP runtime connections
+KMP_STATE ..> ENGINE : replaces\nStoryState internals
+KMP_ENGINE ..> BIR : replaces\nblade-ink internals
 
 ' Protocol connections
 ROUTER --> PROTO_MCP

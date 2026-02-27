@@ -3,8 +3,8 @@
 skinparam backgroundColor #FEFEFE
 skinparam classAttributeIconSize 0
 
-title Ink KMP + MCP Server — Class Diagram
-footer blade-ink-java | inkjs | InkEngine | MCP Tools | Asset Pipeline | RSocket EDA
+title Ink KMP + MCP Server — Class Diagram\n(31 commonMain classes ported from C#/Java/JS three-way comparison)
+footer blade-ink-java | inkjs | KMP Runtime (31 classes) | MCP Tools | Asset Pipeline | RSocket EDA
 
 ' ───────── blade-ink-java API ─────────
 package "blade-ink-java (JVM)" #E3F2FD {
@@ -133,33 +133,104 @@ package "Inky MCP Server (Kotlin/JVM)" #FFEBEE {
     McpRouter --> McpTools : dispatches
 }
 
-' ───────── KMP Proposed Common API ─────────
-package "KMP Common API (Proposed)" #E0F7FA {
-    interface "InkRuntime" as IRuntime <<expect>> {
-        +compile(source: String): CompileResult
-        +createStory(json: String): InkStory
+' ───────── KMP commonMain Runtime (Ported — 31 classes) ─────────
+package "ink-kmp-mcp/commonMain\n(Kotlin Multiplatform — 31 classes ported)" #E0F7FA {
+
+    package "Tier 0 — Enums & Exceptions" as T0 {
+        class "ValueType" as KValueType <<enum>> { IntValue, FloatValue, BoolValue, StringValue,\nDivertTarget, VariablePointer, List }
+        class "PushPopType" as KPushPop <<enum>> { Tunnel, Function, FunctionEvaluationFromGame }
+        class "ErrorType" as KErrorType <<enum>> { Author, Warning, Error }
+        class "StoryException" as KStoryExc { class : Exception }
     }
 
-    interface "InkStory" as IStory <<expect>> {
-        +canContinue: Boolean
-        +continueStory(): String
-        +currentChoices: List<InkChoice>
-        +chooseChoice(index: Int)
-        +getVariable(name: String): Any?
-        +setVariable(name: String, value: Any?)
-        +saveState(): String
-        +loadState(json: String)
-        +reset()
+    package "Tier 1 — Base & Structural" as T1 {
+        class "InkObject" as KInkObj { open class\n  parent, debugMetadata\n  path, rootContentContainer }
+        class "INamedContent" as KINamed <<interface>> { name: String, hasValidName: Boolean }
+        class "DebugMetadata" as KDebugMeta <<data>> { startLineNumber, endLineNumber,\n  startCharacterNumber, endCharacterNumber,\n  fileName, sourceName }
+        class "Path" as KPath { class + Component\n  componentsString, isRelative }
+        class "Pointer" as KPointer <<data>> { container: Container?, index: Int\n  Null companion }
+        class "SearchResult" as KSearchResult { obj: InkObject?, approximate: Boolean }
+        class "Container" as KContainer { class : InkObject, INamedContent\n  content, namedContent\n  countFlags, pathToFirstLeafContent }
     }
 
-    interface "InkChoice" as IChoice <<expect>> {
-        +index: Int
-        +text: String
-        +tags: List<String>
+    package "Tier 2 — Leaf Objects" as T2 {
+        class "Glue" as KGlue { : InkObject }
+        class "Void" as KVoid { : InkObject }
+        class "Tag" as KTag { : InkObject\n  text: String }
+        class "ControlCommand" as KCtrlCmd { : InkObject\n  enum CommandType (19 values) }
+        class "Divert" as KDivert { : InkObject\n  targetPath, isExternal, isConditional }
+        class "ChoicePoint" as KChoicePt { : InkObject\n  hasCondition, hasStartContent }
+        class "VariableAssignment" as KVarAss { : InkObject\n  variableName, isNewDeclaration, isGlobal }
+        class "VariableReference" as KVarRef { : InkObject\n  name, pathForCount }
     }
 
-    IRuntime --> IStory : creates
-    IStory --> IChoice : exposes
+    package "Tier 3 — Value Hierarchy (sealed)" as T3 {
+        class "Value<T>" as KValue <<sealed>> { : InkObject\n  valueType, isTruthy, cast() }
+        class "BoolValue" as KBoolV { }
+        class "IntValue" as KIntV { }
+        class "FloatValue" as KFloatV { }
+        class "StringValue" as KStringV { isNewline, isInlineWhitespace }
+        class "DivertTargetValue" as KDivertV { }
+        class "VariablePointerValue" as KVarPtrV { variableName, contextIndex }
+        class "ListValue" as KListV { }
+    }
+
+    package "Tier 4 — List System" as T4 {
+        class "InkListItem" as KListItem <<data>> { originName, itemName }
+        class "InkList" as KInkList { : MutableMap by LinkedHashMap\n  operator +/- union/intersect\n  maxItem, minItem, inverse }
+        class "ListDefinition" as KListDef { lazy items: LinkedHashMap }
+        class "ListDefinitionsOrigin" as KListDefOrigin { findSingleItemListWithName }
+    }
+
+    package "Tier 5 — Execution Engine" as T5 {
+        class "Choice" as KChoice { : InkObject, Comparable<Choice>\n  threadAtGeneration: Thread? }
+        class "NativeFunctionCall" as KNativeFunc { : InkObject\n  fun interface BinaryOp\n  fun interface UnaryOp\n  (supplier functional pattern) }
+        class "CallStack" as KCallStack { Element, Thread\n  LinkedHashMap temps\n  FIXED: Java infinite recursion }
+        class "CallStack.Element" as KCSElement { type, currentPointer\n  temporaryVariables: LinkedHashMap }
+        class "CallStack.Thread" as KCSThread { callstack, threadIndex\n  previousPointer, copy() }
+        class "Flow" as KFlow { var name, callStack\n  outputStream, currentChoices }
+        class "StatePatch" as KStatePatch { globals: LinkedHashMap\n  visitCounts, turnIndices\n  changedVariables: LinkedHashSet }
+        class "VariablesState" as KVarState { : Iterable<String>\n  fun interface VariableChanged\n  operator get/set\n  patch: StatePatch? }
+    }
+
+    package "Tier 6 — State" as T6 {
+        class "StoryState" as KStoryState { enum OutputOp (functional)\n  fun interface ErrorHandler\n  fun interface OnDidLoadState\n  LinkedHashMap visitCounts/turnIndices\n  TreeMap<Choice> via Comparable }
+        class "Json" as KJson <<stub>> { jTokenToRuntimeObject (stub) }
+    }
+
+    ' Internal relationships
+    KInkObj <|-- KContainer
+    KInkObj <|-- KValue
+    KInkObj <|-- KGlue
+    KInkObj <|-- KVoid
+    KInkObj <|-- KTag
+    KInkObj <|-- KCtrlCmd
+    KInkObj <|-- KDivert
+    KInkObj <|-- KChoicePt
+    KInkObj <|-- KVarAss
+    KInkObj <|-- KVarRef
+    KInkObj <|-- KChoice
+    KInkObj <|-- KNativeFunc
+
+    KValue <|-- KBoolV
+    KValue <|-- KIntV
+    KValue <|-- KFloatV
+    KValue <|-- KStringV
+    KValue <|-- KDivertV
+    KValue <|-- KVarPtrV
+    KValue <|-- KListV
+
+    KContainer o-- KINamed
+    KCallStack *-- KCSElement
+    KCallStack *-- KCSThread
+    KFlow --> KCallStack
+    KFlow --> KChoice
+    KVarState --> KCallStack
+    KVarState --> KStatePatch
+    KVarState --> KListDefOrigin
+    KStoryState --> KVarState
+    KStoryState --> KFlow
+    KStoryState --> KCallStack
 }
 
 ' ───────── Asset Pipeline (Kotlin/JVM) ─────────
@@ -254,11 +325,22 @@ package "Asset Pipeline (Kotlin/JVM)" #B2DFDB {
 ' ───────── Cross-package relations ─────────
 InkEngine ..> JCompiler : via GraalJS
 InkEngine ..> JStory : via GraalJS
-BStory ..|> IStory : JVM actual
-JStory ..|> IStory : JS actual
+
+' KMP runtime replaces blade-ink-java internals
+KStoryState ..> BStory : replaces internal\nstate management
+KContainer ..> BStory : replaces internal\ncontent model
+
+' McpTools delegates
 McpTools --> InkAssetEventEngine : delegates
 McpTools --> InkFakerEngine : delegates
 McpTools --> ChatterboxTtsEngine : delegates
 InkAssetEventEngine --> InkEngine : triggers ink blocks
+
+note bottom of T0
+    C# = primary reference
+    Java/JS = secondary
+    See: INK_KMP_PORT.md
+    See: ink-kmp-port-status.puml
+end note
 
 @enduml

@@ -134,10 +134,47 @@ Server endpoint: `ws://localhost:3001/collab/:docId`
 | Edge | manifest-edge.json | MV3, Side Panel |
 | Kiwi | manifest-kiwi.json | MV3, Popup only (mobile) |
 
+## KMP commonMain Runtime Port (31 Classes)
+
+The ink runtime has been ported to **Kotlin Multiplatform commonMain** using a three-way comparison of C# (inkle/ink, primary reference), Java (blade-ink), and JS (inkjs). This gives the KMP module a **native Kotlin runtime** alongside the existing blade-ink-java and inkjs wrappers.
+
+### Port Status
+
+| Tier | Classes | Status |
+|------|---------|--------|
+| 0 — Enums & Exceptions | ValueType, PushPopType, ErrorType, StoryException | ✅ Ported |
+| 1 — Base & Structural | InkObject, INamedContent, DebugMetadata, Path, Pointer, SearchResult, Container | ✅ Ported |
+| 2 — Leaf Objects | Glue, Void, Tag, ControlCommand, Divert, ChoicePoint, VariableAssignment, VariableReference | ✅ Ported |
+| 3 — Value Hierarchy | Value\<T\> (sealed), BoolValue, IntValue, FloatValue, StringValue, DivertTargetValue, VariablePointerValue, ListValue | ✅ Ported |
+| 4 — List System | InkListItem, InkList, ListDefinition, ListDefinitionsOrigin | ✅ Ported |
+| 5 — Execution Engine | Choice, NativeFunctionCall, CallStack (+Element, +Thread), Flow, StatePatch, VariablesState | ✅ Ported |
+| 6 — State | StoryState, Json (stub) | ✅ Ported |
+| 7 — Story Runtime | SimpleJson, JsonSerialisation, Story, Profiler, StopWatch | ⏳ Pending |
+
+### Kotlin-Unique Patterns (Not in Any Original)
+
+| Pattern | Usage | Why |
+|---------|-------|-----|
+| `sealed class Value<T>` | Value hierarchy | Exhaustive `when`, no missed cases |
+| `data class` | Pointer, InkListItem | Free value semantics, copy, destructuring |
+| `fun interface` | BinaryOp, UnaryOp, VariableChanged | SAM conversion — lambdas auto-convert |
+| `operator fun` | InkList +/-, VariablesState [] | Idiomatic Kotlin syntax |
+| `by delegation` | InkList : MutableMap by _map | Composition over inheritance |
+| `LinkedHashMap` | All collections | Insertion-order + O(1) |
+| `Comparable<Choice>` | Choice ordering | TreeSet / sorted collection support |
+
+### Bug Fixes
+
+- **Java's infinite recursion in CallStack.setTemporaryVariable** — 3-arg overload calls itself instead of 4-arg. Kotlin fix: single method with `contextIndex: Int = -1` default parameter.
+
+See: [`INK_KMP_PORT.md`](INK_KMP_PORT.md) for full three-way comparison, [`ink-kmp-port-status.puml`](ink-kmp-port-status.puml) for class diagram.
+
 ## Diagrams
 
 - `ink-kmp-blade-ink.puml` — KMP platform architecture with blade-ink
-- `ink-mcp-tools.puml` — 46-tool MCP server overview
+- `ink-kmp-classes.puml` — KMP + MCP server class diagram (31 runtime classes)
+- `ink-kmp-port-status.puml` — KMP runtime port status by tier
+- `ink-mcp-tools.puml` — 79-tool MCP server overview
 - `ink-collab-yjs.puml` — Yjs collaboration architecture
 - `dictalm-gguf-models.puml` — DictaLM model selection guide
 - `camel-llm-pipeline.puml` — Camel + LangChain4j pipeline

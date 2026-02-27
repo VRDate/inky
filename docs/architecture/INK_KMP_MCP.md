@@ -154,6 +154,52 @@ actual class InkStory(private val story: dynamic) {
 
 See: [`ink-kmp-classes.puml`](ink-kmp-classes.puml)
 
+## KMP commonMain Runtime Port — Leaderboard
+
+The ink runtime is being ported to **Kotlin Multiplatform commonMain** using a three-way comparison where C# is the primary reference. Instead of maintaining per-language implementations (C#, TS, JS) with duplicated code, the strategy is **proto-annotated Kotlin code** compiled to native KMP targets — replacing C# DLL, JS/TS, and native runtimes with a single KT source of truth, with fallback for backward compatibility.
+
+### Leaderboard: KT vs C# vs TS vs JS
+
+| Dimension | C# (inkle/ink) | Java (blade-ink) | JS (inkjs) | **KT (KMP)** |
+|-----------|---------------|------------------|------------|--------------|
+| **Type safety** | Strong (generics, struct) | Strong (verbose) | Weak (typeof) | **Strongest** (sealed, reified) |
+| **Value semantics** | struct (Pointer, InkListItem) | class + manual assign() | class + copy() | **data class** (auto) |
+| **Exhaustive dispatch** | switch (no check) | if-instanceof chains | typeof chains | **sealed when** (compile-time) |
+| **Functional patterns** | delegate + event | interface (verbose) | callback (untyped) | **fun interface** (SAM) |
+| **Operator overloading** | Yes (indexer, +/-) | No | No | **Yes** (full operator fun) |
+| **Collection order** | Dictionary (no order) | HashMap (no order) | Map (insertion) | **LinkedHashMap** (insertion + O(1)) |
+| **Default params** | Yes | No (overload hell) | Yes (but untyped) | **Yes** (eliminates bugs) |
+| **Multiplatform** | .NET only | JVM only | Browser/Node | **JVM, JS, Native, WASM** |
+| **Proto codegen** | via Grpc.Tools | via protoc-java | via protoc-ts | **native protobuf-kotlin** |
+
+### Port Status (31 of 46 classes)
+
+| Tier | Classes | Count | Status |
+|------|---------|-------|--------|
+| 0 — Enums & Exceptions | ValueType, PushPopType, ErrorType, StoryException | 4 | ✅ |
+| 1 — Base & Structural | InkObject, INamedContent, DebugMetadata, Path, Pointer, SearchResult, Container | 7 | ✅ |
+| 2 — Leaf Objects | Glue, Void, Tag, ControlCommand, Divert, ChoicePoint, VariableAssignment, VariableReference | 8 | ✅ |
+| 3 — Value Hierarchy | Value\<T\> (sealed), Bool/Int/Float/String/DivertTarget/VariablePointer/ListValue | 8 | ✅ |
+| 4 — List System | InkListItem, InkList, ListDefinition, ListDefinitionsOrigin | 4 | ✅ |
+| 5 — Execution Engine | Choice, NativeFunctionCall, CallStack (+Element, +Thread), Flow, StatePatch, VariablesState | 8 | ✅ |
+| 6 — State & Serialization | StoryState, Json (stub) | 2 | ✅ / ⚠️ |
+| 7 — Story Runtime | SimpleJson, JsonSerialisation, Story, Profiler, StopWatch | 5 | ⏳ |
+
+### KMP Target Strategy
+
+Proto-annotated KT commonMain compiles to every target, **replacing** per-language implementations:
+
+| KMP Target | Replaces | Output | Fallback |
+|------------|----------|--------|----------|
+| **JVM** | blade-ink-java | .jar (direct use) | blade-ink-java v1.3.3 |
+| **JS** | inkjs | .js module | inkjs npm package |
+| **Native** | blade-ink-rs (Rust FFI) | .dll / .so / .dylib | blade-ink-rs C FFI |
+| **WASM** | inkjs via wasm-js | .wasm module | inkjs bundled |
+
+**Proto drives the wire format** — same `ink.model.*` messages across MCP (JSON-RPC), RSocket (msgpack), WSS, SSE, WebDAV, and Yjs. See Step 0 in the plan for the 14 `.proto` files.
+
+See: [`INK_KMP_PORT.md`](INK_KMP_PORT.md) for full three-way comparison, [`ink-kmp-port-status.puml`](ink-kmp-port-status.puml) for class diagram.
+
 ## Per-Framework Ink Runtime
 
 Each framework has its own ink compiler/runtime. GraalJS is to KT what OneJS is to Unity — an embedded JS engine alongside the native engine.
@@ -520,12 +566,50 @@ ink-unity/
 └── InkBabylonExporter.cs        # Unity → BabylonJS glTF export
 
 ink-csharp/
-├── compiler/Compiler.cs         # Native C# ink compiler
-└── ink-engine-runtime/Story.cs  # Native C# ink runtime
+├── compiler/Compiler.cs         # Native C# ink compiler (reference)
+└── ink-engine-runtime/Story.cs  # Native C# ink runtime (primary reference)
+
+ink-kmp-mcp/src/commonMain/kotlin/com/bladecoder/ink/runtime/
+├── ValueType.kt              # Tier 0 — enum
+├── PushPopType.kt            # Tier 0 — enum
+├── ErrorType.kt              # Tier 0 — enum
+├── StoryException.kt         # Tier 0 — exception
+├── INamedContent.kt          # Tier 1 — interface
+├── DebugMetadata.kt          # Tier 1 — data class
+├── Path.kt                   # Tier 1 — path addressing
+├── InkObject.kt              # Tier 1 — base class
+├── Pointer.kt                # Tier 1 — data class (value semantics)
+├── SearchResult.kt           # Tier 1 — result wrapper
+├── Container.kt              # Tier 1 — content container
+├── Glue.kt                   # Tier 2 — leaf
+├── Void.kt                   # Tier 2 — leaf
+├── Tag.kt                    # Tier 2 — leaf
+├── ControlCommand.kt         # Tier 2 — 19 command types
+├── Divert.kt                 # Tier 2 — flow control
+├── ChoicePoint.kt            # Tier 2 — choice generation
+├── VariableAssignment.kt     # Tier 2 — variable write
+├── VariableReference.kt      # Tier 2 — variable read
+├── Value.kt                  # Tier 3 — sealed hierarchy (all value types)
+├── InkListItem.kt            # Tier 4 — data class (value equality)
+├── InkList.kt                # Tier 4 — LinkedHashMap delegation + operator +/-
+├── ListDefinition.kt         # Tier 4 — lazy items
+├── ListDefinitionsOrigin.kt  # Tier 4 — origin resolver
+├── Choice.kt                 # Tier 5 — Comparable<Choice>
+├── NativeFunctionCall.kt     # Tier 5 — fun interface BinaryOp/UnaryOp
+├── CallStack.kt              # Tier 5 — Element, Thread (fixed Java bug)
+├── Flow.kt                   # Tier 5 — execution flow
+├── StatePatch.kt             # Tier 5 — transactional overlay
+├── VariablesState.kt         # Tier 5 — fun interface VariableChanged + operator[]
+└── StoryState.kt             # Tier 6 — OutputOp functional enum
 
 docs/architecture/
 ├── INK_KMP_MCP.md               # This document
+├── INK_KMP_PORT.md              # Three-way C#/Java/JS comparison (leaderboard)
+├── INK_KMP_BLADE_INK.md         # blade-ink integration + KMP runtime
 ├── INK_ASSET_PIPELINE.md        # Asset event pipeline architecture
+├── ink-kmp-port-status.puml     # KMP runtime port status by tier (31 classes)
+├── ink-kmp-classes.puml         # KMP runtime + MCP server class diagram
+├── ink-kmp-architecture.puml    # Multi-protocol component diagram
 ├── ink-mcp-tools.puml           # 79-tool architecture diagram
 ├── ink-per-framework-runtime.puml # Per-framework compiler/runtime
 ├── ink-asset-event-pipeline.puml  # Asset event flow diagram
@@ -533,9 +617,7 @@ docs/architecture/
 ├── mcp-server-sequence.puml     # MCP session sequence diagram
 ├── camel-llm-pipeline.puml      # Camel + JLama pipeline
 ├── ink-collab-yjs.puml          # Yjs collaboration + auth
-├── sillytavern-ink-integration.puml  # SillyTavern integration
-├── ink-kmp-architecture.puml    # Multi-protocol component diagram
-└── ink-kmp-classes.puml         # KMP + asset pipeline class diagram
+└── sillytavern-ink-integration.puml  # SillyTavern integration
 ```
 
 ## References
