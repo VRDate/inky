@@ -56,21 +56,9 @@ public class BidiTddInkTest
         return Directory.GetCurrentDirectory();
     }
 
-    /// <summary>Compile ink source, collecting errors via callback. Returns (story, errors).</summary>
+    /// <summary>Compile ink source under the shared semaphore. Returns (story, errors).</summary>
     private static (Story? story, List<string> errors) CompileSource(string source)
-    {
-        var errors = new List<string>();
-        var compiler = new Compiler(source, new Compiler.Options
-        {
-            errorHandler = (message, type) =>
-            {
-                if (type == ErrorType.Error)
-                    errors.Add(message);
-            }
-        });
-        var story = compiler.Compile();
-        return (story, errors);
-    }
+        => InkCompilerLock.Compile(source);
 
     /// <summary>Compile bidi_and_tdd.ink and return a Story, asserting no errors.</summary>
     private static Story CompileAndStart(string? source = null)

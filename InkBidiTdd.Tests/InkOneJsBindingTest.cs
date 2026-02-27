@@ -35,18 +35,9 @@ public class InkOneJsBindingTest
 
         public string Compile(string source)
         {
-            var errors = new List<string>();
             try
             {
-                var compiler = new Compiler(source, new Compiler.Options
-                {
-                    errorHandler = (message, type) =>
-                    {
-                        if (type == ErrorType.Error)
-                            errors.Add(message);
-                    }
-                });
-                var story = compiler.Compile();
+                var (story, errors) = InkCompilerLock.Compile(source);
                 if (story == null || errors.Count > 0)
                     return JsonSerializer.Serialize(new { json = "", errors = errors.ToArray() });
                 var json = story.ToJson();
