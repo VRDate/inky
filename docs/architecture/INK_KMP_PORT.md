@@ -135,6 +135,60 @@ Per-language PlantUML class diagrams: `ink.kt.puml`, `ink.java.puml`, `ink.cs.pu
 | **File consolidation** | ProfileNode separate file | ProfileNode separate file | Combined in Profiler.kt |
 | **StoryState construction** | `new StoryState(this)` | `new StoryState(this)` | `StoryState(rootContainer, listDefs)` — decoupled |
 
+## Why Pure Kotlin > GraalJS + inkjs
+
+`InkEngine.kt` uses GraalJS + inkjs for compilation and runtime. This works but has limitations:
+
+| GraalJS Limitation | Pure ink.kt Solution |
+|-------------------|---------------------|
+| Polyglot context overhead (~50MB per session) | Native Kotlin objects, zero overhead |
+| JS↔Kotlin string marshalling on every call | Same String type, no marshalling |
+| No access to Kotlin sealed classes, generics | Full type system, exhaustive `when` |
+| Separate GraalJS context per story session | Kotlin coroutines, shared state |
+| No compile-time type safety across JS boundary | Compiler-checked at build time |
+| Can't use Kotlin Flow/coroutines from JS side | Native coroutine support |
+| JS `Number` (64-bit float) loses Int precision | Kotlin `Int` / `Float` / `Long` |
+| GraalJS native image needs Truffle framework | Pure Kotlin → tiny native binary |
+
+**Migration path**: GraalJS remains for cross-validation and as a fallback. Pure `ink.kt` runtime
+becomes the primary runtime, and once the compiler is ported (`ink.kt.compiler`), GraalJS is optional.
+
+## Compiler Port Roadmap (ink.kt.compiler)
+
+blade-ink-java v1.3.0 (Dec 2025) added a full Java ink compiler. Port status:
+
+| Component | Java Lines | KT Estimate | Status |
+|-----------|-----------|-------------|--------|
+| `Compiler.java` | 254 | ~150 | ⏳ |
+| `InkParser.java` | 2,802 | ~1,500 | ⏳ |
+| `ParsedHierarchy/` (30+ AST nodes) | 4,739 | ~2,500 | ⏳ |
+| `StringParser/` framework | ~500 | ~300 | ⏳ |
+| Supporting (CharSet, Comments, etc.) | ~300 | ~150 | ⏳ |
+| **Total** | **~8,600** | **~4,600** | ⏳ |
+
+Target package: `ink.kt.compiler` (mirrors `ink.kt` runtime namespace).
+
+## Related Projects
+
+| Project | Type | Useful For |
+|---------|------|-----------|
+| [blade-ink-java](https://github.com/bladecoder/blade-ink-java) | Java runtime + compiler (v1.3.2) | Source for KT port, GraalVM native image |
+| [blade-ink-template](https://github.com/bladecoder/blade-ink-template) | LibGDX game template | Usage patterns, story lifecycle |
+| [mica-ink](https://github.com/micabytes/mica-ink) | Kotlin ink parser (archived) | StoryWrapper pattern, StoryInterrupt, line-by-line parser |
+| [inkjs](https://github.com/y-lohse/inkjs) | JS runtime (npm) | GraalJS backend, reference for Kotlin/JS output |
+| [ink (vadimdemedes)](https://github.com/vadimdemedes/ink) | React CLI framework | Terminal UI for ink stories |
+| [ink-ui](https://github.com/vadimdemedes/ink-ui) | CLI UI components | Spinners, text input, select for terminal |
+| [inky](https://github.com/inkle/inky) | Official Electron editor | ACE + inklecate, reference editor |
+
+## ICU CLDR Bidi Integration (Planned)
+
+Per-line RTL auto-detection for Hebrew/Arabic ink story output:
+- ICU4J `UScript.getScript()` for script run detection
+- `Bidi` class for Unicode Bidirectional Algorithm
+- `BreakIterator` for sentence/line segmentation
+- Auto-insert `# dir:rtl` tags based on first strong character rule
+- KMP approach: `expect/actual` with ICU4J on JVM, browser Intl API on JS
+
 ## File Map
 
 ```
