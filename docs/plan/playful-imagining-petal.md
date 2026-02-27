@@ -1107,8 +1107,9 @@ dotnet test InkBidiTdd.Tests --filter "InkAssetEventReceiverTest"
 - [x] **Step 5 fix** — ACE+Yjs, ProseMirror→Remirror, InkProseEditor→InkRemirrorEditor (committed + pushed)
 - [x] **Step 0** — 14 .proto files in ink.model, Gradle protobuf plugin, InkModelSerializers.kt (committed + pushed)
 - [x] **Step 1** — EmojiAssetManifest.kt, InkFakerEngine.kt, InkMdEngine extensions, 6 MCP tools, tests (committed + pushed)
-- [ ] **Step 1b** — Rewrite EmojiAssetManifest as Unicode parser (emoji-test.txt + UnicodeData.txt + IPA) ← **NEXT**
-- [ ] **Step 2** — RSocket + msgpack + AsyncAPI event layer
+- [x] **Step 1b** — Rewrite EmojiAssetManifest as Unicode parser + Camel route fixes (committed + pushed)
+- [x] **Step 2** — RSocket + msgpack + AsyncAPI event layer (committed + pushed)
+- [ ] **Step 6** — Merge ink.kt.mica → ink.kt package (Mica namespace) ← **NEXT**
 - [ ] **Step 3** — Chatterbox TTS
 - [ ] **Step 4** — BabylonJS loader
 
@@ -1317,4 +1318,418 @@ No new Gradle dependencies. No changes needed to InkFakerEngine (works via manif
 ./gradlew :ink-kmp-mcp:test --tests "ink.mcp.EmojiAssetManifestTest"
 # Existing faker tests (backward compat)
 ./gradlew :ink-kmp-mcp:test --tests "ink.mcp.InkFakerEngineTest"
+```
+
+---
+
+## Step 6: Merge ink.kt.mica → ink.kt Package
+
+### Context
+
+**Architecture**: Proto data classes are extracted FROM ink.kt. Logic is identical across all
+implementations (C#, Java, JS, Kotlin) because ink is the same language. Each framework adds
+logic differently: **KT uses extension methods**, C# uses partial classes + static methods.
+
+**Grand vision**: All ink impls (JS/TS/C#/Java/mica) → ink.kt (KMP source of truth) → then:
+- **KT/KMP**: JVM + JS + Native + WASM from one codebase
+- **KT Ktor Native**: MCP multi-tenant OIDC server
+- **KT/JS**: one JS bridge → 2D web + BabylonJS 3D (all web is KT/JS)
+- **ink.cs**: port from ink.kt using existing C# as guide → MAUI + Unity only
+- **Proto data classes**: shared contract codegen (KT, CS, TS, JS, Python)
+
+**Goal**: Merge 28 mica parser files into the `ink.kt` package. Same class names for KMP
+JS/Native compatibility. No `Mica.kt` namespace — merge each class directly by comparing
+ink.[lang].puml class diagrams and actual code.
+
+**Packages**:
+- **`ink.kt`** — compiled JSON bytecode runtime (36 classes, ~8000 LOC), from blade-ink Java/C#/JS
+- **`ink.kt.mica`** — parser-based runtime (28 files, ~2100 LOC), from mica-ink Java
+
+### Design Pattern: Data Classes + Extension Methods
+
+```
+ink.kt class (data)  ←→  proto message (codegen)  ←→  ink.[lang] class (data)
+      ↑                                                        ↑
+  extension methods (KT)                         partial class / static (C#)
+      ↑                                                        ↑
+  same ink language logic everywhere
+```
+
+- **Data classes**: hold fields (properties), extractable to proto
+- **Extension methods**: add ink language logic (same across all impls)
+- **AST node data classes** (Knot, Stitch, Gather, Conditional, ConditionalOption, Declaration):
+  "compiled away" — exist only during parsing, become Container/ControlCommand/VariableAssignment
+
+### Pre-Implementation
+
+```bash
+cp /root/.claude/plans/playful-imagining-petal.md docs/plan/playful-imagining-petal.md
+git add docs/plan/ && git commit -m "backup: copy plan to docs/plan before mica merge"
+```
+
+### The 6 Colliding Classes — Merge Instructions
+
+#### 1. Content → InkObject (base class merge)
+
+| Field | mica Content | ink.kt InkObject | Merge |
+|-------|-------------|-----------------|-------|
+| `parent: Container?` | ✅ constructor param | ✅ `var parent` | Already exists |
+| `id: String` | ✅ constructor param | — | **Add** to InkObject |
+| `text: String` | ✅ constructor param | — | **Add** to InkObject |
+| `lineNumber: Int` | ✅ constructor param | — | **Add** to InkObject |
+| `count: Int` | ✅ internal | — | **Add** to InkObject |
+| `_debugMetadata` | — | ✅ | Keep |
+| `_path` | — | ✅ | Keep |
+| `path`, `resolvePath()`, etc. | — | ✅ | Keep |
+| `copy()` | — | ✅ | Keep |
+| `getText(story)` | ✅ open fun | — | **Add** as extension |
+
+**Changes to `InkObject.kt`**:
+```kotlin
+open class InkObject {
+    var parent: Container? = null
+    // NEW from mica Content — parser fields (defaults = unused in compiled mode)
+    open var id: String = ""
+    open var text: String = ""
+    var lineNumber: Int = 0
+    internal var count: Int = 0
+    // ... existing debugMetadata, path, etc. unchanged
+}
+```
+
+**New extension** in `InkObjectExt.kt`:
+```kotlin
+// mica Content.getText() logic — extension on InkObject
+fun InkObject.getText(story: VariableMap): String =
+    StoryText.getText(text, count, story)
+
+// mica Content.getId() companion → top-level function
+fun contentId(parent: Container): String =
+    "${parent.id}${Symbol.DOT}${parent.content.size}"
+```
+
+**Content.kt deleted** — Content class no longer exists, InkObject IS the base.
+All mica code using `Content` → use `InkObject` directly.
+
+#### 2. Container (merge parser traversal into compiled Container)
+
+| Field | mica Container | ink.kt Container | Merge |
+|-------|---------------|-----------------|-------|
+| `content` / `children` | `children: MutableList<Content>` | `content: MutableList<InkObject>` | **Same** (Content=InkObject) |
+| `index` | ✅ internal parser pointer | — | **Add** to Container |
+| `add(item)` | ✅ | `addContent(obj)` | **Add** alias |
+| `get(i)` | ✅ | `content[i]` | **Add** alias |
+| `indexOf(c)` | ✅ | `content.indexOf(c)` | **Add** alias |
+| `size` | ✅ get | `content.size` | **Add** alias |
+| `namedContent` | — | ✅ HashMap | Keep |
+| `visitsShouldBeCounted` | — | ✅ | Keep |
+| `countFlags` | — | ✅ | Keep |
+| `contentAtPath()` | — | ✅ | Keep |
+| `name` | — | ✅ INamedContent | Keep |
+
+**Changes to `Container.kt`**:
+```kotlin
+class Container : InkObject(), INamedContent {
+    // ... existing fields unchanged ...
+
+    // NEW from mica Container — parser traversal
+    internal var index: Int = 0
+
+    // Mica compat aliases (children = content, same list)
+    val children: MutableList<InkObject> get() = content
+    val size: Int get() = content.size
+    fun add(item: InkObject) { addContent(item) }
+    operator fun get(i: Int): InkObject = content[i]
+    fun indexOf(c: InkObject): Int = content.indexOf(c)
+}
+```
+
+**Container.kt (mica) deleted** — merged into ink.kt Container.
+
+#### 3. Choice (merge parser AST fields into compiled Choice)
+
+| Field | mica Choice | ink.kt Choice | Merge |
+|-------|------------|--------------|-------|
+| `text` | ✅ from Content | ✅ `var text: String?` | Already exists (display text) |
+| `index` | — | ✅ `var index: Int` | Keep |
+| `level` | ✅ parser nesting depth | — | **Add** |
+| `conditions` | ✅ parser conditions | — | **Add** |
+| `repeatable` | ✅ `+` vs `*` choice | — | **Add** |
+| `targetPath` | — | ✅ Path? | Keep |
+| `sourcePath` | — | ✅ String? | Keep |
+| `tags` | — | ✅ List<String>? | Keep |
+| `threadAtGeneration` | — | ✅ Thread? | Keep |
+| `Comparable<Choice>` | — | ✅ | Keep |
+
+**Changes to `Choice.kt`**:
+```kotlin
+class Choice : InkObject(), Comparable<Choice> {
+    // ... existing fields unchanged ...
+
+    // NEW from mica Choice — parser fields
+    var level: Int = 0
+    internal var conditions: MutableList<String> = mutableListOf()
+    internal var repeatable: Boolean = false
+}
+```
+
+**New extension** in `ChoiceExt.kt`:
+```kotlin
+// mica Choice logic as extensions
+fun Choice.isFallBack(): Boolean = text.isNullOrEmpty()
+
+fun Choice.evaluateConditions(story: VariableMap): Boolean {
+    if (count > 0 && !repeatable) return false
+    for (condition in conditions) {
+        try {
+            val obj = Declaration.evaluate(condition, story)
+            if (obj is Boolean && !obj) return false
+            if (obj is Double && obj.toInt() <= 0) return false
+        } catch (e: InkRunTimeException) {
+            story.logException(e)
+            return false
+        }
+    }
+    return true
+}
+
+// mica companion methods → top-level functions
+fun choiceDepth(line: String): Int { ... }
+fun choiceId(header: String, parent: Container): String { ... }
+fun extractChoiceText(header: String): String { ... }
+fun choiceParent(currentContainer: Container, lvl: Int): Container { ... }
+```
+
+**Choice.kt (mica) deleted** — data merged, logic in extensions.
+
+#### 4. Divert (add parser resolve to compiled Divert)
+
+| Field | mica Divert | ink.kt Divert | Merge |
+|-------|------------|--------------|-------|
+| `text` | ✅ from Content (divert target string) | — | Uses InkObject.text (added in #1) |
+| `stackPushType` | — | ✅ | Keep |
+| `targetPath` | — | ✅ | Keep |
+| `targetPointer` | — | ✅ | Keep |
+| `variableDivertName` | — | ✅ | Keep |
+| `resolveDivert(story)` | ✅ | — | **Add** as extension |
+
+**No changes to `Divert.kt`** — ink.kt Divert already has all needed fields.
+The mica `text` field for divert target is now on InkObject (from merge #1).
+
+**New extension** in `DivertExt.kt`:
+```kotlin
+// mica Divert.resolveDivert() logic
+fun Divert.resolveDivert(story: Story): Container {
+    var d = text.trim()
+    if (d.contains(Symbol.BRACE_LEFT))
+        d = d.substring(0, d.indexOf(Symbol.BRACE_LEFT))
+    d = story.resolveInterrupt(d)
+    return story.getDivert(d)
+}
+```
+
+**Divert.kt (mica) deleted** — logic in extension.
+
+#### 5. Tag (already compatible — minimal merge)
+
+| Field | mica Tag | ink.kt Tag | Merge |
+|-------|---------|-----------|-------|
+| `text` | ✅ from Content | ✅ `val text: String` | Already exists |
+| `id` | ✅ from Content | — | Uses InkObject.id (added in #1) |
+| `parent` | ✅ from Content | InkObject.parent | Already exists |
+| `lineNumber` | ✅ from Content | — | Uses InkObject.lineNumber (added in #1) |
+
+**No changes to `Tag.kt`** — already compatible. Mica Tag adds nothing beyond Content fields
+(which are now on InkObject from merge #1). ink.kt Tag already has `text`.
+
+**Tag.kt (mica) deleted** — no merge needed, ink.kt Tag suffices.
+
+#### 6. Story (add parser runtime to compiled Story)
+
+| Feature | mica Story | ink.kt Story | Merge |
+|---------|-----------|-------------|-------|
+| `canContinue()` | — | ✅ | Keep |
+| `continueStory()` | — | ✅ | Keep |
+| `next()` | ✅ parser advance | — | **Add** as extension |
+| `choose(idx)` | ✅ parser choice | `chooseChoiceIndex(idx)` | **Add** as extension |
+| `choiceSize` | ✅ get | `currentChoices.size` | **Add** as extension |
+| `choiceText(i)` | ✅ | — | **Add** as extension |
+| `putVariable()` | ✅ | `setVariable()` via VariablesState | **Add** as extension |
+| `resolveInterrupt()` | ✅ | — | **Add** as extension |
+| `getDivert()` | ✅ | — | **Add** as extension |
+| `wrapper` | ✅ StoryWrapper | — | **Add** field |
+| `interrupts` | ✅ | — | **Add** field |
+| `variables` (mica) | ✅ MutableMap | VariablesState | **Add** field |
+| `functions` (mica) | ✅ SortedMap | externals | **Add** field |
+| `fileNames` | ✅ | — | **Add** field |
+| `5 event callbacks` | — | ✅ | Keep |
+| `evaluateFunction()` | — | ✅ | Keep |
+| `bindExternalFunction()` | — | ✅ | Keep |
+| `Profiler` | — | ✅ | Keep |
+
+**Changes to `Story.kt`** — add parser-mode fields:
+```kotlin
+class Story(...) : InkObject(), VariablesState.VariableChanged {
+    // ... existing 1771 lines unchanged ...
+
+    // NEW from mica Story — parser mode fields
+    var wrapper: StoryWrapper? = null
+    internal var parserContainer: Container? = null
+    internal val parserContent: MutableMap<String, InkObject> = mutableMapOf()
+    internal val fileNames: MutableList<String> = mutableListOf()
+    internal val parserVariables: MutableMap<String, Any> = mutableMapOf()
+    internal val parserFunctions: SortedMap<String, Function> =
+        sortedMapOf(String.CASE_INSENSITIVE_ORDER)
+    private val interrupts: MutableList<StoryInterrupt> = mutableListOf()
+    val parserText: MutableList<String> = mutableListOf()
+    val parserChoices: MutableList<Container> = mutableListOf()
+}
+```
+
+**New extension** in `StoryParserExt.kt` (~200 lines):
+```kotlin
+// All mica Story logic as extension methods on ink.kt Story
+fun Story.next(): List<String> { ... }         // tree traversal advance
+fun Story.choose(idx: Int) { ... }             // parser choice
+fun Story.putVariable(key: String, value: Any) { ... }
+fun Story.putVariables(vars: Map<String, Any>) { ... }
+fun Story.resolveInterrupt(divert: String): String { ... }
+fun Story.getDivert(d: String): Container { ... }
+fun Story.setParserContainer(s: String) { ... }
+fun Story.addStory(other: Story) { ... }       // merge stories
+fun Story.clearParser() { ... }
+
+// mica VariableMap interface methods as extensions
+fun Story.logException(e: Exception) { ... }
+fun Story.hasValue(token: String): Boolean { ... }
+fun Story.getValue(token: String): Any { ... }
+fun Story.hasFunction(token: String): Boolean { ... }
+fun Story.getFunction(token: String): Function { ... }
+fun Story.debugInfo(): String { ... }
+
+// mica inner function classes → top-level data classes
+data class IsNullFunction(...) : Function { ... }
+data class NotFunction(...) : Function { ... }
+data class RandomFunction(...) : Function { ... }
+data class FloorFunction(...) : Function { ... }
+```
+
+**Story.kt (mica) deleted** — fields in Story, logic in extensions.
+
+### Phase 2: Move 22 Non-Colliding Classes to `ink.kt` Package
+
+Change `package ink.kt.mica` → `package ink.kt`, move files from `mica/` → `ink/kt/`:
+
+**AST node data classes (6 — "compiled away" during parsing):**
+
+| # | File | Superclass | Notes |
+|---|------|-----------|-------|
+| 1 | `Knot.kt` | ParameterizedContainer, Function | data class, `isFunction`, `eval()` |
+| 2 | `Stitch.kt` | ParameterizedContainer | data class, `isStitchHeader()`, `getId()` |
+| 3 | `Gather.kt` | Container (ink.kt) | data class, `level`, companion methods |
+| 4 | `Conditional.kt` | Container (ink.kt) | data class, `resolveConditional()` |
+| 5 | `ConditionalOption.kt` | Container (ink.kt) | data class, `evaluate()` |
+| 6 | `Declaration.kt` | InkObject (was Content) | data class, `evaluate()`, `isVariableHeader()` |
+
+These extend ink.kt Container/InkObject directly (since Content→InkObject, Container→Container).
+Change: `Content(...)` → `InkObject()` and set `id`/`text`/`lineNumber` in init block.
+Change: `mica.Container(...)` → `Container()` and set parser fields in init block.
+
+**Parser/serialization (5):**
+
+| # | File | Notes |
+|---|------|-------|
+| 7 | `InkParser.kt` | `parse(input: String, ...) → Story` — refs colliding types by ink.kt names now |
+| 8 | `StoryLoader.kt` | `load(json: JsonObject, story: Story)` — kotlinx.serialization.json |
+| 9 | `StorySaver.kt` | `save(story: Story): JsonObject` — kotlinx.serialization.json |
+| 10 | `StoryText.kt` | `getText(text, count, variables): String` — dynamic text evaluation |
+| 11 | `Expression.kt` | Shunting-yard evaluator, refs VariableMap/Function/Operator |
+
+**Interfaces (3):**
+
+| # | File | Notes |
+|---|------|-------|
+| 12 | `VariableMap.kt` | Interface: `hasValue`, `getValue`, `hasFunction`, `getFunction` |
+| 13 | `Function.kt` | Interface: `numParams`, `isFixedNumParams`, `eval()` |
+| 14 | `StoryWrapper.kt` | Interface: `getFileContent`, `getStoryObject`, `getInterrupt` |
+
+**Support types (5):**
+
+| # | File | Notes |
+|---|------|-------|
+| 15 | `Symbol.kt` | Object: 30+ ink syntax constants |
+| 16 | `StoryJson.kt` | Object: JSON field name constants |
+| 17 | `Operator.kt` | Abstract class: expression operators |
+| 18 | `StoryInterrupt.kt` | Abstract class: conditional flow override |
+| 19 | `ParameterizedContainer.kt` | Open class: Container with named params |
+
+**Exceptions (3 — from `mica/util/`):**
+
+| # | File | Notes |
+|---|------|-------|
+| 20 | `InkRunTimeException.kt` | Exception class |
+| 21 | `InkParseException.kt` | Exception class |
+| 22 | `InkLoadingException.kt` | Exception class |
+
+**For each file:**
+1. `package ink.kt.mica` → `package ink.kt`
+2. Remove `import ink.kt.mica.*` / `import ink.kt.mica.util.*`
+3. `Content(...)` superclass → `InkObject()` + init block sets `id`, `text`, `lineNumber`
+4. `mica.Container(...)` superclass → `Container()` + init block sets parser fields
+5. `Story` type refs now resolve to ink.kt Story (with parser fields added)
+
+### Phase 3: Delete `ink/kt/mica/` Directory
+
+```
+DELETE ink-kmp-mcp/src/commonMain/kotlin/ink/kt/mica/*.kt       (26 files)
+DELETE ink-kmp-mcp/src/commonMain/kotlin/ink/kt/mica/util/*.kt  (3 files)
+DELETE ink-kmp-mcp/src/commonMain/kotlin/ink/kt/mica/           (directory)
+```
+
+### Phase 4: Update References
+
+**`InkRuntime.kt`**: Update KDoc `[ink.kt.mica.Story]` → `[Story]`, `[ink.kt.mica.Choice]` → `[Choice]`
+**`docs/architecture/ink.kt.puml`**: Update merge status in PROGRESS and GAPS notes
+**`docs/ref/mica-ink/`**: NO changes (historical JVM reference snapshot)
+
+### New Files Created
+
+| # | File | Purpose | LOC |
+|---|------|---------|-----|
+| 1 | `ink/kt/InkObjectExt.kt` | `getText()` extension, `contentId()` | ~15 |
+| 2 | `ink/kt/ChoiceExt.kt` | `evaluateConditions()`, `isFallBack()`, companion fns | ~60 |
+| 3 | `ink/kt/DivertExt.kt` | `resolveDivert()` | ~10 |
+| 4 | `ink/kt/StoryParserExt.kt` | `next()`, `choose()`, `putVariable()`, etc. + 4 function data classes | ~250 |
+
+### File Summary
+
+| Action | Count | Description |
+|--------|-------|-------------|
+| **MODIFY** | 3 | InkObject.kt, Container.kt, Choice.kt, Story.kt (add parser fields) |
+| **NEW** | 4 | Extension files (InkObjectExt, ChoiceExt, DivertExt, StoryParserExt) |
+| **MOVE** | 22 | mica/ → ink/kt/ (package change + superclass change) |
+| **DELETE** | 29 | 6 colliding mica files + mica/ directory |
+| **UPDATE** | 2 | InkRuntime.kt KDoc, ink.kt.puml notes |
+| **COPY** | 1 | Plan file → docs/plan/ |
+
+### Verification
+
+```bash
+# 0. Backup plan
+cp /root/.claude/plans/playful-imagining-petal.md docs/plan/playful-imagining-petal.md
+
+# 1. Compile
+./gradlew :ink-kmp-mcp:compileKotlin
+
+# 2. Test
+./gradlew :ink-kmp-mcp:test
+
+# 3. No remaining mica package refs
+grep -r "package ink.kt.mica" ink-kmp-mcp/src/commonMain/ --include="*.kt"
+
+# 4. Extension methods exist
+grep -rn "^fun \(Story\|Choice\|Divert\|InkObject\)\." ink-kmp-mcp/src/commonMain/kotlin/ink/kt/*Ext.kt
+
+# 5. Proto data classes still extractable (no logic in data classes)
+grep -c "^fun " ink-kmp-mcp/src/commonMain/kotlin/ink/kt/InkObject.kt  # should be low
 ```
