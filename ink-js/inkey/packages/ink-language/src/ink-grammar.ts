@@ -257,14 +257,26 @@ export const ESCAPE_REGEX = /\\[[\]()\\~{}/#*+\-]/;
 // No AST parser needed — every line is self-classifying by its leading pattern.
 // This eliminates the need for ```ink fenced code blocks.
 
-/** Markdown heading: ## through ###### (H2-H6). Single # is ink tag. */
-export const MD_HEADING_REGEX = /^(#{2,6})\s+(.+)$/;
+/** Markdown heading H2 (chapter/file level). Single # is ink tag. */
+export const MD_HEADING_H2_REGEX = /^(#{2})\s+(.+)$/;
+
+/** Markdown heading H3 = ink knot equivalent: ### knot_name */
+export const MD_HEADING_H3_REGEX = /^(#{3})\s+(\w[\w_]*)(\s*)(\([\w,\s\->]*\))?$/;
+
+/** Markdown heading H4 = ink stitch equivalent: #### stitch_name */
+export const MD_HEADING_H4_REGEX = /^(#{4})\s+(\w[\w_]*)(\s*)(\([\w,\s\->]*\))?$/;
+
+/** Markdown heading H5-H6 (sub-sections). */
+export const MD_HEADING_H56_REGEX = /^(#{5,6})\s+(.+)$/;
 
 /** Markdown table row: | cell | cell | */
 export const MD_TABLE_ROW_REGEX = /^\|.*\|$/;
 
 /** Markdown table separator: |---|---|---| */
 export const MD_TABLE_SEPARATOR_REGEX = /^\|[\s:]*-{3,}[\s:]*\|/;
+
+/** Ordered list / numbered choice: 1. item (= <ol><li>) */
+export const MD_ORDERED_LIST_REGEX = /^(\s*)(\d+\.)\s+/;
 
 /** Markdown horizontal rule: --- or *** or ___ (3+) */
 export const MD_HORIZONTAL_RULE_REGEX = /^(\*{3,}|-{3,}|_{3,})$/;
@@ -287,23 +299,24 @@ export const MD_INLINE_CODE_REGEX = /`([^`]+)`/;
 // ─── Unified Line Classifier (merged ink+md) ────────────────────────
 
 export type InkLineType =
-  | "knot"
-  | "stitch"
-  | "choice"
-  | "gather"
-  | "logic"
-  | "var-decl"
-  | "list-decl"
-  | "include"
-  | "external"
-  | "todo"
-  | "comment"
-  | "multiline-logic"
-  | "md-heading"
-  | "md-table-row"
-  | "md-table-separator"
-  | "md-horizontal-rule"
-  | "text";
+  | "knot"              // === name === or ### name (H3 = knot)
+  | "stitch"            // = name or #### name (H4 = stitch)
+  | "choice"            // * or + (ul choice)
+  | "choice-ordered"    // 1. 2. 3. (ol numbered choice)
+  | "gather"            // - (not ->)
+  | "logic"             // ~ expression
+  | "var-decl"          // VAR or CONST
+  | "list-decl"         // LIST
+  | "include"           // INCLUDE
+  | "external"          // EXTERNAL
+  | "todo"              // TODO
+  | "comment"           // // or /* */
+  | "multiline-logic"   // { ... } block
+  | "md-heading"        // ## (H2 = chapter), ##### ###### (H5-H6)
+  | "md-table-row"      // | cell | cell |
+  | "md-table-separator" // |---|---|
+  | "md-horizontal-rule" // --- or *** or ___
+  | "text";             // prose (shared ink + md)
 
 /**
  * Classify a line as ink or markdown by its leading regex pattern.
@@ -329,11 +342,16 @@ export function classifyLine(line: string): InkLineType {
   if (INCLUDE_REGEX.test(trimmed)) return "include";
   if (EXTERNAL_REGEX.test(trimmed)) return "external";
   if (CHOICE_REGEX.test(line)) return "choice";
+  if (MD_ORDERED_LIST_REGEX.test(line)) return "choice-ordered";
   if (GATHER_REGEX.test(line)) return "gather";
   if (LOGIC_LINE_REGEX.test(line)) return "logic";
   if (MULTILINE_LOGIC_REGEX.test(line)) return "multiline-logic";
-  // Markdown patterns (after ink)
-  if (MD_HEADING_REGEX.test(trimmed)) return "md-heading";
+  // Markdown headings — H3 = knot, H4 = stitch (AST node unification)
+  if (MD_HEADING_H3_REGEX.test(trimmed)) return "knot";
+  if (MD_HEADING_H4_REGEX.test(trimmed)) return "stitch";
+  if (MD_HEADING_H2_REGEX.test(trimmed)) return "md-heading";
+  if (MD_HEADING_H56_REGEX.test(trimmed)) return "md-heading";
+  // Markdown table and layout
   if (MD_TABLE_SEPARATOR_REGEX.test(trimmed)) return "md-table-separator";
   if (MD_TABLE_ROW_REGEX.test(trimmed)) return "md-table-row";
   if (MD_HORIZONTAL_RULE_REGEX.test(trimmed)) return "md-horizontal-rule";

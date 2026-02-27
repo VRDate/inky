@@ -153,10 +153,13 @@ Both ink and markdown are **line-oriented text formats parseable by regex**. No 
 
 | Leading Regex | Classification | Example |
 |---|---|---|
-| `^(\s*)(={2,})` | **ink knot** | `=== chapter_1 ===` |
-| `^(\s*)(=)(\s*)(\w+)` | **ink stitch** | `= meeting` |
-| `^(\s*)((?:[*+]\s?)+)` | **ink choice** | `* [Go north]` |
-| `^(\s*)((?:-(?!>)\s*)+)` | **ink gather** | `- -` |
+| `^(\s*)(={2,})` | **ink knot** (= `###` heading) | `=== chapter_1 ===` |
+| `^(\s*)(=)(\s*)(\w+)` | **ink stitch** (= `####` heading) | `= meeting` |
+| `^(#{3})\s+(\w+)` | **knot** (markdown H3 = ink knot) | `### combat` |
+| `^(#{4})\s+(\w+)` | **stitch** (markdown H4 = ink stitch) | `#### parry` |
+| `^(\s*)((?:[*+]\s?)+)` | **choice** (= `ul` / `*` list) | `* [Go north]` |
+| `^(\s*)(\d+\.)\s+` | **numbered choice** (= `ol` list) | `1. [First option]` |
+| `^(\s*)((?:-(?!>)\s*)+)` | **gather** | `- -` |
 | `^\s*~` | **ink logic** | `~ x = x + 1` |
 | `^(\s*)(VAR\|CONST)\b` | **ink var/const** | `VAR health = 100` |
 | `^(\s*)(LIST)\b` | **ink list** | `LIST items = sword, potion` |
@@ -165,11 +168,29 @@ Both ink and markdown are **line-oriented text formats parseable by regex**. No 
 | `^(\s*)(TODO)\b` | **ink todo** | `TODO: fix this` |
 | `^(\s*)(->)` | **ink divert** | `-> chapter_2` |
 | `^(\s*)(//\|/\*)` | **ink comment** | `// note` |
-| `^(#{2,6})\s+(.+)$` | **md heading** (H2-H6) | `## Characters` |
+| `^(#{2})\s+(.+)$` | **md heading** H2 (chapter/file) | `## Characters` |
+| `^(#{5,6})\s+(.+)$` | **md heading** H5-H6 (sub-section) | `##### Detail` |
 | `^\|.*\|$` | **md table row** | `\| name \| health \|` |
 | `^#\s+` | **ink tag** (single `#`) | `# author: inkle` |
 | `<>` | **ink glue** | `<>` |
 | everything else | **prose text** (both) | `You enter the cave.` |
+
+### List Unification: UL/OL/DL = Ink Choices
+
+Markdown lists and ink choices are the **same structural concept** — a set of selectable options:
+
+| Markdown | HTML | Ink | Merged AST Node |
+|---|---|---|---|
+| `* item` | `<ul><li>` | `* [choice text]` | `Choice(bullet="*")` |
+| `+ item` | `<ul><li>` | `+ [sticky choice]` | `Choice(bullet="+", sticky=true)` |
+| `1. item` | `<ol><li>` | `1. [numbered choice]` | `Choice(bullet="1.", ordered=true)` |
+| `term : def` | `<dl><dt><dd>` | `* [label] content` | `Choice(label="label")` |
+
+The `*` bullet is already shared — ink `*` choice and markdown `*` unordered list are the same character. In the merged grammar:
+- `* [Go north]` = ink choice = clickable `<li>` in HTML
+- `+ [Always visible]` = sticky ink choice = persistent `<li>`
+- `1. [First option]` = ordered ink choice = numbered `<ol><li>`
+- `* [Sword] A fine blade` = labeled choice = `<dl><dt>Sword</dt><dd>A fine blade</dd></dl>`
 
 ### Key Disambiguation
 
@@ -178,6 +199,24 @@ Both ink and markdown are **line-oriented text formats parseable by regex**. No 
 - **`-` (dash)** = ink gather (not `->`) — markdown lists use `*` which is ink choice, so `-` for lists is avoided
 - **Prose text** is shared — works identically in ink (story output) and markdown (document body)
 - **Tables** (`|...|`) are always markdown — ink has no table syntax
+
+### AST Node Unification: Knots ARE Headings
+
+The core innovation: **ink knots and markdown headings merge into one AST node**.
+Both `=== knot_name ===` and `### knot_name` represent the same structural concept — a named section.
+
+| Ink Syntax | Markdown Equivalent | Merged AST Node | Heading Level |
+|---|---|---|---|
+| (file-level) | `## Chapter` | `Section(level=2)` | H2 = chapter/file |
+| `=== knot_name ===` | `### knot_name` | `Section(level=3, isKnot=true)` | H3 = knot |
+| `= stitch_name` | `#### stitch_name` | `Section(level=4, isStitch=true)` | H4 = stitch |
+| `=== function f() ===` | `### function f()` | `Section(level=3, isFunction=true)` | H3 = function |
+
+The parser accepts **both syntaxes** for the same node — `=== combat ===` and `### combat` produce identical AST. This means:
+- Markdown editors (Remirror, CodeMirror) render knots as headings natively
+- Ink editors (ACE) render headings as knots natively
+- TOC / outline / fold works identically for both
+- `# tag` (single hash, no space before text) stays as ink tag — never a heading
 
 ### Merged File Format
 
@@ -197,15 +236,13 @@ You are {player_name}, a {player_role}.
 * [Draw sword] -> combat
 * [Cast spell] -> magic
 
-## Combat
-
-=== combat ===
+### combat
 ~ health = health - 20
 You fight bravely.
 -> END
 ```
 
-No ` ```ink ` fences needed. Each line is self-classifying by regex. The grammar parser (both TS `classifyLine()` and KT `InkMdEngine.parse()`) dispatches on the leading pattern.
+Both `=== start ===` and `### combat` are valid knot declarations in the merged format. No ` ```ink ` fences needed. Each line is self-classifying by regex. The grammar parser (both TS `classifyLine()` and KT `InkMdEngine.parse()`) dispatches on the leading pattern.
 
 ### Grammar Source of Truth
 
