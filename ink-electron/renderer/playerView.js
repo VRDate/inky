@@ -303,6 +303,17 @@ function setAnimationEnabled(animEnabled) {
     animationEnabled = animEnabled;
 }
 
+function setDirection(direction) {
+    var $player = $("#player");
+    if( direction === "rtl" ) {
+        $player.attr("dir", "rtl");
+        $player.addClass("rtl");
+    } else {
+        $player.attr("dir", "ltr");
+        $player.removeClass("rtl");
+    }
+}
+
 exports.PlayerView = {
     setEvents: (e) => { events = e; },
     contentReady: contentReady,
@@ -319,5 +330,6 @@ exports.PlayerView = {
     previewStepBack: previewStepBack,
     setInstructionPrefix: setInstructionPrefix,
     setAnimationEnabled: setAnimationEnabled,
+    setDirection: setDirection,
     setBidifyEnabled: (enabled) => { bidifyEnabled = enabled; }
 };  

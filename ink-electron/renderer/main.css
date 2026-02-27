@@ -794,6 +794,23 @@ img.issue-icon.warning {
   background: #bf5e5e;
 }
 
+/* RTL (Right-to-Left) language support */
+#player.rtl .innerText p {
+  text-align: right;
+}
+
+#player.rtl p.choice {
+  text-align: center;
+}
+
+#player.rtl p.end {
+  text-align: center;
+}
+
+#player.rtl p.error, #player.rtl p.error a {
+  text-align: center;
+}
+
 /* Toolbar buttons and spinner */
 
 .button {

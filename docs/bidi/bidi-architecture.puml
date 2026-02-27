@@ -1,41 +1,50 @@
 @startuml bidi-architecture
 !theme plain
-title bidifier — JS Module in Inky (Electron)
+title bidify.js — Single-File Bidi Module in Inky (Electron)
 
-package "app/bidifier/ (local module)" as pkg {
-    rectangle "script-runs.js\nIterates codepoints,\ngroups by Unicode script" as sr
-    rectangle "isolate.js\nbidify() pure fn\n~40 lines" as iso
-    rectangle "scripts-data.js\nUnicode script table\nbinary search on ranges" as data
+rectangle "app/renderer/bidify.js\n(156 lines, zero dependencies)" as bidify {
+    rectangle "isRTL(cp) / isLTR(cp)\nUnicode range checks\nfor RTL & LTR scripts" as ranges
+    rectangle "getScriptRuns(line)\nGroups codepoints\nby direction (rtl/ltr/neutral)" as sr
+    rectangle "bidifyLine(line)\nWraps runs with\nLRI / RLI / PDI isolates" as iso
+    rectangle "bidify(text)\nStrip + split lines\n+ bidifyLine each" as main
+    rectangle "stripBidi(text)\nRemoves U+2066/67/69\nmarkers" as strip
+    rectangle "bidifyJson(jsonString)\nFinds ^text entries\nin compiled ink JSON\nand bidifies them" as json
 
-    sr --> data : lookup
-    sr --> iso : feeds runs
+    sr --> ranges : lookup
+    iso --> sr : feeds runs
+    main --> strip : idempotent
+    main --> iso : per line
+    json --> main : per text entry
 }
 
 package "Inky Editor (Electron)" as inky {
     rectangle "Ace Editor\n(UNTOUCHED)" as ace
-    rectangle "editor-view.js\n~10 lines of integration" as glue
-    rectangle "ink-player.js\nPlayer Preview\nHTML with dir= per ¶" as preview
-    rectangle "live-compiler.js\nstripBidi() before\npassing to inklecate" as compiler
+    rectangle "playerView.js\nstory output with\nbidify() before DOM" as preview
+    rectangle "inkFile.js\nstripBidi() before\nsaving to disk" as inkfile
+    rectangle "inklecate.js\nbidifyJson() when\nexporting ink JSON" as compiler
+    rectangle "controller.js\nIPC toggle handlers\nfor bidify settings" as controller
+    rectangle "appmenus.js\nView > Bidify (RTL)\nsubmenu with 4 toggles" as menus
 }
 
 ' JS module used by Inky
-iso --> glue : require
-iso --> preview : require
-iso --> compiler : require
-glue --> ace : set isolated text
+main --> preview : require('./bidify.js')
+strip --> inkfile : require('./bidify.js')
+json --> compiler : require('../renderer/bidify.js')
 
 ' Key point
 note bottom of ace
   Ace is NOT modified.
   No fork. No plugin. No config.
-  It receives text that already
-  has correct bidi markers.
+  bidify() wraps text for the player,
+  NOT the editor (in this branch).
 end note
 
-note bottom of pkg
-  Local module, not published to npm.
+note bottom of bidify
+  Single file, not a separate module.
   Pure JS, zero dependencies.
-  Follows Inky's existing JS style.
+  Follows Inky's existing var-style JS.
+  Exports: bidify, stripBidi, bidifyJson,
+  LRI, RLI, PDI
 end note
 
 @enduml

@@ -85,12 +85,22 @@ NavHistory.setEvents({
 
 LiveCompiler.setEvents({
     resetting: (sessionId) => {
-        
+
     },
     compileComplete: (sessionId) => {
         PlayerView.prepareForNewPlaythrough(sessionId);
         EditorView.clearErrors();
         ToolbarView.clearIssueSummary();
+
+        // Detect RTL direction from global tags (# direction: rtl)
+        if( InkProject.currentProject && InkProject.currentProject.mainInk ) {
+            var mainInkTagDict = InkProject.currentProject.mainInk.symbols.globalDictionaryStyleTags;
+            if( mainInkTagDict && mainInkTagDict["direction"] ) {
+                PlayerView.setDirection(mainInkTagDict["direction"].trim().toLowerCase());
+            } else {
+                PlayerView.setDirection("ltr");
+            }
+        }
     },
     selectIssue: gotoIssue,
     textAdded: (text) => {
