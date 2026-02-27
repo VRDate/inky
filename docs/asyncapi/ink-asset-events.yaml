@@ -1,0 +1,256 @@
+asyncapi: 3.0.0
+info:
+  title: Inky Asset Event Pipeline
+  version: 1.0.0
+  description: |
+    Event-driven asset pipeline for Inky interactive fiction platform.
+
+    Bridges 2D ink story tags (# mesh:🗡️, # anim:sword_slash, # voice:gandalf_en)
+    to 3D asset loading events consumed by Unity, BabylonJS, and inkey editor.
+
+    Transport: RSocket over WebSocket (/rsocket endpoint)
+    Serialization: msgpack (application/x-msgpack)
+
+    Consumers:
+      - KT/JVM: in-process (event bus origin)
+      - C#/Unity + OneJS: in-process via __inkBridge (no network)
+      - JS/BabylonJS: WebSocket → Ktor /rsocket
+      - JS/Electron: WebSocket → Ktor /rsocket
+      - inkey editor: WebSocket → Ktor /rsocket
+
+defaultContentType: application/x-msgpack
+
+servers:
+  inky-rsocket:
+    host: localhost:8080
+    pathname: /rsocket
+    protocol: ws
+    description: RSocket over WebSocket endpoint served by Ktor
+
+channels:
+  inkStoryTags:
+    address: ink/story/tags
+    description: Tags emitted when ink story continues (# mesh:, # anim:, # voice:)
+    messages:
+      inkTagEvent:
+        $ref: '#/components/messages/InkTagEvent'
+
+  inkAssetLoad:
+    address: ink/asset/load
+    description: Request to load a 3D asset (mesh, animset, voice)
+    messages:
+      assetLoadRequest:
+        $ref: '#/components/messages/AssetLoadRequest'
+
+  inkAssetLoaded:
+    address: ink/asset/loaded
+    description: Confirmation that a requested asset is loaded and ready
+    messages:
+      assetLoadedEvent:
+        $ref: '#/components/messages/AssetLoadedEvent'
+
+  inkInventoryChange:
+    address: ink/inventory/change
+    description: Item equip/unequip/add/remove events from ink LIST changes
+    messages:
+      inventoryChangeEvent:
+        $ref: '#/components/messages/InventoryChangeEvent'
+
+  inkVoiceSynthesize:
+    address: ink/voice/synthesize
+    description: TTS synthesis request for character voice
+    messages:
+      voiceSynthRequest:
+        $ref: '#/components/messages/VoiceSynthRequest'
+
+  inkVoiceReady:
+    address: ink/voice/ready
+    description: Audio ready after voice synthesis
+    messages:
+      voiceReadyEvent:
+        $ref: '#/components/messages/VoiceReadyEvent'
+
+operations:
+  publishStoryTags:
+    action: send
+    channel:
+      $ref: '#/channels/inkStoryTags'
+    description: Server publishes tags after story.Continue()
+
+  requestAssetLoad:
+    action: send
+    channel:
+      $ref: '#/channels/inkAssetLoad'
+    description: Server requests client to load asset
+
+  confirmAssetLoaded:
+    action: receive
+    channel:
+      $ref: '#/channels/inkAssetLoaded'
+    description: Client confirms asset loaded
+
+  publishInventoryChange:
+    action: send
+    channel:
+      $ref: '#/channels/inkInventoryChange'
+    description: Server publishes inventory LIST diff
+
+  requestVoiceSynth:
+    action: send
+    channel:
+      $ref: '#/channels/inkVoiceSynthesize'
+    description: Server requests voice synthesis
+
+  confirmVoiceReady:
+    action: receive
+    channel:
+      $ref: '#/channels/inkVoiceReady'
+    description: Client confirms audio ready
+
+components:
+  messages:
+    InkTagEvent:
+      name: InkTagEvent
+      contentType: application/x-msgpack
+      payload:
+        type: object
+        required: [session_id, tags, timestamp]
+        properties:
+          session_id:
+            type: string
+          knot:
+            type: string
+            description: Current knot/stitch path
+          tags:
+            type: array
+            items:
+              type: string
+            description: Raw ink tags (e.g., "# mesh:🗡️")
+          resolved_assets:
+            type: array
+            items:
+              $ref: '#/components/schemas/AssetRef'
+          timestamp:
+            type: integer
+            format: int64
+
+    AssetLoadRequest:
+      name: AssetLoadRequest
+      contentType: application/x-msgpack
+      payload:
+        type: object
+        required: [session_id, asset, timestamp]
+        properties:
+          session_id:
+            type: string
+          asset:
+            $ref: '#/components/schemas/AssetRef'
+          priority:
+            type: string
+            enum: [immediate, preload, lazy]
+            default: immediate
+          timestamp:
+            type: integer
+            format: int64
+
+    AssetLoadedEvent:
+      name: AssetLoadedEvent
+      contentType: application/x-msgpack
+      payload:
+        type: object
+        required: [session_id, asset_id, timestamp]
+        properties:
+          session_id:
+            type: string
+          asset_id:
+            type: string
+            description: Unique identifier for the loaded asset instance
+          mesh_path:
+            type: string
+          timestamp:
+            type: integer
+            format: int64
+
+    InventoryChangeEvent:
+      name: InventoryChangeEvent
+      contentType: application/x-msgpack
+      payload:
+        type: object
+        required: [session_id, action, emoji, timestamp]
+        properties:
+          session_id:
+            type: string
+          action:
+            type: string
+            enum: [equip, unequip, add, remove, use, drop]
+          emoji:
+            type: string
+          item_name:
+            type: string
+          asset:
+            $ref: '#/components/schemas/AssetRef'
+          timestamp:
+            type: integer
+            format: int64
+
+    VoiceSynthRequest:
+      name: VoiceSynthRequest
+      contentType: application/x-msgpack
+      payload:
+        type: object
+        required: [session_id, text, voice_ref, timestamp]
+        properties:
+          session_id:
+            type: string
+          text:
+            type: string
+          voice_ref:
+            $ref: '#/components/schemas/VoiceRef'
+          timestamp:
+            type: integer
+            format: int64
+
+    VoiceReadyEvent:
+      name: VoiceReadyEvent
+      contentType: application/x-msgpack
+      payload:
+        type: object
+        required: [session_id, audio_url, timestamp]
+        properties:
+          session_id:
+            type: string
+          audio_url:
+            type: string
+            description: URL or data URI for synthesized audio
+          duration_ms:
+            type: integer
+          timestamp:
+            type: integer
+            format: int64
+
+  schemas:
+    AssetRef:
+      type: object
+      properties:
+        emoji:
+          type: string
+        category_name:
+          type: string
+        category_type:
+          type: string
+        mesh_path:
+          type: string
+        anim_set_id:
+          type: string
+        voice_ref:
+          $ref: '#/components/schemas/VoiceRef'
+
+    VoiceRef:
+      type: object
+      properties:
+        character_id:
+          type: string
+        language:
+          type: string
+        flac_path:
+          type: string
