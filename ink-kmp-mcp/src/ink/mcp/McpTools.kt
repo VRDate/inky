@@ -1747,6 +1747,9 @@ Analyze for: syntax errors, dead ends, missing diverts, unused knots, RTL/bidi i
 Provide specific, actionable feedback."""
                 ext.chat("$systemPrompt\n\nInk code:\n$source")
             }
+            llmEngine != null && camelRoutes != null -> {
+                camelRoutes.sendToRoute("llm-review-ink", source) as? String ?: llmEngine.reviewInk(source)
+            }
             llmEngine != null -> llmEngine.reviewInk(source)
             else -> return errorResult("No LLM connected.")
         }
@@ -1777,6 +1780,9 @@ Provide specific, actionable feedback."""
             ext != null -> {
                 val systemPrompt = """Generate a complete ink interactive fiction story. Valid ink syntax only."""
                 ext.chat("$systemPrompt\n\nStory: $prompt")
+            }
+            llmEngine != null && camelRoutes != null -> {
+                camelRoutes.sendToRoute("llm-generate-ink", prompt) as? String ?: llmEngine.generateInk(prompt)
             }
             llmEngine != null -> llmEngine.generateInk(prompt)
             else -> return errorResult("No LLM connected.")
