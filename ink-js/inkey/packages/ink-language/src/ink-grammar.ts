@@ -12,9 +12,17 @@
  * Consumed by: CodeMirror 6, Remirror node views, ACE, and the KMP
  * Kotlin mirror (InkMdGrammar.kt in commonMain — pure regex, zero deps).
  *
+ * Heading hierarchy (file name = title):
+ *   - # (H1) = section name
+ *   - ## (H2) = chapter
+ *   - ### (H3) = knot (=== name ===)
+ *   - #### (H4) = stitch (= name)
+ *   - ##### (H5) = thread (<- name)
+ *   - ###### (H6) = label / metadata
+ *
  * Key disambiguation:
- *   - # (single hash) = ink tag
- *   - ## through ###### = markdown heading (document structure)
+ *   - # at line start = section name (H1)
+ *   - # after text = ink tag (inline: "text # tag1 # tag2")
  *   - | ... | = markdown table row (data tables)
  *   - All ink patterns (===, *, +, ~, VAR, ->) take precedence over markdown
  */
@@ -245,8 +253,8 @@ export const INLINE_LOGIC_REGEX = /\{/;
 /** Multiline logic block start: { or {condition: */
 export const MULTILINE_LOGIC_REGEX = /^(\s*)(\{)(?:([^}:]+)(:))?(?=[^}]*$)/;
 
-/** Tag: # text */
-export const TAG_REGEX = /#[^\[\]$]+/;
+/** Inline tag: text # tag1 # tag2 (only after content, not at line start) */
+export const TAG_REGEX = /(?<=\S\s*)#[^\[\]$#]+/;
 
 /** Glue operator: <> */
 export const GLUE_REGEX = /<>/;
@@ -259,7 +267,10 @@ export const ESCAPE_REGEX = /\\[[\]()\\~{}/#*+\-]/;
 // No AST parser needed — every line is self-classifying by its leading pattern.
 // This eliminates the need for ```ink fenced code blocks.
 
-/** Markdown heading H2 (chapter/file level). Single # is ink tag. */
+/** H1 = section name (file name = title, # = section name) */
+export const MD_HEADING_H1_REGEX = /^(#)\s+(.+)$/;
+
+/** H2 = chapter / file-level grouping */
 export const MD_HEADING_H2_REGEX = /^(#{2})\s+(.+)$/;
 
 /** Markdown heading H3 = ink knot equivalent: ### knot_name */
@@ -321,7 +332,8 @@ export type InkLineType =
   | "todo"              // TODO
   | "comment"           // // or /* */
   | "multiline-logic"   // { ... } block
-  | "md-heading"        // ## (H2 = chapter), ##### ###### (H5-H6)
+  | "section"           // # (H1 = section name, file name = title)
+  | "md-heading"        // ## (H2 = chapter)
   | "md-table-row"      // | cell | cell |
   | "md-table-separator" // |---|---|
   | "md-horizontal-rule" // --- or *** or ___
@@ -334,11 +346,15 @@ export type InkLineType =
  * Ink and markdown are both text formats parseable by regex only.
  * Every line is unambiguous — no fenced code blocks needed.
  *
- * Disambiguation:
- *   - # (single hash) = ink tag
- *   - ## through ###### = markdown heading
- *   - | ... | = markdown table row
- *   - All other ink patterns (===, *, +, ~, VAR, ->) take precedence
+ * Heading hierarchy (file name = title):
+ *   - # (H1) = section name
+ *   - ## (H2) = chapter
+ *   - ### (H3) = knot (=== name ===)
+ *   - #### (H4) = stitch (= name)
+ *   - ##### (H5) = thread (<- name)
+ *   - ###### (H6) = label / metadata
+ *
+ * Ink tags are inline only: "text # tag1 # tag2" (not at line start)
  */
 export function classifyLine(line: string): InkLineType {
   const trimmed = line.trimStart();
@@ -356,10 +372,11 @@ export function classifyLine(line: string): InkLineType {
   if (GATHER_REGEX.test(line)) return "gather";
   if (LOGIC_LINE_REGEX.test(line)) return "logic";
   if (MULTILINE_LOGIC_REGEX.test(line)) return "multiline-logic";
-  // Markdown headings — H3 = knot, H4 = stitch, H5 = thread (AST unification)
+  // Heading hierarchy: H1=section, H2=chapter, H3=knot, H4=stitch, H5=thread, H6=label
   if (MD_HEADING_H3_REGEX.test(trimmed)) return "knot";
   if (MD_HEADING_H4_REGEX.test(trimmed)) return "stitch";
   if (MD_HEADING_H5_REGEX.test(trimmed)) return "thread";
+  if (MD_HEADING_H1_REGEX.test(trimmed)) return "section";
   if (MD_HEADING_H2_REGEX.test(trimmed)) return "md-heading";
   if (MD_HEADING_H6_REGEX.test(trimmed)) return "md-heading";
   // Markdown table, definition list, and layout

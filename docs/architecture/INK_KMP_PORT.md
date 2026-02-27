@@ -153,25 +153,28 @@ Both ink and markdown are **line-oriented text formats parseable by regex**. No 
 
 | Leading Regex | Classification | Example |
 |---|---|---|
-| `^(\s*)(={2,})` | **ink knot** (= `###` heading) | `=== chapter_1 ===` |
-| `^(\s*)(=)(\s*)(\w+)` | **ink stitch** (= `####` heading) | `= meeting` |
-| `^(#{3})\s+(\w+)` | **knot** (markdown H3 = ink knot) | `### combat` |
-| `^(#{4})\s+(\w+)` | **stitch** (markdown H4 = ink stitch) | `#### parry` |
+| `^(#)\s+(.+)$` | **H1 section name** (file name = title) | `# The Dark Forest` |
+| `^(#{2})\s+(.+)$` | **H2 chapter** | `## Characters` |
+| `^(#{3})\s+(\w+)` | **H3 knot** (= `=== name ===`) | `### combat` |
+| `^(#{4})\s+(\w+)` | **H4 stitch** (= `= name`) | `#### parry` |
+| `^(#{5})\s+(\w+)` | **H5 thread** (= `<- name`) | `##### background_music` |
+| `^(#{6})\s+(.+)$` | **H6 label / metadata** | `###### Author: inkle` |
+| `^(\s*)(={2,})` | **ink knot** (classic syntax) | `=== chapter_1 ===` |
+| `^(\s*)(=)(\s*)(\w+)` | **ink stitch** (classic syntax) | `= meeting` |
 | `^(\s*)((?:[*+]\s?)+)` | **choice** (= `ul` / `*` list) | `* [Go north]` |
 | `^(\s*)(\d+\.)\s+` | **numbered choice** (= `ol` list) | `1. [First option]` |
 | `^(\s*)((?:-(?!>)\s*)+)` | **gather** | `- -` |
 | `^\s*~` | **ink logic** | `~ x = x + 1` |
-| `^(\s*)(VAR\|CONST)\b` | **ink var/const** | `VAR health = 100` |
-| `^(\s*)(LIST)\b` | **ink list** | `LIST items = sword, potion` |
+| `^(\s*)(VAR\|CONST)\b` | **ink var/const** (or `dl` `: value`) | `VAR health = 100` |
+| `^(\s*)(LIST)\b` | **ink list** (or `dl` `: a, b, c`) | `LIST items = sword, potion` |
+| `^(\s*):\s+(.+)$` | **definition value** (= VAR/LIST) | `: 100` |
 | `^(\s*)(INCLUDE)\b` | **ink include** | `INCLUDE helpers.ink` |
 | `^(\s*)(EXTERNAL)\b` | **ink external** | `EXTERNAL gameOver()` |
 | `^(\s*)(TODO)\b` | **ink todo** | `TODO: fix this` |
 | `^(\s*)(->)` | **ink divert** | `-> chapter_2` |
 | `^(\s*)(//\|/\*)` | **ink comment** | `// note` |
-| `^(#{2})\s+(.+)$` | **md heading** H2 (chapter/file) | `## Characters` |
-| `^(#{5,6})\s+(.+)$` | **md heading** H5-H6 (sub-section) | `##### Detail` |
 | `^\|.*\|$` | **md table row** | `\| name \| health \|` |
-| `^#\s+` | **ink tag** (single `#`) | `# author: inkle` |
+| `(?<=\S\s*)#` | **ink tag** (inline only) | `text # tag1 # tag2` |
 | `<>` | **ink glue** | `<>` |
 | everything else | **prose text** (both) | `You enter the cave.` |
 
@@ -219,8 +222,8 @@ The parser treats `term` + `: value` as `VAR term = value` (or `LIST` if comma-s
 
 ### Key Disambiguation
 
-- **`#` (single hash)** = ink tag — `# author: inkle`, `# theme: dark`
-- **`##` through `######`** = markdown heading — section structure for the document
+- **`# Section Name`** (H1 at line start) = section name — file name is the title
+- **`text # tag1 # tag2`** (inline after content) = ink tags — only after text, never at line start
 - **`-` (dash)** = ink gather (not `->`) — markdown lists use `*` which is ink choice, so `-` for lists is avoided
 - **Prose text** is shared — works identically in ink (story output) and markdown (document body)
 - **Tables** (`|...|`) are always markdown — ink has no table syntax
@@ -232,8 +235,9 @@ Both `=== knot_name ===` and `### knot_name` represent the same structural conce
 
 | Level | Ink Syntax | Markdown Syntax | HTML | Merged AST Node |
 |---|---|---|---|---|
-| H1 | `# tag` | — | — | Ink tag (single `#`) |
-| H2 | (file-level) | `## Chapter` | `<h2>` | `Section(level=2)` — chapter/file |
+| Title | — | **file name** | `<title>` | Document title |
+| H1 | — | `# Section` | `<h1>` | `Section(level=1)` — section name |
+| H2 | (grouping) | `## Chapter` | `<h2>` | `Section(level=2)` — chapter |
 | H3 | `=== knot ===` | `### knot` | `<h3>` | `Section(level=3, isKnot=true)` |
 | H4 | `= stitch` | `#### stitch` | `<h4>` | `Section(level=4, isStitch=true)` |
 | H5 | `<- thread` | `##### thread` | `<h5>` | `Thread(level=5)` — concurrent |
@@ -243,7 +247,7 @@ The parser accepts **both syntaxes** for the same node — `=== combat ===` and 
 - Markdown editors (Remirror, CodeMirror) render knots as headings natively
 - Ink editors (ACE) render headings as knots natively
 - TOC / outline / fold works identically for both
-- `# tag` (single hash, no space before text) stays as ink tag — never a heading
+- Ink tags are **inline only**: `Some text # tag1 # tag2` (never at line start)
 - `##### thread_name` = `<- thread_name` — concurrent thread declaration
 
 ### Merged File Format
