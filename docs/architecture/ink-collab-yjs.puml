@@ -19,7 +19,7 @@ package "Client A — Ace Editor" as clientA #C8E6C9 {
 
 package "Client B — Remirror Editor" as clientB #BBDEFB {
     rectangle "Remirror/CodeMirror\n(.md templates)" as remirrorB
-    rectangle "y-prosemirror /\ny-codemirror" as ycmB
+    rectangle "y-remirror /\ny-codemirror" as ycmB
     rectangle "Yjs Doc B" as ydocB
 }
 

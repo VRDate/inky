@@ -16,7 +16,7 @@ export { InkEditorProvider, useInkEditor, type EditorMode, type InkEditorProvide
 
 // Editor Components
 export { InkCodeEditor, type InkCodeEditorProps } from "./InkCodeEditor";
-export { InkProseEditor, type InkProseEditorProps } from "./InkProseEditor";
+export { InkRemirrorEditor, type InkRemirrorEditorProps } from "./InkRemirrorEditor";
 
 // Player Components
 export { InkPlayPreview, type InkPlayPreviewProps } from "./InkPlayPreview";

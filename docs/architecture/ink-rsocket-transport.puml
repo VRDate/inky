@@ -62,7 +62,7 @@ COLAB --> EDITOR : Y.Doc sync + awareness
 
 note over EDITOR, COLAB
   CodeMirror 6 ↔ y-codemirror.next ↔ Y.Text
-  Remirror ↔ y-prosemirror ↔ Y.XmlFragment
+  Remirror ↔ y-remirror ↔ Y.XmlFragment
   Cursor positions shared via awareness
 end note
 

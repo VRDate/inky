@@ -1,5 +1,5 @@
 /**
- * Remirror Markdown editor with embedded ```ink code blocks.
+ * Remirror-only Markdown editor with embedded ```ink code blocks.
  *
  * The primary Edit mode panel. Ink code blocks are rendered by
  * CodeMirror or Ace (configurable in settings). Yjs-synced.
@@ -9,7 +9,7 @@ import React from "react";
 import { Remirror, useRemirror } from "@remirror/react";
 import { InkExtension, type InkBlockEditor } from "@inky/remirror-ink";
 
-export interface InkProseEditorProps {
+export interface InkRemirrorEditorProps {
   /** Initial Markdown content */
   initialContent?: string;
   /** Called when content changes */
@@ -20,12 +20,12 @@ export interface InkProseEditorProps {
   className?: string;
 }
 
-export function InkProseEditor({
+export function InkRemirrorEditor({
   initialContent = "",
   onChange,
   inkBlockEditor = "codemirror",
   className = "",
-}: InkProseEditorProps) {
+}: InkRemirrorEditorProps) {
   const { manager, state } = useRemirror({
     extensions: () => [new InkExtension()],
     content: initialContent,
@@ -33,7 +33,7 @@ export function InkProseEditor({
   });
 
   return (
-    <div className={`ink-prose-editor ${className}`}>
+    <div className={`ink-remirror-editor ${className}`}>
       <Remirror
         manager={manager}
         initialContent={state}

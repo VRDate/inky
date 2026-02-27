@@ -173,14 +173,14 @@ Inky = JS compiler + editor. Two apps, shared grammar (`@inky/ink-language`):
 
 | App | Editor | Content Type | Collaboration | Package |
 |-----|--------|-------------|---------------|---------|
-| **ink-electron** (desktop) | ACE | Ink source (.ink) | None | `ace-ink-mode/ace-ink.js` |
+| **ink-electron** (desktop) | ACE | Ink source (.ink) | Yjs (`y-ace`) | `ace-ink-mode/ace-ink.js` |
 | **ink-js/inkey** (web) | CodeMirror 6 | Ink source + embedded blocks | Yjs (`y-codemirror.next`) | `@inky/codemirror-ink` |
-| **ink-js/inkey** (web) | Remirror/ProseMirror | MD + \`\`\`ink blocks | Yjs (`y-prosemirror`) | `@inky/remirror-ink` |
+| **ink-js/inkey** (web) | Remirror | MD + \`\`\`ink blocks | Yjs (`y-remirror`) | `@inky/remirror-ink` |
 | **ink-js/inkey** (web) | InkPlayer | Play mode (readonly) | — | `react-ink-editor/InkPlayer.tsx` |
 
 Key React components (`@inky/react-ink-editor`):
 - `InkCodeEditor.tsx` — CodeMirror 6 editor (ink source, edit mode)
-- `InkProseEditor.tsx` — Remirror markdown editor (MD + ink blocks, edit mode)
+- `InkRemirrorEditor.tsx` — Remirror-only markdown editor (MD + ink blocks, edit mode)
 - `InkPlayer.tsx` — Story player (play mode, uses inkjs directly)
 - `InkEditorProvider.tsx` — Context provider (Yjs doc + runtime)
 - `ModeToggle.tsx` — Edit/Play mode toggle
@@ -496,16 +496,16 @@ ink-js/inkey/packages/
 │       ├── ink-complete.ts
 │       ├── ink-fold.ts
 │       └── ink-yjs.ts           # y-codemirror.next collab
-├── remirror-ink/                # @inky/remirror-ink (ProseMirror)
+├── remirror-ink/                # @inky/remirror-ink (Remirror)
 │   └── src/
 │       ├── InkExtension.ts
 │       ├── ink-schema.ts
 │       ├── ink-node-view.ts
-│       └── ink-yjs.ts           # y-prosemirror collab
+│       └── ink-yjs.ts           # y-remirror collab
 └── react-ink-editor/            # @inky/react-ink-editor
     └── src/
         ├── InkCodeEditor.tsx    # CodeMirror 6 component
-        ├── InkProseEditor.tsx   # Remirror component
+        ├── InkRemirrorEditor.tsx # Remirror component
         ├── InkPlayer.tsx        # Play mode (inkjs)
         ├── InkEditorProvider.tsx # Yjs + runtime context
         ├── ModeToggle.tsx       # Edit ↔ Play toggle
@@ -551,7 +551,7 @@ docs/architecture/
 - [AsyncAPI](https://www.asyncapi.com/) — Event-driven API specification
 - [Yjs](https://yjs.dev/) — CRDT for real-time collaboration
 - [CodeMirror 6](https://codemirror.net/) — Extensible code editor
-- [Remirror](https://remirror.io/) — ProseMirror React framework
+- [Remirror](https://remirror.io/) — Rich text editor React framework
 - [BabylonJS](https://www.babylonjs.com/) — WebXR 3D engine
 - [JBang](https://www.jbang.dev/) — Java/Kotlin script runner
 - [SDKMAN](https://sdkman.io/) — JDK/tool manager

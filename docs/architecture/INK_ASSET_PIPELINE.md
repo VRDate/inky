@@ -112,11 +112,11 @@ MD tables in ink documents aren't static — they're **spreadsheet-like with for
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Emoji Kategories → Faker Methods
+### Emoji Categories → Faker Methods
 
 Each emoji category maps to specific faker-kotlin methods for generating contextually appropriate random data:
 
-| Emoji | Faker Kategory | Methods | Range Examples |
+| Emoji | Faker Category | Methods | Range Examples |
 |-------|---------------|---------|----------------|
 | 🗡️ sword | `faker.game.weapon()` | name, prefix, suffix | base_dmg: 8-20 |
 | 🛡️ shield | `faker.game.armor()` | name, material | defense: 5-15 |

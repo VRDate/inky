@@ -120,7 +120,7 @@ The MCP server runs on JVM with GraalJS for inkjs access:
 Real-time collaborative editing via WebSocket:
 
 - **Ace Editor** (`.ink` files) → `y-ace` binding → Yjs CRDT
-- **Remirror/CodeMirror** (`.md` templates) → `y-prosemirror`/`y-codemirror` → Yjs CRDT
+- **Remirror/CodeMirror** (`.md` templates) → `y-remirror`/`y-codemirror` → Yjs CRDT
 - **Browser Extension** → `y-websocket` → Yjs CRDT
 
 Server endpoint: `ws://localhost:3001/collab/:docId`

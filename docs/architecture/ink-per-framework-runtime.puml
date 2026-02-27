@@ -78,7 +78,9 @@ package "JS / Electron (Inky Desktop)" as electron <<electron>> {
     package "Editor" as elEditor {
         [ACE Editor\n(ink source)] as ACE <<electron>>
         [ace-ink-mode\n(syntax, fold, complete)] as ACE_MODE <<electron>>
+        [y-ace\n(Yjs binding)] as YACE <<electron>>
         ACE --> ACE_MODE : uses
+        ACE --> YACE : collab
     }
 
     package "Compiler + Runtime" as elRuntime {
@@ -98,8 +100,8 @@ package "JS / Electron (Inky Desktop)" as electron <<electron>> {
 package "JS / Browser (inkey web)" as inkey <<inkey>> {
     package "Edit Mode" as inkeyEdit {
         [@inky/codemirror-ink\n(CodeMirror 6)] as CM6 <<inkey>>
-        [@inky/remirror-ink\n(Remirror/ProseMirror)] as REMIRROR <<inkey>>
-        [Yjs\n(y-codemirror.next\ny-prosemirror)] as YJS <<inkey>>
+        [@inky/remirror-ink\n(Remirror)] as REMIRROR <<inkey>>
+        [Yjs\n(y-codemirror.next\ny-remirror)] as YJS <<inkey>>
         CM6 --> YJS : collab
         REMIRROR --> YJS : collab
     }
@@ -116,7 +118,7 @@ package "JS / Browser (inkey web)" as inkey <<inkey>> {
 
     package "React Components" as inkeyReact {
         [InkCodeEditor.tsx\n→ CodeMirror 6] as CODE_ED <<inkey>>
-        [InkProseEditor.tsx\n→ Remirror] as PROSE_ED <<inkey>>
+        [InkRemirrorEditor.tsx\n→ Remirror] as REMIRROR_ED <<inkey>>
         [ModeToggle.tsx\n(edit ↔ play)] as TOGGLE <<inkey>>
         [InkEditorProvider.tsx\n(Yjs + runtime)] as PROVIDER <<inkey>>
     }
@@ -125,7 +127,7 @@ package "JS / Browser (inkey web)" as inkey <<inkey>> {
     [BabylonJS\n(3D/WebXR)] as BABYLON <<inkey>>
 
     CODE_ED --> CM6 : wraps
-    PROSE_ED --> REMIRROR : wraps
+    REMIRROR_ED --> REMIRROR : wraps
     PROVIDER --> YJS : Y.Doc
     PROVIDER --> ADAPTER : runtime
     ADAPTER --> INKEY_INKJS : browser
@@ -169,7 +171,7 @@ legend right
   | Framework | Compiler | Runtime | Editor | Transport |
   |<#E3F2FD>| KT/JVM | GraalJS+inkjs | GraalJS+inkjs | — | In-process |
   |<#F3E5F5>| C#/Unity | ink-csharp | ink-csharp+OneJS | — | In-process |
-  |<#E8F5E9>| JS/Electron | inklecate | inkjs | ACE | WebSocket |
+  |<#E8F5E9>| JS/Electron | inklecate | inkjs | ACE+Yjs | WebSocket |
   |<#E0F7FA>| JS/Browser | inkjs | inkjs | CM6+Remirror+Yjs | WebSocket |
 endlegend
 
