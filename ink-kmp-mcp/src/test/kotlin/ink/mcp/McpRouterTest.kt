@@ -1,5 +1,6 @@
 package ink.mcp
 
+import ink.mcp.KtTestFixtures.engine
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
@@ -19,27 +20,17 @@ import kotlin.test.*
  * Ktor testApplication integration tests for MCP server endpoints.
  *
  * Tests health, JSON-RPC protocol, and tool invocations via HTTP.
- * Uses a simplified test server that delegates to McpTools directly.
+ *
+ * Uses [KtTestFixtures] for shared engine.
  */
 class McpRouterTest {
 
     companion object {
-        private val projectRoot = System.getProperty("user.dir")
-            .let { if (it.endsWith("ink-kmp-mcp")) it else "$it/ink-kmp-mcp" }
-            .removeSuffix("/ink-kmp-mcp")
-
-        private val inkjsPath = "$projectRoot/ink-electron/node_modules/inkjs/dist/ink-full.js"
-        private val bidifyPath = "$projectRoot/ink-electron/renderer/bidify.js"
-
-        private val inkEngine: InkEngine by lazy {
-            InkEngine(inkjsPath, if (java.io.File(bidifyPath).exists()) bidifyPath else null)
-        }
-
         private val tools: McpTools by lazy {
             val editEngine = InkEditEngine()
             McpTools(
-                engine = inkEngine,
-                debugEngine = InkDebugEngine(inkEngine),
+                engine = engine,
+                debugEngine = InkDebugEngine(engine),
                 editEngine = editEngine,
                 colabEngine = ColabEngine(),
                 inkMdEngine = InkMdEngine(),

@@ -1,5 +1,6 @@
 package ink.mcp
 
+import ink.mcp.KtTestFixtures.engine
 import kotlinx.serialization.json.*
 import kotlin.test.*
 
@@ -8,21 +9,12 @@ import kotlin.test.*
  *
  * Tests: tool registration, tool metadata, compile_ink invocation,
  * start/continue/choose story flow, and tool categories.
+ *
+ * Uses [KtTestFixtures] for shared engine.
  */
 class McpToolsTest {
 
     companion object {
-        private val projectRoot = System.getProperty("user.dir")
-            .let { if (it.endsWith("ink-kmp-mcp")) it else "$it/ink-kmp-mcp" }
-            .removeSuffix("/ink-kmp-mcp")
-
-        private val inkjsPath = "$projectRoot/ink-electron/node_modules/inkjs/dist/ink-full.js"
-        private val bidifyPath = "$projectRoot/ink-electron/renderer/bidify.js"
-
-        private val engine: InkEngine by lazy {
-            InkEngine(inkjsPath, if (java.io.File(bidifyPath).exists()) bidifyPath else null)
-        }
-
         private val mcpTools: McpTools by lazy {
             McpTools(engine)
         }

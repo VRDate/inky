@@ -1,243 +1,27 @@
-const { _electron: electron } = require('playwright-core');
 const assert = require('assert');
-const path = require('path');
-const fs = require('fs');
+const {
+    getBidiInkContent,
+    getBidiAssertions,
+    launchApp,
+    forceQuitApp,
+    setEditorContent,
+    getEditorContent,
+    typeInEditor,
+    clearEditor,
+    waitForCompilation,
+    waitForStoryText,
+    waitForChoice,
+    getAllStoryText,
+    getAllChoiceText,
+    clickChoiceByIndex,
+    clickChoiceByText,
+    hasNoErrors,
+    getIssueInfo,
+} = require('./e2e-helpers');
 
-const electronBinary = path.join(__dirname, '..', 'node_modules', 'electron', 'dist', 'electron');
-const mainScript = path.join(__dirname, '..', 'main-process', 'main.js');
-const bidiInkPath = path.join(__dirname, 'fixtures', 'bidi_and_tdd.ink');
-const assertionsPath = path.join(__dirname, 'fixtures', 'bidi-assertions.json');
-
-// Load fixtures
-const bidiInkContent = fs.readFileSync(bidiInkPath, 'utf8');
-const bidiAssertions = JSON.parse(fs.readFileSync(assertionsPath, 'utf8'));
-
-// Helper: launch the Electron app and return { electronApp, window }
-async function launchApp() {
-    const electronApp = await electron.launch({
-        executablePath: electronBinary,
-        args: ['--no-sandbox', mainScript],
-        env: { ...process.env, NODE_ENV: 'test' }
-    });
-
-    const window = await electronApp.firstWindow();
-    // Wait for the app to be ready (ace editor loaded)
-    await window.waitForSelector('#editor .ace_content', { timeout: 15000 });
-    return { electronApp, window };
-}
-
-// Helper: force-quit the app without save dialogs
-async function forceQuitApp(electronApp) {
-    if (!electronApp) return;
-    try {
-        await electronApp.evaluate(({ app }) => { app.exit(0); });
-    } catch (e) {
-        // App already closed
-    }
-}
-
-// Helper: set the Ace editor content programmatically
-async function setEditorContent(window, text) {
-    await window.evaluate((t) => {
-        var editor = ace.edit("editor");
-        editor.setValue(t, 1);
-    }, text);
-}
-
-// Helper: get Ace editor content
-async function getEditorContent(window) {
-    return await window.evaluate(() => {
-        var editor = ace.edit("editor");
-        return editor.getValue();
-    });
-}
-
-// Helper: type text into Ace editor using keyboard (simulates real typing)
-async function typeInEditor(window, text) {
-    // Focus the editor first
-    await window.click('#editor .ace_content');
-    await new Promise(r => setTimeout(r, 200));
-
-    // Type each character using Playwright keyboard
-    for (var i = 0; i < text.length; i++) {
-        var ch = text[i];
-        if (ch === '\n') {
-            await window.keyboard.press('Enter');
-        } else if (ch === '\t') {
-            await window.keyboard.press('Tab');
-        } else {
-            await window.keyboard.type(ch, { delay: 0 });
-        }
-    }
-}
-
-// Helper: clear the editor
-async function clearEditor(window) {
-    await window.evaluate(() => {
-        var editor = ace.edit("editor");
-        editor.setValue('', 1);
-    });
-}
-
-// Helper: wait for compilation to complete (spinner stops)
-async function waitForCompilation(window, timeout) {
-    timeout = timeout || 30000;
-    // Wait for the live compiler to finish
-    await window.waitForFunction(() => {
-        var spinner = document.querySelector('.busySpinner');
-        return !spinner || !spinner.classList.contains('active');
-    }, { timeout: timeout }).catch(() => {});
-    // Extra buffer for compilation to finalize
-    await new Promise(r => setTimeout(r, 2000));
-}
-
-// Helper: wait for story text to appear in the player
-async function waitForStoryText(window, timeout) {
-    timeout = timeout || 15000;
-    await window.waitForSelector('#player .innerText.active .storyText',
-        { state: 'attached', timeout: timeout });
-}
-
-// Helper: wait for a choice to appear in the player
-async function waitForChoice(window, timeout) {
-    timeout = timeout || 15000;
-    await window.waitForSelector('#player .innerText.active .choice',
-        { state: 'attached', timeout: timeout });
-}
-
-// Helper: get all story text content
-async function getAllStoryText(window) {
-    return await window.evaluate(() => {
-        var texts = document.querySelectorAll('#player .innerText.active .storyText');
-        var result = [];
-        for (var i = 0; i < texts.length; i++) {
-            result.push(texts[i].textContent.trim());
-        }
-        return result;
-    });
-}
-
-// Helper: get all choice text
-async function getAllChoiceText(window) {
-    return await window.evaluate(() => {
-        var choices = document.querySelectorAll('#player .innerText.active .choice a');
-        var result = [];
-        for (var i = 0; i < choices.length; i++) {
-            result.push(choices[i].textContent.trim());
-        }
-        return result;
-    });
-}
-
-// Helper: click a choice by index and wait for subsequent content
-async function clickChoiceByIndex(window, index, timeout) {
-    timeout = timeout || 20000;
-    // Wait for compilation to stabilize
-    await window.waitForFunction(() => {
-        var spinner = document.querySelector('.busySpinner');
-        return !spinner || !spinner.classList.contains('active');
-    }, { timeout: 5000 }).catch(() => {});
-    await new Promise(r => setTimeout(r, 1500));
-
-    // Get the choice selector
-    var selector = '#player .innerText.active .choice a';
-    var choices = await window.$$(selector);
-    if (index >= choices.length) {
-        throw new Error('Choice index ' + index + ' out of range (only ' + choices.length + ' choices)');
-    }
-
-    // Record current story text count
-    var currentCount = await window.evaluate(() => {
-        return document.querySelectorAll('#player .innerText.active .storyText').length;
-    });
-
-    // Click the choice using force:true for jQuery compatibility
-    await choices[index].click({ force: true });
-
-    // Wait for new content to appear
-    await window.waitForFunction((prevCount) => {
-        var texts = document.querySelectorAll('#player .innerText.active .storyText');
-        return texts.length > prevCount;
-    }, currentCount, { timeout: timeout });
-}
-
-// Helper: click a choice by matching text
-async function clickChoiceByText(window, textMatch, timeout) {
-    timeout = timeout || 20000;
-    await window.waitForFunction(() => {
-        var spinner = document.querySelector('.busySpinner');
-        return !spinner || !spinner.classList.contains('active');
-    }, { timeout: 5000 }).catch(() => {});
-    await new Promise(r => setTimeout(r, 1500));
-
-    var currentCount = await window.evaluate(() => {
-        return document.querySelectorAll('#player .innerText.active .storyText').length;
-    });
-
-    // Find and click the choice matching text
-    var clicked = await window.evaluate((text) => {
-        var choices = document.querySelectorAll('#player .innerText.active .choice a');
-        for (var i = 0; i < choices.length; i++) {
-            if (choices[i].textContent.indexOf(text) !== -1) {
-                // Trigger jQuery click event properly
-                var $a = window.jQuery ? jQuery(choices[i]) : null;
-                if ($a) {
-                    $a.trigger('click');
-                    return true;
-                }
-            }
-        }
-        return false;
-    }, textMatch);
-
-    if (!clicked) {
-        // Fallback: use Playwright click with force
-        var choiceLinks = await window.$$('#player .innerText.active .choice a');
-        for (var link of choiceLinks) {
-            var linkText = await link.textContent();
-            if (linkText.indexOf(textMatch) !== -1) {
-                await link.click({ force: true });
-                clicked = true;
-                break;
-            }
-        }
-    }
-
-    if (!clicked) {
-        throw new Error('No choice found matching: ' + textMatch);
-    }
-
-    // Wait for new content
-    await window.waitForFunction((prevCount) => {
-        var texts = document.querySelectorAll('#player .innerText.active .storyText');
-        return texts.length > prevCount;
-    }, currentCount, { timeout: timeout }).catch(() => {});
-}
-
-// Helper: check no compilation errors
-async function hasNoErrors(window) {
-    return await window.evaluate(() => {
-        var errorElements = document.querySelectorAll('#player .innerText.active .error');
-        return errorElements.length === 0;
-    });
-}
-
-// Helper: get issue count
-async function getIssueInfo(window) {
-    return await window.evaluate(() => {
-        var errorCount = document.querySelector('.issueCount.error');
-        var warningCount = document.querySelector('.issueCount.warning');
-        var todoCount = document.querySelector('.issueCount.todo');
-        return {
-            errors: errorCount ? errorCount.textContent.trim() : '0',
-            errorsVisible: errorCount ? errorCount.style.display !== 'none' : false,
-            warnings: warningCount ? warningCount.textContent.trim() : '0',
-            warningsVisible: warningCount ? warningCount.style.display !== 'none' : false,
-            todos: todoCount ? todoCount.textContent.trim() : '0',
-            todosVisible: todoCount ? todoCount.style.display !== 'none' : false
-        };
-    });
-}
+// Fixture data (lazy-loaded via helpers)
+const bidiInkContent = getBidiInkContent();
+const bidiAssertions = getBidiAssertions();
 
 // ====================================================================
 // Compilable Hebrew ink story for E2E tests

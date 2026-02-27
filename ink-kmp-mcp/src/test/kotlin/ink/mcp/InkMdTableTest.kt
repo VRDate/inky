@@ -1,5 +1,6 @@
 package ink.mcp
 
+import ink.mcp.KtTestFixtures.mdSource
 import kotlin.test.*
 import java.io.File
 import com.vladsch.flexmark.parser.Parser
@@ -18,14 +19,7 @@ import com.vladsch.flexmark.util.data.MutableDataSet
  * H1-H6 headings act as a **file path** / POI spreadsheet sheet name /
  * ink LIST of headers addressing the tables and ```ink blocks beneath them.
  *
- * Validates that docs/BIDI_TDD_ISSUES.md:
- *   1. Parses as a valid CommonMark document via Flexmark
- *   2. Contains extractable ```ink code blocks with valid ink syntax
- *   3. Contains markdown tables with correct schema (# | Title | Tags | TDD)
- *   4. Tags are semicolon-delimited lowercase kebab-case arrays
- *   5. TDD column uses YES:/NO:/PARTIAL: prefixes
- *   6. Ink blocks cross-reference table entries
- *   7. Heading path tree addresses blocks and tables
+ * Uses [KtTestFixtures] for shared project root and mdSource.
  */
 class InkMdTableTest {
 
@@ -61,13 +55,6 @@ class InkMdTableTest {
     )
 
     companion object {
-        private val projectRoot = System.getProperty("user.dir")
-            .let { if (it.endsWith("ink-kmp-mcp")) File(it).parent else it }
-
-        private val mdSource: String by lazy {
-            File("$projectRoot/docs/BIDI_TDD_ISSUES.md").readText(Charsets.UTF_8)
-        }
-
         // ─── Flexmark AST parser ───
         private val flexmarkOptions = MutableDataSet().apply {
             set(Parser.EXTENSIONS, listOf(TablesExtension.create()))

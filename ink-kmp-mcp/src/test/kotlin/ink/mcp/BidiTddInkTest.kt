@@ -1,5 +1,7 @@
 package ink.mcp
 
+import ink.mcp.KtTestFixtures.engine
+import ink.mcp.KtTestFixtures.bidiTddSource
 import kotlin.test.*
 
 /**
@@ -8,34 +10,9 @@ import kotlin.test.*
  * Tests 28 ink syntax features with bilingual (Hebrew+English) content
  * through the MCP server's InkEngine (GraalJS + inkjs).
  *
- * This validates that:
- *   1. The ink source compiles without errors
- *   2. All 28 syntax features work with RTL text
- *   3. Variables, functions, lists, tunnels, threads work correctly
- *   4. 10 RTL scripts render through the engine
- *   5. The bidi museum section produces output for each script
+ * Uses [KtTestFixtures] for shared engine and fixture loading.
  */
 class BidiTddInkTest {
-
-    companion object {
-        // Resolve paths relative to project root
-        private val projectRoot = System.getProperty("user.dir")
-            .let { if (it.endsWith("ink-kmp-mcp")) it else "$it/ink-kmp-mcp" }
-            .removeSuffix("/ink-kmp-mcp")
-
-        private val inkjsPath = "$projectRoot/ink-electron/node_modules/inkjs/dist/ink-full.js"
-        private val bidifyPath = "$projectRoot/ink-electron/renderer/bidify.js"
-
-        private val engine: InkEngine by lazy {
-            InkEngine(inkjsPath, bidifyPath)
-        }
-
-        private val bidiTddSource: String by lazy {
-            val resource = BidiTddInkTest::class.java.getResource("/bidi_and_tdd.ink")
-            resource?.readText()
-                ?: java.io.File("$projectRoot/ink-electron/test/fixtures/bidi_and_tdd.ink").readText()
-        }
-    }
 
     // ═══════════════════════════════════════════════════════════════
     // COMPILATION

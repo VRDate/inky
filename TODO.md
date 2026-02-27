@@ -6,15 +6,21 @@
 
 ## Current Test Coverage Snapshot
 
-| Ecosystem | Files | Tests | Source Modules Covered | Coverage |
-|-----------|-------|-------|------------------------|----------|
-| **Kotlin** (mcp-server) | 3 | 75 | InkEngine, InkWebDavEngine, BIDI_TDD_ISSUES.md | 2/20 (10%) |
-| **C#** (InkMdTable.Tests) | 1 | 33 | BIDI_TDD_ISSUES.md (doc validation) | 0 production |
-| **TypeScript** (ink-editor) | 1 | 19 | ink-grammar.ts | 1/16 (6%) |
-| **JavaScript** (app) | 4 | 64 | bidify.js + E2E via Playwright | 1/29 (3%) |
-| **PlantUML** | — | — | 21 diagrams across 3 dirs | — |
-| **Markdown** | — | — | 15 docs (~280K lines) | — |
-| **Total** | **9** | **191** | | |
+| Ecosystem | Files | Tests | Source Modules Covered | Shared Fixtures | Coverage |
+|-----------|-------|-------|------------------------|-----------------|----------|
+| **Kotlin** (ink-kmp-mcp) | 7 + KtTestFixtures | 145 | InkEngine, McpTools, McpRouter, InkEditEngine, ColabEngine, InkWebDavEngine, BIDI_TDD_ISSUES.md | `KtTestFixtures.kt` companion object | 7/20 (35%) |
+| **C#** (InkBidiTdd.Tests) | 4 + InkTestFixtures + InkStorySession | 42 | Ink.Compiler, Ink.Runtime, 10-method OneJS bridge | `InkTestFixtures.cs` + `InkStorySession.cs` fluent API | production |
+| **TypeScript** (ink-editor) | 1 | 48 | ink-grammar.ts, BIDI_TDD_ISSUES.md | inline | 1/16 (6%) |
+| **JavaScript** (ink-electron) | 4 + e2e-helpers | 64 | bidify.js + E2E via Playwright | `e2e-helpers.js` module | 1/29 (3%) |
+| **PlantUML** | — | — | 21 diagrams across 3 dirs | — | — |
+| **Markdown** | — | — | 15 docs (~280K lines) | — | — |
+| **Total** | **16+** | **299** | | | |
+
+### Test Infrastructure: Companion object pattern across all ecosystems
+- **KT**: `KtTestFixtures.kt` — shared projectRoot, engine, bidiTddSource, mdSource
+- **C#**: `InkTestFixtures.cs` — shared ProjectRoot, BidiTddSource + `InkStorySession.cs` fluent API with SemaphoreSlim(1,1) thread-safe compile
+- **JS**: `e2e-helpers.js` — shared Electron/Playwright helpers (launchApp, editor, story interaction)
+- **TS**: inline fixtures (single test file, no cross-file duplication)
 
 ### Coverage Tools: None configured (no Jacoco/Kover, no c8/istanbul, no Coverlet)
 
@@ -22,24 +28,25 @@
 
 ## 1. Test Coverage Gaps — MCP Server (Kotlin)
 
-> 18 of 20 source modules have **zero** test coverage.
-> See: `docs/MCP_SERVER_TEST_PLAN.md` for 102 planned test cases.
+> 13 of 20 source modules have **zero** test coverage (was 18).
+> 7 modules now tested: InkEngine(29), McpTools(15), McpRouter(8), InkEditEngine(19), ColabEngine(14), InkWebDavEngine(25), InkMdTable(35).
+> Shared infra: `KtTestFixtures.kt` companion object eliminates projectRoot/engine/fixture duplication across 4 test files.
 
-### P0 — Critical (must-have for CI)
+### P0 — Critical (must-have for CI) — DONE
 
-| # | Task | Effort | Modules | Tests |
-|---|------|--------|---------|-------|
-| 1.1 | **McpRouterTest.kt** — health, SSE, tools/list, tools/call, unknown tool, malformed JSON | **M** | McpRouter.kt | ~8 |
-| 1.2 | **McpToolsTest.kt** — tool registry (20+ tools), dispatch, callTool with JsonObject?, error for unknown | **M** | McpTools.kt, McpTypes.kt | ~10 |
-| 1.3 | **InkEngineTest.kt** — compile, start_story, choose, continue, variables, save/load, reset, sessions | **L** | InkEngine.kt | ~17 |
-| 1.4 | **ColabEngineTest.kt** — document lifecycle, Yjs protocol (MSG_SYNC, MSG_AWARENESS), client tracking | **M** | ColabEngine.kt | ~10 |
+| # | Task | Status | Tests |
+|---|------|--------|-------|
+| 1.1 | ~~McpRouterTest.kt~~ | **DONE** | 8 |
+| 1.2 | ~~McpToolsTest.kt~~ | **DONE** | 15 |
+| 1.3 | ~~BidiTddInkTest.kt~~ (InkEngine via GraalJS) | **DONE** | 29 |
+| 1.4 | ~~ColabEngineTest.kt~~ | **DONE** | 14 |
 
 ### P1 — High (full tool coverage)
 
 | # | Task | Effort | Modules | Tests |
 |---|------|--------|---------|-------|
 | 1.5 | **InkDebugEngineTest.kt** — start_debug, breakpoints (knot/pattern/variable), step, continue, inspect, trace | **L** | InkDebugEngine.kt | ~10 |
-| 1.6 | **InkEditEngineTest.kt** — parse_ink, get/replace/insert/rename section, ink_stats | **M** | InkEditEngine.kt | ~6 |
+| 1.6 | ~~InkEditEngineTest.kt~~ | **DONE** | 19 |
 | 1.7 | **InkMdEngineTest.kt** — parse_ink_md, render_ink_md, compile_ink_md | **S** | InkMdEngine.kt | ~3 |
 | 1.8 | **Ink2PumlEngineTest.kt** — ink2puml, ink2svg, puml2svg, ink_toc, ink_toc_puml | **M** | Ink2PumlEngine.kt | ~5 |
 | 1.9 | **InkCalendarEngineTest.kt** — create/list/export/import events, date range, round-trip | **M** | InkCalendarEngine.kt | ~6 |
@@ -55,7 +62,7 @@
 | 1.14 | **LlmServiceConfigTest.kt** — list_services, connect_service | **S** | LlmServiceConfig.kt, SillyTavernConfig.kt, DictaLmConfig.kt | ~3 |
 | 1.15 | **Add Jacoco or Kover** to build.gradle.kts for coverage reporting | **S** | build.gradle.kts | — |
 
-**Subtotal: 98 new KT tests across 14 files | Effort: ~4–6 weeks**
+**Remaining: ~47 new KT tests across 8 files | Effort: ~2–4 weeks**
 
 ---
 
@@ -98,7 +105,8 @@
 
 ## 3. Test Coverage Gaps — TypeScript (ink-editor packages)
 
-> 1 of 16 TS source modules tested (ink-grammar.ts).
+> 1 of 16 TS source modules tested (ink-grammar.ts + BIDI_TDD_ISSUES.md).
+> 48 tests in ink-md-table.test.ts covering ink-grammar regex, md table schema, cross-references.
 > 5 packages, 4 have zero tests.
 
 | # | Task | Effort | Modules | Tests |
@@ -113,21 +121,29 @@
 
 ---
 
-## 4. Test Coverage Gaps — C# (InkMdTable.Tests)
+## 4. Test Coverage Gaps — C# (InkBidiTdd.Tests)
 
-> 33 tests exist but only validate BIDI_TDD_ISSUES.md document structure.
-> No production C# code in the repo (ink-csharp and ink-unity not yet cloned).
+> 42 tests across 2 test suites + fluent API + companion fixtures.
+> ink-csharp cloned and integrated. Thread-safe compilation via SemaphoreSlim(1,1).
+> Shared infra: `InkTestFixtures.cs` (companion object) + `InkStorySession.cs` (fluent API).
+
+### DONE
+
+| # | Task | Status | Tests |
+|---|------|--------|-------|
+| 4.1 | ~~Clone inkle/ink C# runtime~~ | **DONE** | — |
+| 4.4 | ~~InkOneJsBindingTest.cs~~ — 10-method bridge contract | **DONE** | 16 |
+| 4.5 | ~~BidiTddInkTest.cs~~ — compile, play, choices, variables, save/load, 28 syntax features | **DONE** | 26 |
+
+### Remaining
 
 | # | Task | Effort | Modules | Tests |
 |---|------|--------|---------|-------|
-| 4.1 | **Clone inkle/ink** C# runtime into ink-csharp/ (git submodule or vendored) | **S** | — | — |
 | 4.2 | **Clone ink-unity-integration** into ink-unity/ | **S** | — | — |
-| 4.3 | **InkOneJsBinding.cs** — implement Unity bridge (10 methods: Compile, Start, Continue, Choose, etc.) | **L** | InkOneJsBinding.cs | — |
-| 4.4 | **InkOneJsBindingTest.cs** — xUnit tests for all 10 bridge methods | **M** | InkOneJsBinding.cs | ~12 |
-| 4.5 | **Ink runtime smoke tests** — compile, play, choices, variables, save/load via C# Ink.Runtime | **M** | ink-csharp/ | ~10 |
+| 4.3 | **InkOneJsBinding.cs** — implement Unity bridge (production MonoBehaviour) | **L** | InkOneJsBinding.cs | — |
 | 4.6 | **Add Coverlet** to .csproj for coverage reporting | **S** | .csproj | — |
 
-**Subtotal: ~22 new C# tests | Effort: ~2–3 weeks**
+**Remaining: Unity bridge + coverage tooling | Effort: ~1–2 weeks**
 
 ---
 
@@ -181,13 +197,13 @@
 | # | Task | Effort | Notes |
 |---|------|--------|-------|
 | 7.1 | **Unified Gradle 9 root build** — orchestrate npm/dotnet/gradle via Exec tasks | **L** | Planned but not committed |
-| 7.2 | **GraalVM 25 + SDKMAN** — .sdkmanrc for automatic JDK selection | **S** | SDKMAN installed, no .sdkmanrc |
+| 7.2 | ~~GraalVM 25 + SDKMAN~~ | **DONE** | System OpenJDK 21 + GraalJS via Gradle |
 | 7.3 | **KMP migration** — add `js(IR)` and `native` targets to mcp-server | **XL** | Multiplatform comparison goal |
 | 7.4 | **CI/CD pipeline** — GitHub Actions for testAll across KT, JS, TS, C# | **L** | No CI exists |
-| 7.5 | **Directory rename** — app→ink-electron, mcp-server→ink-kmp-mcp, ink-editor→ink-js/inkey | **M** | Cross-device link workaround needed |
-| 7.6 | **Git submodules** for ink-csharp and ink-unity/onejs instead of vendored copies | **S** | Cleaner dependency management |
+| 7.5 | ~~Directory rename~~ — app→ink-electron, mcp-server→ink-kmp-mcp, ink-editor→ink-js/inkey | **DONE** | Completed |
+| 7.6 | ~~ink-csharp cloned~~ + ink-unity/onejs TBD | **PARTIAL** | ink-csharp vendored, ink-unity not yet |
 
-**Subtotal: 6 infra tasks | Effort: ~4–6 weeks**
+**Remaining: 3 infra tasks | Effort: ~3–4 weeks**
 
 ---
 
@@ -236,24 +252,26 @@
 
 ## Summary by Effort
 
-| Category | S | M | L | XL | Total Items |
-|----------|---|---|---|----|----|
-| **1. KT test gaps** | 3 | 9 | 2 | 0 | 14 |
-| **2. JS test gaps** | 1 | 5 | 2 | 1 | 9 |
-| **3. TS test gaps** | 2 | 1 | 2 | 0 | 5 |
-| **4. C# test gaps** | 3 | 2 | 1 | 0 | 6 |
-| **5. Docs/diagrams** | 6 | 2 | 1 | 0 | 9 |
-| **6. BIDI matrix gaps** | 7 | 5 | 0 | 0 | 12 |
-| **7. Build/infra** | 2 | 1 | 2 | 1 | 6 |
-| **8. Original Inky TODO** | 6 | 12 | 6 | 0 | 24 |
-| **Grand Total** | **30** | **37** | **16** | **2** | **85** |
+| Category | Done | Remaining | Total Items |
+|----------|------|-----------|-------------|
+| **1. KT test gaps** | 6 (P0 + InkEdit + InkMdTable + InkWebDav) | 8 | 14 |
+| **2. JS test gaps** | 0 | 9 | 9 |
+| **3. TS test gaps** | 0 (48 tests exist but only 1 module) | 5 | 5 |
+| **4. C# test gaps** | 3 (ink-csharp + OneJS + BidiTdd) | 3 | 6 |
+| **5. Docs/diagrams** | 0 | 9 | 9 |
+| **6. BIDI matrix gaps** | 0 | 12 | 12 |
+| **7. Build/infra** | 3 (GraalVM, dir rename, ink-csharp) | 3 | 6 |
+| **8. Original Inky TODO** | 0 | 24 | 24 |
+| **Grand Total** | **12** | **73** | **85** |
 
-### Estimated Total Effort: ~30–40 weeks (1 developer)
+### Current Test Counts: KT 145 + C# 42 + TS 48 + JS 64 = **299 total**
+
+### Estimated Remaining Effort: ~22–30 weeks (1 developer)
 
 ### Priority Order (recommended)
-1. **KT P0 tests** (1.1–1.4) — unlock CI for MCP server
+1. ~~KT P0 tests (1.1–1.4)~~ — **DONE** (145 tests passing)
 2. **Build infra** (7.1, 7.4) — unified build + CI pipeline
 3. **JS P0 tests** (2.1–2.3) — prevent data loss bugs (#508, #515)
 4. **BIDI matrix EXTERNAL** (6.12) — only fully-untested feature
-5. **C# clones + bridge** (4.1–4.3) — enable multiplatform comparison
+5. **C# Unity bridge** (4.3) — enable Unity integration
 6. Everything else by priority tier
