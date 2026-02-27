@@ -196,6 +196,14 @@ Proto-annotated KT commonMain compiles to every target, **replacing** per-langua
 | **Native** | blade-ink-rs (Rust FFI) | .dll / .so / .dylib | blade-ink-rs C FFI |
 | **WASM** | inkjs via wasm-js | .wasm module | inkjs bundled |
 
+### Zero 3rd Party Dependencies
+
+The KMP commonMain runtime uses **pure Kotlin stdlib only**. No kotlinx-serialization, no protobuf runtime, no Jackson in commonMain. The `ink.model.*` proto layer and wire-format serializers sit above in JVM-specific source sets.
+
+### Verify with Old Code, Develop New Features in KT Only
+
+Old C#/Java/JS implementations serve as **test oracles** — run the same .ink scripts through all runtimes, assert identical output. Once KT passes verification, **new features go to KT only**. Old code remains as backward-compatible fallback until KMP targets fully replace them.
+
 **Proto drives the wire format** — same `ink.model.*` messages across MCP (JSON-RPC), RSocket (msgpack), WSS, SSE, WebDAV, and Yjs. See Step 0 in the plan for the 14 `.proto` files.
 
 See: [`INK_KMP_PORT.md`](INK_KMP_PORT.md) for full three-way comparison, [`ink-kmp-port-status.puml`](ink-kmp-port-status.puml) for class diagram.

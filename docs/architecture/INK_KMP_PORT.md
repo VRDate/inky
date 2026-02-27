@@ -145,9 +145,52 @@ ink-kmp-mcp/src/commonMain/kotlin/com/bladecoder/ink/runtime/
 └── StoryState.kt             # Tier 6 — OutputOp functional enum, TreeMap<Choice> state
 ```
 
+## Strategy: Verify with Old, Develop in KT Only
+
+### Zero 3rd Party Dependencies
+
+The KMP commonMain runtime uses **pure Kotlin stdlib only** — no kotlinx-serialization, no protobuf runtime, no Jackson. The `ink.model.*` proto layer sits above (in JVM-specific source sets), but commonMain has zero external dependencies.
+
+### Old Code = Test Oracle
+
+The existing C#, Java, and JS implementations serve as **verification targets**:
+
+| Old Implementation | Role | How We Verify |
+|-------------------|------|---------------|
+| C# (inkle/ink) | Primary reference + test oracle | Run same .ink scripts, compare JSON output |
+| Java (blade-ink) | Secondary oracle + regression | Run conformance test suite, compare StoryState |
+| JS (inkjs) | Browser oracle + cross-platform | Run same stories in GraalJS, compare ContinueResult |
+
+**Verification flow:**
+```
+.ink source → [C# compiler] → .ink.json
+                                    ↓
+                    ┌────────────────┼────────────────┐
+                    ▼                ▼                ▼
+              C# runtime       Java runtime      KT runtime
+              (reference)      (blade-ink)        (KMP new)
+                    ↓                ↓                ↓
+              output text       output text      output text
+                    └────────────────┼────────────────┘
+                                    ↓
+                            assert all equal
+```
+
+### New Features = KT Only
+
+Once KT passes verification against all three oracles, new features are **KT-only**:
+- Asset pipeline events (EmojiAssetManifest, AssetEventBus)
+- Proto-annotated data classes (`ink.model.*`)
+- Unicode symbol parsing
+- Faker-based test data generation
+- All future ink runtime extensions
+
+Old C#/Java/JS remain as **backward-compatible fallbacks** until KMP targets fully replace them.
+
 ## Next Steps
 
-1. **SimpleJson.kt** — JSON reader/writer (Kotlin multiplatform)
+1. **SimpleJson.kt** — JSON reader/writer (pure Kotlin, zero deps)
 2. **JsonSerialisation.kt** — runtime object ↔ JSON conversion
 3. **Story.kt** — main entry point (Continue, ChooseChoice, external functions)
 4. **Profiler.kt, StopWatch.kt** — performance monitoring
+5. **Verification** — run conformance tests against C#/Java/JS oracles
