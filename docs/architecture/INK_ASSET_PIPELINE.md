@@ -2,7 +2,20 @@
 
 ## Overview
 
-The asset pipeline connects ink story runtime to 3D renderers (Unity WebGL, BabylonJS WebXR) and the inkey editor PWA via four protocols:
+The asset pipeline connects ink story runtime to six client surfaces and 3D renderers via four protocols:
+
+### Client Surfaces
+
+| Client | Type | Purpose |
+|--------|------|---------|
+| **SillyTavern** | MCP user UI (localhost:8000) | Chat-based story interaction with LLM |
+| **Electron** (Inky desktop) | Desktop app | ACE editor + inklecate compiler |
+| **inkey PWA** | Progressive Web App | CodeMirror + Remirror + Yjs collab |
+| **Chromium PWA extension** | Browser extension | Editor extension for Chrome/Edge |
+| **Unity WebGL** | 3D rendering client | AssetBundle prefabs + animation |
+| **BabylonJS WebXR** | 3D rendering client | glTF meshes + WebXR immersive |
+
+### Protocols
 
 | Protocol | Transport | Encoding | Purpose |
 |----------|-----------|----------|---------|

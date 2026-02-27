@@ -2,8 +2,8 @@
 !theme plain
 skinparam backgroundColor #FEFEFE
 
-title SillyTavern + Inky MCP (71 tools) + LM Studio Integration
-footer Interactive Fiction via LLM-powered story narration | v0.3.1
+title SillyTavern + Inky MCP (79 tools) + LM Studio Integration
+footer Interactive Fiction via LLM-powered story narration | v0.4.0
 
 actor "User" as user
 
@@ -23,7 +23,7 @@ package "LM Studio\nlocalhost:1234" as lms #BBDEFB {
 
 ' ── Inky MCP Server ──
 package "Inky MCP Server\nlocalhost:3001" as mcp #C8E6C9 {
-    rectangle "71 MCP Tools" as mcpTools
+    rectangle "79 MCP Tools" as mcpTools
     rectangle "InkEngine\n(GraalJS)" as inkEngine
     rectangle "InkDebugEngine" as debugEngine
     rectangle "InkEditEngine" as editEngine
@@ -76,7 +76,7 @@ note right of stExtension
 end note
 
 note bottom of mcp
-  Integration pattern (71 tools):
+  Integration pattern (79 tools):
   • ST uses LM Studio for narration
   • Inky MCP manages story logic + auth + WebDAV
   • Ink stories = structured scenarios
@@ -85,6 +85,8 @@ note bottom of mcp
   • domain/user/shared/ = public read
   • Keycloak OIDC + LLM BasicAuth
   • Timestamped backups + working copies
+  • Asset pipeline: emoji → 3D asset events
+  • TTS: Chatterbox voice cloning (ONNX)
 end note
 
 legend right

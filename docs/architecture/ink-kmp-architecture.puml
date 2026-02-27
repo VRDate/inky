@@ -109,12 +109,14 @@ package "KMP Targets (Proposed)" as kmp <<kmp>> {
     [WASM\n(WasmJS, WASI)] as KMP_WASM
 }
 
-' ───────── Consumers / Renderers ─────────
-package "Consumers / Renderers" as consumers {
+' ───────── Client Surfaces ─────────
+package "Client Surfaces" as consumers {
+    [SillyTavern\n(MCP user UI)] as SILLYTAVERN
     [LLM / AI Agent\n(Claude, GPT)] as LLM
+    [inkey Editor\n(PWA)] as INKEY_PWA
+    [Chromium PWA\nExtension] as CHROME_EXT
     [BabylonJS\n(WebXR / glTF)] as BABYLON
     [Unity\n(WebGL / AssetBundles)] as UNITY
-    [inkey Editor\n(PWA)] as INKEY_PWA
     [Game Engine\n(LibGDX, Godot)] as GAME
 }
 
@@ -145,11 +147,14 @@ INKJS --> KMP_WASM : via wasm-bindgen\nor Javy
 ' Protocol connections
 ROUTER --> PROTO_MCP
 PROTO_MCP --> LLM : tool invocation
+PROTO_MCP --> SILLYTAVERN : REST/MCP API
 COLAB --> PROTO_YJS
 PROTO_YJS --> INKEY_PWA : collab sync
+PROTO_YJS --> CHROME_EXT : collab sync
 BUS --> PROTO_RSOCKET
 PROTO_RSOCKET --> BABYLON : asset events\n(WebSocket)
 PROTO_RSOCKET --> INKEY_PWA : asset events\n(WebSocket)
+PROTO_RSOCKET --> CHROME_EXT : asset events\n(WebSocket)
 ONEJS --> PROTO_ONEJS
 PROTO_ONEJS --> UNITY : asset events\n(in-process)
 

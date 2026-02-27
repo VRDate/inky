@@ -132,6 +132,12 @@ package "JS / Browser (inkey web)" as inkey <<inkey>> {
     ADAPTER --> ONEJS_GLOBAL : unity-onejs
 }
 
+' ───────── Client Surfaces ─────────
+package "Client Surfaces" as clients {
+    [SillyTavern\n(MCP user UI\nlocalhost:8000)] as SILLYTAVERN
+    [Chromium PWA\nExtension] as CHROME_EXT
+}
+
 ' ───────── Event Bus Layer ─────────
 package "Event Bus (RSocket + msgpack)" as eventBus <<event>> {
     [AssetEventBus\n(in-process)] as BUS <<event>>
@@ -156,6 +162,8 @@ ONEJS_BRIDGE ..> BUS : in-process\n(same Unity proc)
 EL_INKJS ..> RSOCKET : WebSocket
 ADAPTER ..> RSOCKET : WebSocket
 BABYLON ..> RSOCKET : WebSocket
+SILLYTAVERN ..> KT_TOOLS : REST/MCP API
+CHROME_EXT ..> RSOCKET : WebSocket
 
 legend right
   | Framework | Compiler | Runtime | Editor | Transport |
