@@ -4,7 +4,11 @@
  * Both ink and markdown are text-based formats parseable by regex only.
  * This module merges both grammars into a single line-level classifier
  * where every line is unambiguous by its leading regex pattern.
- * No AST parser needed, no fenced code blocks needed.
+ *
+ * Bidirectional fenced blocks for explicit context switching:
+ *   - ```ink blocks inside .md files (ink in md — used by InkMdEngine)
+ *   - ```md  blocks inside .ink files (md in ink — rich text prose)
+ * Outside fenced blocks, both syntaxes coexist via leading-pattern dispatch.
  *
  * Ported from: app/renderer/ace-ink-mode/ace-ink.js (ink patterns)
  * Extended with: markdown patterns (headings, tables, inline markup)
@@ -262,10 +266,22 @@ export const GLUE_REGEX = /<>/;
 /** Escape sequences: \[, \], \\, \~, etc. */
 export const ESCAPE_REGEX = /\\[[\]()\\~{}/#*+\-]/;
 
+// ─── Fenced Block Patterns (bidirectional ink↔md) ───────────────────
+// Both directions supported:
+//   - ```ink blocks inside .md files (ink in md)
+//   - ```md  blocks inside .ink files (md in ink)
+// Fences help parser and editor switch syntax context cleanly.
+
+/** Fenced block start: ```ink or ```md (with optional trailing text) */
+export const FENCED_BLOCK_START_REGEX = /^(\s*)```(ink|md)(\s.*)?$/;
+
+/** Fenced block end: ``` (plain triple backtick) */
+export const FENCED_BLOCK_END_REGEX = /^(\s*)```\s*$/;
+
 // ─── Markdown Patterns (merged ink+md grammar) ──────────────────────
 // Both ink and markdown are line-oriented text formats parseable by regex.
 // No AST parser needed — every line is self-classifying by its leading pattern.
-// This eliminates the need for ```ink fenced code blocks.
+// Fenced blocks (```ink / ```md) provide explicit context switches.
 
 /** H1 = section name (file name = title, # = section name) */
 export const MD_HEADING_H1_REGEX = /^(#)\s+(.+)$/;
@@ -338,6 +354,9 @@ export type InkLineType =
   | "md-table-separator" // |---|---|
   | "md-horizontal-rule" // --- or *** or ___
   | "md-definition-value" // : value (= ink VAR, part of <dl>)
+  | "fenced-ink-start"  // ```ink (ink block inside md file)
+  | "fenced-md-start"   // ```md  (md block inside ink file)
+  | "fenced-block-end"  // ```    (closes either fenced block)
   | "text";             // prose (shared ink + md)
 
 /**
@@ -358,6 +377,10 @@ export type InkLineType =
  */
 export function classifyLine(line: string): InkLineType {
   const trimmed = line.trimStart();
+  // Fenced blocks first — explicit context switch between ink and md
+  if (FENCED_BLOCK_END_REGEX.test(trimmed)) return "fenced-block-end";
+  const fenceMatch = FENCED_BLOCK_START_REGEX.exec(trimmed);
+  if (fenceMatch) return fenceMatch[2] === "ink" ? "fenced-ink-start" : "fenced-md-start";
   // Ink patterns first (more specific)
   if (trimmed.startsWith("//") || trimmed.startsWith("/*")) return "comment";
   if (TODO_REGEX.test(line)) return "todo";

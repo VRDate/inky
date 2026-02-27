@@ -134,7 +134,7 @@ Server endpoint: `ws://localhost:3001/collab/:docId`
 | Edge | manifest-edge.json | MV3, Side Panel |
 | Kiwi | manifest-kiwi.json | MV3, Popup only (mobile) |
 
-## KMP commonMain Runtime Port (32 Classes)
+## KMP commonMain Runtime Port (33 Classes)
 
 The ink runtime has been ported to **Kotlin Multiplatform commonMain** using a three-way comparison of C# (inkle/ink, primary reference), Java (blade-ink), and JS (inkjs). This gives the KMP module a **native Kotlin runtime** alongside the existing blade-ink-java and inkjs wrappers.
 
@@ -149,7 +149,7 @@ The ink runtime has been ported to **Kotlin Multiplatform commonMain** using a t
 | 4 — List System | InkListItem, InkList, ListDefinition, ListDefinitionsOrigin | ✅ Ported |
 | 5 — Execution Engine | Choice, NativeFunctionCall, CallStack (+Element, +Thread), Flow, StatePatch, VariablesState | ✅ Ported |
 | 6 — State | StoryState, Json (stub) | ✅ Ported |
-| 7 — Story Runtime | SimpleJson ✅, JsonSerialisation, Story, Profiler, StopWatch | ⏳ In Progress |
+| 7 — Story Runtime | SimpleJson ✅, JsonSerialisation ✅, Story, Profiler, StopWatch | ⏳ In Progress |
 
 ### Kotlin-Unique Patterns (Not in Any Original)
 

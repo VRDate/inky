@@ -186,7 +186,8 @@ class VariablesState(
         for ((name, defaultValue) in defaults) {
             val loadedToken = jToken[name]
             if (loadedToken != null) {
-                _globalVariables[name] = Json.jTokenToRuntimeObject(loadedToken)
+                val runtimeObj = Json.jTokenToRuntimeObject(loadedToken)
+                if (runtimeObj != null) _globalVariables[name] = runtimeObj
             } else {
                 _globalVariables[name] = defaultValue
             }
@@ -313,19 +314,11 @@ class VariablesState(
 }
 
 /**
- * Placeholder for Json deserialization — will be fully implemented when JsonSerialisation is ported.
+ * Thin delegate to JsonSerialisation — preserves the `Json.jTokenToRuntimeObject()` call site
+ * used by VariablesState and other classes.
  * C#: Json.JTokenToRuntimeObject, Java: Json.jTokenToRuntimeObject
  */
 internal object Json {
-    fun jTokenToRuntimeObject(token: Any?): InkObject {
-        // Stub — will be replaced by full JsonSerialisation port
-        return when (token) {
-            is Int -> IntValue(token)
-            is Float -> FloatValue(token)
-            is Double -> FloatValue(token.toFloat())
-            is Boolean -> BoolValue(token)
-            is String -> StringValue(token)
-            else -> throw StoryException("Unsupported JSON token type: ${token?.let { it::class }}")
-        }
-    }
+    fun jTokenToRuntimeObject(token: Any?): InkObject? =
+        JsonSerialisation.jTokenToRuntimeObject(token)
 }

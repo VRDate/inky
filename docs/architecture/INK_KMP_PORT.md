@@ -49,7 +49,7 @@
 | 40 | Json (stub) | — | — | — | internal object | ⚠️ | Stub for now |
 | 41 | StoryState | class | class | class | OutputOp functional enum | ✅ | **LinkedHashMap state** |
 | 42 | SimpleJson | class | class | class | object + Reader + Writer | ✅ | **LinkedHashMap**, fun interface InnerWriter, fixes Java bugs |
-| 43 | JsonSerialisation | static class | class | class | — | ⏳ | |
+| 43 | JsonSerialisation | static class | class | class | object JsonSerialisation | ✅ | `when` smart cast dispatch, LinkedHashMap |
 | 44 | Story | class | class | class | — | ⏳ | Main entry |
 | 45 | Profiler | class | class | class | — | ⏳ | |
 | 46 | StopWatch | class | class | class | — | ⏳ | |
@@ -147,12 +147,20 @@ ink-kmp-mcp/src/commonMain/kotlin/com/bladecoder/ink/runtime/
 
 ## Merged Ink+MD Grammar (Regex Only)
 
-Both ink and markdown are **line-oriented text formats parseable by regex**. No AST parser needed — every line is classified by its leading characters. The fenced ` ```ink ` separator is eliminated: ink and markdown coexist naturally in a single file.
+Both ink and markdown are **line-oriented text formats parseable by regex**. No AST parser needed — every line is classified by its leading characters.
+
+**Bidirectional fenced blocks** for explicit context switching:
+- ` ```ink ` blocks inside `.md` files — ink in markdown (used by InkMdEngine)
+- ` ```md ` blocks inside `.ink` files — markdown in ink (rich text prose)
+
+Outside fenced blocks, both syntaxes coexist via leading-pattern dispatch. Users familiar with markdown write naturally; ink-native users keep their preferred syntax. Editors (CodeMirror, Remirror, ACE) switch syntax highlighting at fence boundaries.
 
 ### Line Classification (Regex Dispatch Table)
 
 | Leading Regex | Classification | Example |
 |---|---|---|
+| `` ^```(ink\|md) `` | **fenced block start** (context switch) | `` ```ink `` or `` ```md `` |
+| `` ^``` `` | **fenced block end** | `` ``` `` |
 | `^(#)\s+(.+)$` | **H1 section name** (file name = title) | `# The Dark Forest` |
 | `^(#{2})\s+(.+)$` | **H2 chapter** | `## Characters` |
 | `^(#{3})\s+(\w+)` | **H3 knot** (= `=== name ===`) | `### combat` |
