@@ -52,7 +52,7 @@
 | 43 | JsonSerialisation | static class | class | class | object JsonSerialisation | ✅ | `when` smart cast dispatch, LinkedHashMap |
 | 44 | Story | class | class | class | — | ⏳ | Main entry |
 | 45 | Profiler | class | class | class | — | ⏳ | |
-| 46 | StopWatch | class | class | class | — | ⏳ | |
+| 46 | Stopwatch + InkClock | class (nanoTime) | class (nanoTime) | — | kotlin.time + InkClock | ✅ | **Unified time authority**: Monotonic timing (nano), UTC/local wall clock, ISO 8601, iCal, backup format. Replaces scattered System.currentTimeMillis() across 6 engines |
 
 **Status**: ✅ = ported, ⚠️ = stub, ⏳ = pending
 

@@ -80,7 +80,7 @@ class InkFakerEngine(
 
         repeat(config.count) { i ->
             val name = faker.name.name()
-            val klass = gamesFaker.dnd.kleszes()
+            val klass = gamesFaker.dnd.klasses()
             val race = gamesFaker.dnd.races()
             val str = randomInRange(random, 3..18)
             val dex = randomInRange(random, 3..18)
@@ -241,11 +241,11 @@ class InkFakerEngine(
     // ── Private helpers ──────────────────────────────────────────
 
     private fun createFaker(config: FakerConfig): Faker {
-        return Faker(fakerConfig { random = Random(config.seed) })
+        return Faker(fakerConfig { random = java.util.Random(config.seed) })
     }
 
     private fun createGamesFaker(config: FakerConfig): GamesFaker {
-        return GamesFaker(fakerConfig { random = Random(config.seed) })
+        return GamesFaker(fakerConfig { random = java.util.Random(config.seed) })
     }
 
     private fun generateItemName(
@@ -254,13 +254,13 @@ class InkFakerEngine(
         gamesFaker: GamesFaker
     ): String {
         return when (category.name) {
-            "sword", "bow", "staff" -> gamesFaker.elderScrolls.weapons()
+            "sword", "bow", "staff" -> gamesFaker.elderScrolls.weapon()
             "shield" -> "${faker.color.name()} Shield"
-            "potion" -> "${faker.science.element()} Potion"
-            "key" -> "Key of ${faker.ancient.god()}"
+            "potion" -> "${faker.color.name()} Potion"
+            "key" -> "Key of ${faker.name.lastName()}"
             "map" -> "Map to ${faker.address.city()}"
-            "coin" -> "${faker.ancient.titan()} Coin"
-            "crown" -> "Crown of ${faker.ancient.titan()}"
+            "coin" -> "${faker.name.lastName()} Coin"
+            "crown" -> "Crown of ${faker.name.lastName()}"
             else -> faker.name.name()
         }
     }

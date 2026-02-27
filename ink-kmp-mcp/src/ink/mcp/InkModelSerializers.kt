@@ -67,12 +67,9 @@ object InkModelSerializers {
             put("type", "object")
             putJsonObject("properties") {
                 for (field in descriptor.fields) {
+                    if (field.options.deprecated) continue
                     putJsonObject(field.name) {
                         put("type", protoTypeToJsonSchemaType(field))
-                        if (field.options.hasExtension(com.google.protobuf.DescriptorProtos.FieldOptions.getDescriptor()
-                                .findFieldByName("deprecated")?.let { null } ?: return@putJsonObject)) {
-                            // skip deprecated fields
-                        }
                         put("description", field.name.replace("_", " "))
                     }
                 }

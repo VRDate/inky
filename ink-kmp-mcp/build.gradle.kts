@@ -36,6 +36,9 @@ dependencies {
     // Kotlinx serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
+    // Kotlinx datetime — KMP-compatible wall clock (Clock.System)
+    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.2")
+
     // GraalJS engine (Oracle GraalVM)
     implementation("org.graalvm.polyglot:polyglot:$graalVersion")
     implementation("org.graalvm.polyglot:js:$graalVersion")
