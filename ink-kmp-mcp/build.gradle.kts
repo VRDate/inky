@@ -124,6 +124,8 @@ sourceSets {
         kotlin.srcDirs("src")
         kotlin.exclude("test/**")
         resources.exclude("test/**")
+        // blade-ink Java runtime + compiler (MIT, v1.3.3-SNAPSHOT from bladecoder/blade-ink)
+        java.srcDirs("src/jvmMain/java")
         proto {
             srcDirs("src/main/proto")
         }
