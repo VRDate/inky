@@ -1375,6 +1375,89 @@ VariablesState +-- VarChanged
 ControlCommand +-- CommandType
 
 ' ══════════════════════════════════════════════════════════════════════════════
+' SECTION 9: COMMON RUNTIME INTERFACE (2026)
+' ══════════════════════════════════════════════════════════════════════════════
+
+package "9. Common Interface" #E0F7FA {
+
+    interface InkRuntime <<new>> {
+        + canContinue() : Boolean
+        + continueStory() : String
+        + continueMaximally() : String
+        + currentText : String <<get>>
+        + currentChoices : List<InkChoice> <<get>>
+        + currentTags : List<String> <<get>>
+        + chooseChoiceIndex(choiceIdx: Int)
+        + hasError : Boolean <<get>>
+        + hasWarning : Boolean <<get>>
+        + currentErrors : List<String>? <<get>>
+        + currentWarnings : List<String>? <<get>>
+        + getGlobalTags() : List<String>?
+        + tagsForContentAtPath(path: String) : List<String>?
+        + getVariable(name: String) : Any?
+        + setVariable(name: String, value: Any?)
+        + isEnded : Boolean <<get>>
+    }
+
+    interface InkChoice <<new>> {
+        + text : String <<get>>
+        + index : Int <<get>>
+    }
+
+    note right of InkRuntime
+      Common contract for ink runtimes.
+      Both ink.kt.Story (compiled JSON)
+      and ink.kt.mica.Story (parser)
+      can implement this interface.
+      Enables ink-proof conformance testing
+      against both runtimes.
+    end note
+}
+
+Story ..|> InkRuntime : <<pending>>
+
+' ══════════════════════════════════════════════════════════════════════════════
+' SECTION 10: CROSS-REFERENCE (mica / JS / C# / Java)
+' ══════════════════════════════════════════════════════════════════════════════
+
+note as PROGRESS
+  **ink.kt KMP Progress Tracker (2026-02-27)**
+  ══════════════════════════════════════════════
+
+  |= ink.kt class |= C# |= Java |= JS |= mica |= Status |
+  | InkObject | RTObject | RTObject | InkObject | Content | ✅ Complete |
+  | Container | Container | Container | Container | Container | ✅ Complete |
+  | Story | Story | Story | Story | Story | ✅ Complete |
+  | StoryState | StoryState | StoryState | StoryState | — | ✅ Complete |
+  | CallStack | CallStack | CallStack | CallStack | — | ✅ Complete |
+  | Path | Path | Path | Path | — | ✅ Complete |
+  | Pointer | Pointer | Pointer | Pointer | — | ✅ Complete |
+  | Value<T> | Value<T> | AbstractValue | Value | BigDecimal | ✅ Complete |
+  | Choice | Choice | Choice | Choice | Choice | ✅ Complete |
+  | ChoicePoint | ChoicePoint | ChoicePoint | ChoicePoint | — | ✅ Complete |
+  | Divert | Divert | Divert | Divert | Divert | ✅ Complete |
+  | ControlCommand | ControlCommand | ControlCommand | ControlCommand | — | ✅ Complete |
+  | NativeFunctionCall | NativeFunctionCall | NativeFunctionCall | NativeFunctionCall | Expression | ✅ Complete |
+  | VariableAssignment | VariableAssignment | VariableAssignment | VariableAssignment | Declaration | ✅ Complete |
+  | VariableReference | VariableReference | VariableReference | VariableReference | — | ✅ Complete |
+  | VariablesState | VariablesState | VariablesState | VariablesState | VariableMap | ✅ Complete |
+  | Flow | Flow | Flow | Flow | — | ✅ Complete |
+  | StatePatch | StatePatch | StatePatch | StatePatch | — | ✅ Complete |
+  | JsonSerialisation | Json | Json | JsonSerialisation | StoryLoader | ✅ Complete |
+  | SimpleJson | SimpleJson | SimpleJson | SimpleJson | — | ✅ Complete |
+  | InkList | InkList | InkList | InkList | — | ✅ Complete |
+  | Profiler | Profiler | Profiler | — | — | ✅ Complete |
+  | InkRuntime | — | — | — | — | ⬜ NEW |
+  | InkParser | — | — | — | InkParser | ⬜ From mica |
+  | Expression | — | — | — | Expression | ⬜ From mica |
+
+  **ink-proof e2e**: 7 bytecode + 135 ink tests
+  **Next**: Implement InkRuntime on Story, run ink-proof
+end note
+
+PROGRESS .. Story
+
+' ══════════════════════════════════════════════════════════════════════════════
 ' LEGEND
 ' ══════════════════════════════════════════════════════════════════════════════
 
@@ -1385,6 +1468,7 @@ legend bottom right
   | <#FFF3E0> | Enum class |
   | <#F3E5F5> | Object singleton |
   | <#ECEFF1> | Infrastructure / utilities |
+  | <#E0F7FA> | Common interface (new) |
   |= Symbol |= Meaning |
   | --|> | Inheritance (extends / sealed) |
   | ..|> | Interface implementation |
@@ -1392,6 +1476,9 @@ legend bottom right
   | --> | Association (references) |
   | +-- | Nested class ownership |
   | ..> | Dependency (uses) |
+  |= Status |= Meaning |
+  | ✅ | Complete in ink.kt |
+  | ⬜ | Pending / new |
 endlegend
 
 @enduml
