@@ -1,10 +1,13 @@
 package ink.mcp
 
+import java.io.File
 import kotlin.test.*
 
 class EmojiAssetManifestTest {
 
     private val manifest = EmojiAssetManifest()
+
+    // ── Backward compatibility (original 10 game categories) ──
 
     @Test
     fun `resolve returns AssetRef for known emoji`() {
@@ -109,5 +112,176 @@ class EmojiAssetManifestTest {
         assertNotNull(ref)
         assertEquals("sword", ref.category.name)
         assertEquals("weapon_sword_flame.glb", ref.meshPath)
+    }
+
+    // ── Game asset flag ───────────────────────────────────────
+
+    @Test
+    fun `default constructor game categories have isGameAsset true`() {
+        for (cat in manifest.allCategories()) {
+            assertTrue(cat.isGameAsset, "${cat.name} should be a game asset")
+        }
+    }
+
+    @Test
+    fun `gameCategories returns only game assets`() {
+        val gameCats = manifest.gameCategories()
+        assertEquals(10, gameCats.size)
+        assertTrue(gameCats.all { it.isGameAsset })
+    }
+
+    // ── Extended manifest with emoji-test.txt ─────────────────
+
+    @Test
+    fun `full emoji manifest resolves standard emoji from snippet`() {
+        val m = createSnippetManifest(loadFullEmoji = true)
+        val ref = m.resolve("😀")
+        assertNotNull(ref, "Should resolve grinning face from emoji-test-snippet.txt")
+        assertEquals("Smileys & Emotion", ref.category.unicodeGroup)
+        assertEquals("face-smiling", ref.category.unicodeSubgroup)
+        assertEquals("emoji_face", ref.category.type)
+    }
+
+    @Test
+    fun `full emoji manifest preserves group hierarchy`() {
+        val m = createSnippetManifest(loadFullEmoji = true)
+        val groups = m.allGroups()
+        assertTrue(groups.containsKey("Smileys & Emotion"), "Should have Smileys group")
+        assertTrue(groups.containsKey("Objects"), "Should have Objects group")
+        assertTrue(groups.containsKey("Animals & Nature"), "Should have Animals group")
+    }
+
+    @Test
+    fun `game overrides take precedence over Unicode data`() {
+        val m = createSnippetManifest(loadFullEmoji = true)
+        val ref = m.resolve("🗡️")
+        assertNotNull(ref)
+        assertEquals("sword", ref.category.name)
+        assertTrue(ref.category.isGameAsset, "Game override should win")
+        assertEquals("sword_1h", ref.category.animSet)
+        assertEquals("weapon_sword_01.glb", ref.meshPath)
+    }
+
+    @Test
+    fun `full emoji manifest has more entries than game-only`() {
+        val gameOnly = EmojiAssetManifest()
+        val full = createSnippetManifest(loadFullEmoji = true)
+        assertTrue(full.size() > gameOnly.size(),
+            "Full manifest (${full.size()}) should have more than game-only (${gameOnly.size()})")
+    }
+
+    @Test
+    fun `resolveByGroup returns all entries in group`() {
+        val m = createSnippetManifest(loadFullEmoji = true)
+        val smileys = m.resolveByGroup("Smileys & Emotion")
+        assertTrue(smileys.isNotEmpty(), "Should have entries in Smileys & Emotion")
+        assertTrue(smileys.all { it.unicodeGroup == "Smileys & Emotion" })
+    }
+
+    @Test
+    fun `resolveBySubgroup returns matching entries`() {
+        val m = createSnippetManifest(loadFullEmoji = true)
+        val faceSmiling = m.resolveBySubgroup("face-smiling")
+        assertTrue(faceSmiling.isNotEmpty(), "Should have face-smiling entries")
+    }
+
+    // ── Extended manifest with UnicodeData.txt (IPA) ──────────
+
+    @Test
+    fun `unicode block loading parses IPA Extensions`() {
+        val m = createSnippetManifest(
+            loadUnicodeBlocks = true,
+            unicodeBlocks = mapOf(UnicodeSymbolParser.IPA_EXTENSIONS)
+        )
+        val schwaRef = m.resolveByCodePoint(0x0259)
+        assertNotNull(schwaRef, "Should resolve schwa from IPA Extensions")
+        assertEquals("IPA Extensions", schwaRef.category.unicodeGroup)
+        assertEquals("symbol", schwaRef.category.type)
+    }
+
+    @Test
+    fun `IPA entries have correct general category`() {
+        val m = createSnippetManifest(
+            loadUnicodeBlocks = true,
+            unicodeBlocks = mapOf(UnicodeSymbolParser.IPA_EXTENSIONS)
+        )
+        val schwaRef = m.resolveByCodePoint(0x0259)
+        assertNotNull(schwaRef)
+        assertEquals("Ll", schwaRef.category.generalCategory)
+    }
+
+    @Test
+    fun `IPA entries are not game assets`() {
+        val m = createSnippetManifest(
+            loadUnicodeBlocks = true,
+            unicodeBlocks = mapOf(UnicodeSymbolParser.IPA_EXTENSIONS)
+        )
+        val ipaEntries = m.resolveByGroup("IPA Extensions")
+        assertTrue(ipaEntries.isNotEmpty())
+        assertTrue(ipaEntries.none { it.isGameAsset }, "IPA entries should not be game assets")
+    }
+
+    @Test
+    fun `currency symbols load from UnicodeData`() {
+        val m = createSnippetManifest(
+            loadUnicodeBlocks = true,
+            unicodeBlocks = mapOf(UnicodeSymbolParser.CURRENCY_SYMBOLS)
+        )
+        val euroRef = m.resolveByCodePoint(0x20AC)
+        assertNotNull(euroRef, "Should resolve Euro sign")
+        assertEquals("Currency Symbols", euroRef.category.unicodeGroup)
+
+        val sheqelRef = m.resolveByCodePoint(0x20AA)
+        assertNotNull(sheqelRef, "Should resolve New Sheqel sign")
+    }
+
+    @Test
+    fun `combined emoji and unicode blocks load together`() {
+        val m = createSnippetManifest(
+            loadFullEmoji = true,
+            loadUnicodeBlocks = true,
+            unicodeBlocks = mapOf(
+                UnicodeSymbolParser.IPA_EXTENSIONS,
+                UnicodeSymbolParser.CURRENCY_SYMBOLS
+            )
+        )
+        assertNotNull(m.resolve("😀"), "Should resolve emoji")
+        assertNotNull(m.resolveByCodePoint(0x0259), "Should resolve IPA schwa")
+        assertNotNull(m.resolveByCodePoint(0x20AC), "Should resolve Euro")
+        val sword = m.resolve("🗡️")
+        assertNotNull(sword)
+        assertTrue(sword.category.isGameAsset)
+    }
+
+    // ── helpers ───────────────────────────────────────────────
+
+    private fun createSnippetManifest(
+        loadFullEmoji: Boolean = false,
+        loadUnicodeBlocks: Boolean = false,
+        unicodeBlocks: Map<String, IntRange> = UnicodeSymbolParser.DEFAULT_BLOCKS
+    ): EmojiAssetManifest {
+        val loader = TestResourceLoader()
+        return EmojiAssetManifest(
+            loader = loader,
+            loadFullEmoji = loadFullEmoji,
+            loadUnicodeBlocks = loadUnicodeBlocks,
+            unicodeBlocks = unicodeBlocks
+        )
+    }
+
+    private class TestResourceLoader : UnicodeDataLoader(
+        cacheDir = File(System.getProperty("java.io.tmpdir"), "inky-test-unicode-cache")
+    ) {
+        override fun loadEmojiTest(): List<String> {
+            val stream = javaClass.classLoader.getResourceAsStream("unicode/emoji-test-snippet.txt")
+                ?: return emptyList()
+            return stream.bufferedReader().readLines()
+        }
+
+        override fun loadUnicodeData(): List<String> {
+            val stream = javaClass.classLoader.getResourceAsStream("unicode/UnicodeData-snippet.txt")
+                ?: return emptyList()
+            return stream.bufferedReader().readLines()
+        }
     }
 }

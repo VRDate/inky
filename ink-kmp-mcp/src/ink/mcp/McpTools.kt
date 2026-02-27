@@ -1041,6 +1041,27 @@ class McpTools(
                 }
                 putJsonArray("required") { add("markdown") }
             }
+        ),
+        McpToolInfo(
+            name = "list_emoji_groups",
+            description = "List all Unicode emoji groups and subgroups available in the manifest. Returns group hierarchy from emoji-test.txt and UnicodeData.txt blocks.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("filter") { put("type", "string"); put("description", "Optional substring filter for group/subgroup names") }
+                }
+            }
+        ),
+        McpToolInfo(
+            name = "resolve_unicode_block",
+            description = "Resolve all symbols in a Unicode block (e.g., 'IPA Extensions', 'Currency Symbols') to their categories.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("block") { put("type", "string"); put("description", "Unicode block name (e.g., 'IPA Extensions', 'Smileys & Emotion', 'Currency Symbols')") }
+                }
+                putJsonArray("required") { add("block") }
+            }
         )
     )
 
@@ -1141,6 +1162,8 @@ class McpTools(
                 "generate_characters" -> handleGenerateCharacters(arguments)
                 "generate_story_md" -> handleGenerateStoryMd(arguments)
                 "evaluate_formulas" -> handleEvaluateFormulas(arguments)
+                "list_emoji_groups" -> handleListEmojiGroups(arguments)
+                "resolve_unicode_block" -> handleResolveUnicodeBlock(arguments)
                 else -> errorResult("Unknown tool: $name")
             }
         } catch (e: Exception) {
@@ -2276,5 +2299,63 @@ Provide specific, actionable feedback."""
                 }
             }
         }.toString()
+    }
+
+    // ── Unicode / Symbol handlers ─────────────────────────────
+
+    private fun handleListEmojiGroups(args: JsonObject?): McpToolResult {
+        val filter = args?.get("filter")?.jsonPrimitive?.contentOrNull ?: ""
+        val grouped = assetManifest.allCategories()
+            .filter { it.unicodeGroup.isNotEmpty() }
+            .filter {
+                filter.isEmpty() ||
+                    it.unicodeGroup.contains(filter, ignoreCase = true) ||
+                    it.unicodeSubgroup.contains(filter, ignoreCase = true)
+            }
+            .groupBy { it.unicodeGroup }
+            .mapValues { (_, cats) -> cats.map { it.unicodeSubgroup }.distinct().sorted() }
+
+        if (grouped.isEmpty()) {
+            return textResult(buildJsonObject {
+                put("message", "No groups found. Enable loadFullEmoji or loadUnicodeBlocks in the manifest for Unicode data.")
+                put("gameCategories", assetManifest.gameCategories().size)
+            }.toString())
+        }
+
+        return textResult(buildJsonObject {
+            put("totalGroups", grouped.size)
+            putJsonObject("groups") {
+                for ((group, subgroups) in grouped.toSortedMap()) {
+                    putJsonArray(group) { for (sg in subgroups) add(sg) }
+                }
+            }
+        }.toString())
+    }
+
+    private fun handleResolveUnicodeBlock(args: JsonObject?): McpToolResult {
+        val block = args?.get("block")?.jsonPrimitive?.contentOrNull
+            ?: return errorResult("Missing required parameter: block")
+        val cats = assetManifest.resolveByGroup(block)
+        if (cats.isEmpty()) return errorResult("No entries found for block: $block")
+        return textResult(buildJsonObject {
+            put("block", block)
+            put("count", cats.size)
+            putJsonArray("entries") {
+                for (cat in cats) {
+                    addJsonObject {
+                        put("emoji", cat.emoji)
+                        put("name", cat.name)
+                        put("type", cat.type)
+                        put("unicodeGroup", cat.unicodeGroup)
+                        put("unicodeSubgroup", cat.unicodeSubgroup)
+                        put("codePoints", cat.codePoints.joinToString(" ") { "U+%04X".format(it) })
+                        put("isGameAsset", cat.isGameAsset)
+                        if (cat.generalCategory.isNotEmpty()) put("generalCategory", cat.generalCategory)
+                        if (cat.animSet.isNotEmpty()) put("animSet", cat.animSet)
+                        if (cat.meshPrefix.isNotEmpty()) put("meshPrefix", cat.meshPrefix)
+                    }
+                }
+            }
+        }.toString())
     }
 }

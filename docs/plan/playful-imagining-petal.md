@@ -1106,8 +1106,215 @@ dotnet test InkBidiTdd.Tests --filter "InkAssetEventReceiverTest"
 - [x] **Step 5** — PlantUML diagrams + MD docs (committed + pushed)
 - [x] **Step 5 fix** — ACE+Yjs, ProseMirror→Remirror, InkProseEditor→InkRemirrorEditor (committed + pushed)
 - [x] **Step 0** — 14 .proto files in ink.model, Gradle protobuf plugin, InkModelSerializers.kt (committed + pushed)
-- [x] **Step 1** — EmojiAssetManifest.kt, InkFakerEngine.kt, InkMdEngine extensions, 6 MCP tools in McpTools.kt (code + tests written)
-- [ ] **Step 1 remaining** — Copy plan files to docs/plan/, commit all Step 1 files + push to `claude/sub-agents-code-review-7KAZW` ← **NEXT**
+- [x] **Step 1** — EmojiAssetManifest.kt, InkFakerEngine.kt, InkMdEngine extensions, 6 MCP tools, tests (committed + pushed)
+- [ ] **Step 1b** — Rewrite EmojiAssetManifest as Unicode parser (emoji-test.txt + UnicodeData.txt + IPA) ← **NEXT**
 - [ ] **Step 2** — RSocket + msgpack + AsyncAPI event layer
 - [ ] **Step 3** — Chatterbox TTS
 - [ ] **Step 4** — BabylonJS loader
+
+---
+
+## Step 1b: Unicode Symbol Parser — Rewrite EmojiAssetManifest
+
+### Context
+
+EmojiAssetManifest.kt was originally hardcoded with 10 game emoji categories. The user clarified it should be a **parser** that reads the official Unicode emoji-test.txt and UnicodeData.txt formats, supporting not just emoji but also IPA Extensions and other UTF symbol blocks. The 10 game categories remain as manual overrides on top of parsed Unicode data.
+
+**Permanent URLs:**
+- `https://unicode.org/Public/emoji/latest/emoji-test.txt` — emoji with group/subgroup hierarchy
+- `https://unicode.org/Public/UNIDATA/UnicodeData.txt` — full Unicode character database (IPA, symbols, etc.)
+
+**Strategy: Bundle + Fetch + Cache**
+- Bundle curated test subsets as classpath resources
+- At runtime, optionally fetch full files via `java.net.URL.openStream()` (JDK 21, no new deps)
+- Cache to `~/.inky/unicode-cache/`, fall back to bundled data
+
+### 1b.1 New: `UnicodeSymbolParser.kt`
+
+**Path:** `ink-kmp-mcp/src/ink/mcp/UnicodeSymbolParser.kt`
+
+Pure parser, no dependencies on EmojiAssetManifest. Two parsers in one class:
+
+```kotlin
+class UnicodeSymbolParser {
+    data class UnicodeEntry(
+        val codePoints: List<Int>,       // [0x1F600] or [0x0250]
+        val symbol: String,              // rendered character
+        val name: String,                // "grinning face" or "LATIN SMALL LETTER TURNED A"
+        val group: String,               // "Smileys & Emotion" or "IPA Extensions"
+        val subgroup: String,            // "face-smiling"
+        val status: Status = Status.FULLY_QUALIFIED,
+        val version: String = "",        // "E1.0" for emoji
+        val generalCategory: String = "" // "Ll", "So" from UnicodeData
+    )
+    enum class Status { FULLY_QUALIFIED, MINIMALLY_QUALIFIED, UNQUALIFIED, COMPONENT }
+    data class ParseResult(
+        val entries: List<UnicodeEntry>,
+        val groups: Map<String, List<String>>  // group → subgroups
+    )
+
+    fun parseEmojiTest(lines: List<String>): ParseResult
+    fun parseUnicodeData(lines: List<String>, blocks: Map<String, IntRange>): ParseResult
+
+    companion object {
+        val IPA_EXTENSIONS = "IPA Extensions" to (0x0250..0x02AF)
+        val SPACING_MODIFIER_LETTERS = "Spacing Modifier Letters" to (0x02B0..0x02FF)
+        val MATHEMATICAL_OPERATORS = "Mathematical Operators" to (0x2200..0x22FF)
+        val MISCELLANEOUS_SYMBOLS = "Miscellaneous Symbols" to (0x2600..0x26FF)
+        val DINGBATS = "Dingbats" to (0x2700..0x27BF)
+        val CURRENCY_SYMBOLS = "Currency Symbols" to (0x20A0..0x20CF)
+        val DEFAULT_BLOCKS = mapOf(IPA_EXTENSIONS, SPACING_MODIFIER_LETTERS, ...)
+    }
+}
+```
+
+**emoji-test.txt parsing:** Tracks `# group:` / `# subgroup:` headers, parses `code points ; status # emoji E-version name` lines.
+
+**UnicodeData.txt parsing:** Filters semicolon-delimited lines to requested block ranges (e.g., 0x0250..0x02AF for IPA Extensions).
+
+### 1b.2 New: `UnicodeDataLoader.kt`
+
+**Path:** `ink-kmp-mcp/src/ink/mcp/UnicodeDataLoader.kt`
+
+Three-tier loading: classpath resource → local cache (`~/.inky/unicode-cache/`) → URL fetch. Uses `java.net.URL.openStream()` (no new dependencies).
+
+```kotlin
+class UnicodeDataLoader(cacheDir: File = File(System.getProperty("user.home"), ".inky/unicode-cache")) {
+    fun loadLines(classpathResource: String, remoteUrl: String, cacheFileName: String): List<String>
+    fun loadEmojiTest(): List<String>
+    fun loadUnicodeData(): List<String>
+
+    companion object {
+        const val EMOJI_TEST_URL = "https://unicode.org/Public/emoji/latest/emoji-test.txt"
+        const val UNICODE_DATA_URL = "https://unicode.org/Public/UNIDATA/UnicodeData.txt"
+    }
+}
+```
+
+### 1b.3 Modify: `EmojiAssetManifest.kt`
+
+**Path:** `ink-kmp-mcp/src/ink/mcp/EmojiAssetManifest.kt`
+
+**Extend `AssetCategory` with Unicode metadata (default values preserve backward compat):**
+```kotlin
+data class AssetCategory(
+    val emoji: String, val name: String, val type: String,
+    val animSet: String = "", val gripType: String = "none",
+    val meshPrefix: String = "", val audioCategory: String = "",
+    // New Unicode metadata fields
+    val unicodeGroup: String = "",       // "Smileys & Emotion" or "IPA Extensions"
+    val unicodeSubgroup: String = "",    // "face-smiling"
+    val codePoints: List<Int> = emptyList(),
+    val unicodeVersion: String = "",     // "E1.0"
+    val generalCategory: String = "",    // "So", "Ll"
+    val isGameAsset: Boolean = false     // true for 10 curated game categories
+)
+```
+
+**New constructor with layered loading:**
+```kotlin
+class EmojiAssetManifest(
+    private val loader: UnicodeDataLoader = UnicodeDataLoader(),
+    private val parser: UnicodeSymbolParser = UnicodeSymbolParser(),
+    private val unicodeBlocks: Map<String, IntRange> = UnicodeSymbolParser.DEFAULT_BLOCKS,
+    private val loadFullEmoji: Boolean = false,
+    private val loadUnicodeBlocks: Boolean = false
+)
+```
+
+**Loading order:** Unicode data first (if enabled) → game overrides always last (overwrite matching emoji keys).
+
+**New indices:** `byGroup`, `bySubgroup`, `byCodePoint` maps alongside existing `categories`, `byName`, `byMeshPrefix`, `byAnimSet`.
+
+**New query methods:**
+- `resolveByGroup(group: String): List<AssetCategory>`
+- `resolveBySubgroup(subgroup: String): List<AssetCategory>`
+- `resolveByCodePoint(codePoint: Int): AssetRef?`
+- `gameCategories(): List<AssetCategory>` — only `isGameAsset = true` entries
+
+**Group → type mapping:**
+```
+"Smileys & Emotion" → "emoji_face"
+"People & Body" → "emoji_person"
+"Animals & Nature" → "emoji_nature"
+"Activities" → "emoji_activity"
+"Objects" → "emoji_object"
+"Symbols" → "emoji_symbol"
+"Flags" → "emoji_flag"
+IPA/symbol blocks → "symbol"
+```
+
+**Backward compatibility:** `EmojiAssetManifest()` (zero-arg) loads only the 10 game defaults. `EmojiAssetManifest(loadFullEmoji = true, loadUnicodeBlocks = true)` loads everything.
+
+### 1b.4 New: `SymbolTestDataGenerator.kt`
+
+**Path:** `ink-kmp-mcp/src/ink/mcp/SymbolTestDataGenerator.kt`
+
+Generates test data files in emoji-test.txt format from UnicodeData.txt blocks. This normalizes IPA/symbol entries into the same format the parser already handles.
+
+### 1b.5 New: Test Resources
+
+**Bundled test data (curated subsets in identical format):**
+- `src/test/resources/unicode/emoji-test-snippet.txt` — ~50 entries across 3-4 groups
+- `src/test/resources/unicode/UnicodeData-snippet.txt` — IPA Extensions + sample symbols
+
+### 1b.6 New: `UnicodeSymbolParserTest.kt`
+
+**Path:** `ink-kmp-mcp/src/test/kotlin/ink/mcp/UnicodeSymbolParserTest.kt`
+
+Tests:
+- `parseEmojiTest extracts group hierarchy`
+- `parseEmojiTest parses fully-qualified entries` (codePoints, symbol, group, subgroup, status)
+- `parseEmojiTest handles multi-codepoint sequences` (e.g., 🗡️ = U+1F5E1 U+FE0F)
+- `parseEmojiTest distinguishes qualified and unqualified`
+- `parseUnicodeData extracts IPA Extensions` (schwa at 0x0259)
+- `parseUnicodeData filters to requested blocks only`
+
+### 1b.7 Modify: `EmojiAssetManifestTest.kt`
+
+**Path:** `ink-kmp-mcp/src/test/kotlin/ink/mcp/EmojiAssetManifestTest.kt`
+
+**All 10 existing tests unchanged.** Add new tests:
+- `default constructor still returns 10 game categories` (backward compat)
+- `game categories have isGameAsset true`
+- `full emoji manifest resolves standard emoji` (loads snippet, resolves 😀)
+- `game overrides take precedence over Unicode data` (🗡️ still has animSet=sword_1h)
+- `unicode block loading parses IPA Extensions` (resolveByCodePoint 0x0259)
+- `resolveByGroup returns entries in group`
+
+Uses a `TestUnicodeDataLoader` that reads from test resources (no network).
+
+### 1b.8 Modify: `McpTools.kt`
+
+**Path:** `ink-kmp-mcp/src/ink/mcp/McpTools.kt`
+
+Add 2 new MCP tools:
+- `list_emoji_groups` — returns Unicode group/subgroup hierarchy from manifest
+- `resolve_unicode_block` — resolves all symbols in a given block name
+
+### File Summary
+
+| # | Path | Action |
+|---|------|--------|
+| 1 | `src/ink/mcp/UnicodeSymbolParser.kt` | **NEW** |
+| 2 | `src/ink/mcp/UnicodeDataLoader.kt` | **NEW** |
+| 3 | `src/test/resources/unicode/emoji-test-snippet.txt` | **NEW** |
+| 4 | `src/test/resources/unicode/UnicodeData-snippet.txt` | **NEW** |
+| 5 | `src/ink/mcp/EmojiAssetManifest.kt` | **MODIFY** |
+| 6 | `src/ink/mcp/SymbolTestDataGenerator.kt` | **NEW** |
+| 7 | `src/test/kotlin/ink/mcp/UnicodeSymbolParserTest.kt` | **NEW** |
+| 8 | `src/test/kotlin/ink/mcp/EmojiAssetManifestTest.kt` | **MODIFY** |
+| 9 | `src/ink/mcp/McpTools.kt` | **MODIFY** |
+
+No new Gradle dependencies. No changes needed to InkFakerEngine (works via manifest interface).
+
+### Verification
+
+```bash
+# Parser tests
+./gradlew :ink-kmp-mcp:test --tests "ink.mcp.UnicodeSymbolParserTest"
+# Extended manifest tests
+./gradlew :ink-kmp-mcp:test --tests "ink.mcp.EmojiAssetManifestTest"
+# Existing faker tests (backward compat)
+./gradlew :ink-kmp-mcp:test --tests "ink.mcp.InkFakerEngineTest"
+```
