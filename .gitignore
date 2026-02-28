@@ -15,5 +15,6 @@ AppImage
 .DS_Store
 build/
 .gradle/
+.kotlin/
 bin/
 obj/
