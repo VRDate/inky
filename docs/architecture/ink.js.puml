@@ -806,12 +806,12 @@ note as N2
 end note
 
 note as N3
-  **JS → Kotlin/JS Porting Gap Analysis (2026-02-27)**
+  **JS → Kotlin/JS Porting Gap Analysis (2026-02-28)**
   ══════════════════════════════════════════════════════
 
-  **JS-unique features to port to ink.kt (Kotlin/JS)**
+  **All JS-unique features now ported to ink.kt** ✅
 
-  | Feature | inkjs | ink.kt | Action |
+  | Feature | inkjs | ink.kt | Status |
   | onDidContinue | ✅ callback | ✅ var | ✅ Ported as lambda |
   | onMakeChoice | ✅ callback | ✅ var | ✅ Ported as lambda |
   | onEvaluateFunction | ✅ callback | ✅ var | ✅ Ported as lambda |
@@ -819,6 +819,12 @@ note as N3
   | onChoosePathString | ✅ callback | ✅ var | ✅ Ported as lambda |
   | ContinueSingleStep() | ✅ method | ✅ public | ✅ Ported |
   | currentFlowIsDefaultFlow | ✅ property | ✅ fun | ✅ Already existed |
+
+  **Parser fields merged from mica into ink.kt data classes** ✅
+  - InkObject: +id, +text, +lineNumber, +count (from mica Content)
+  - Container: +index, +children, +add(), +get()
+  - Choice: +level, +conditions, +repeatable
+  - Story: +parserMode fields
 
   **Ported differently (idiomatic Kotlin equivalents)**
 
@@ -843,12 +849,50 @@ note as N3
   Same JS API surface as inkjs — interop via
   @JsExport on Story, Choice, VariablesState.
   Browser/Node: CommonJS + ESM dual publish.
+  KT/JS will run alongside inkjs in browser.
   Event callbacks = Kotlin fun interfaces
   which compile to JS function types.
+end note
+
+note as N4
+  **Merge Status & Architecture (2026-02-28)**
+  ═════════════════════════════════════════════
+
+  **mica → ink.kt merge status**
+  - mica fully KMP-ported: all 6 JVM deps replaced
+    (BigDecimal→Double, Jackson→kotlinx.serialization, etc.)
+  - Parser fields merged into ink.kt data classes
+  - All 5 JS event callbacks ported to ink.kt ✅
+  - ContinueSingleStep() now public in ink.kt ✅
+  - **Next**: Move 22 non-colliding mica classes to
+    ink.kt package, then delete mica/ directory
+
+  **Code-first three-layer architecture**
+  ┌─────────────────────────────────────┐
+  │ 1. **ink.model**                    │
+  │    Kotlin data classes + annotations│
+  │    → generates proto, OpenAPI,      │
+  │      MCP, AsyncAPI schemas          │
+  ├─────────────────────────────────────┤
+  │ 2. **ink.kt**                       │
+  │    Runtime classes                  │
+  │    (extend model data classes)      │
+  ├─────────────────────────────────────┤
+  │ 3. **ink.kt.services**              │
+  │    Companion objects per data class │
+  │    (ink language logic)             │
+  └─────────────────────────────────────┘
+
+  **Compiler strategy (3 compilers → identical JSON)**
+  - C# inklecate: UNCHANGED — reference compiler, test oracle
+  - Java blade-ink: UNCHANGED — reference compiler, test oracle
+  - KT/KMP: NEW compiler, validated against C# + Java JSON
+  - inkjs: remains as browser runtime; KT/JS runs alongside
 end note
 
 N1 .. Story
 N2 .. Value
 N3 .. StoryState
+N4 .. Story
 
 @enduml

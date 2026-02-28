@@ -897,7 +897,7 @@ note as N_COMPARE
 end note
 
 note as N_GAPS
-  **C# → ink.kt Gap Analysis (2026-02-27)**
+  **C# → ink.kt Gap Analysis (2026-02-28)**
   ═══════════════════════════════════════════
 
   **C# is the canonical reference.**
@@ -935,7 +935,38 @@ note as N_GAPS
   | DateComponents | Clock decomposition data class |
 end note
 
+note as N_MERGE
+  **Merge Status & Architecture (2026-02-28)**
+  ═══════════════════════════════════════════════
+
+  **mica → ink.kt merge (complete as of 2026-02-28):**
+    mica is fully KMP-ported — all 6 JVM deps replaced:
+      BigDecimal → Double, Jackson → kotlinx.serialization, etc.
+    Parser fields merged into ink.kt data classes:
+      InkObject (+id/text/lineNumber/count from mica Content)
+      Container (+index/children/add/get)
+      Choice (+level/conditions/repeatable)
+      Story (+parserMode fields)
+    **Next**: Move 22 non-colliding mica classes to ink.kt
+    package, then delete mica/ directory.
+
+  **Code-first three-layer architecture:**
+    1. **ink.model** — Kotlin data classes with annotations
+       → generates proto, OpenAPI, MCP, AsyncAPI schemas
+    2. **ink.kt** — Runtime classes (extend model data classes)
+    3. **ink.kt.services** — Companion objects per data class
+       (ink language logic)
+
+  **Compiler strategy (all 3 → identical JSON output):**
+
+  | Compiler | Language | Role |
+  | inklecate | C# | UNCHANGED — reference compiler, test oracle |
+  | blade-ink | Java | UNCHANGED — reference compiler, test oracle |
+  | ink.kt | KT/KMP | NEW — validated against C# + Java JSON |
+end note
+
 N_COMPARE .. Story
 N_GAPS .. StoryState
+N_MERGE .. Container
 
 @enduml

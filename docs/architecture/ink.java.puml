@@ -43,6 +43,17 @@ note as N1
   C# ink-csharp is the canonical reference implementation.
   blade-ink is a faithful Java port by bladecoder (Rafael Garcia).
   ink.kt (this project) is a Kotlin Multiplatform port of blade-ink.
+  ----
+  **Compiler strategy (all 3 → identical JSON output)**
+  | Compiler | Role |
+  | C# inklecate | UNCHANGED — reference compiler, test oracle |
+  | Java blade-ink | UNCHANGED — reference compiler, test oracle |
+  | KT/KMP ink.kt | NEW compiler, validated against C# + Java JSON |
+  ----
+  **Code-first three-layer architecture**
+  1. **ink.model** — Kotlin data classes + annotations → proto, OpenAPI, MCP, AsyncAPI
+  2. **ink.kt** — Runtime classes (extend ink.model data classes)
+  3. **ink.kt.services** — Companion objects per data class (ink language logic)
 end note
 
 
@@ -1053,7 +1064,7 @@ Flow ..> SJWriter : writeJson
 VariablesState ..> SJWriter : writeJson
 
 note as N_GAPS
-  **Java (blade-ink) → ink.kt Gap Analysis (2026-02-27)**
+  **Java (blade-ink) → ink.kt Gap Analysis (2026-02-28)**
   ═════════════════════════════════════════════════════════
 
   **Porting complete: 46 Java files → 36 Kotlin files.**
@@ -1103,10 +1114,25 @@ note as N_GAPS
   | InkClock (pluggable) | ✅ | ⬜ | ink.kt unique |
   | InkRuntime interface | ✅ | ⬜ | ink.kt unique |
 
-  **Porting status: ✅ COMPLETE**
+  **mica → ink.kt merge status (2026-02-28)**
+
+  | Step | Status |
+  | mica fully KMP-ported (6 JVM deps replaced) | ✅ Done |
+  | BigDecimal → Double | ✅ Done |
+  | Jackson → kotlinx.serialization | ✅ Done |
+  | Parser fields merged into ink.kt classes | ✅ Done |
+  | InkObject (+id/text/lineNumber/count from mica Content) | ✅ Done |
+  | Container (+index/children/add/get) | ✅ Done |
+  | Choice (+level/conditions/repeatable) | ✅ Done |
+  | Story (+parserMode fields) | ✅ Done |
+  | Move 22 non-colliding mica classes to ink.kt | ⬜ Next |
+  | Delete mica/ directory | ⬜ Next |
+
+  **Porting status: ✅ COMPLETE (blade-ink → ink.kt)**
   All 46 Java source files accounted for.
   36 Kotlin files in ink.kt package.
   ink-proof: 7 bytecode + 135 ink conformance tests.
+  Parser fields from mica now merged into ink.kt data classes.
 end note
 
 N_GAPS .. Story
