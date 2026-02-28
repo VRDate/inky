@@ -32,6 +32,14 @@ class InkList private constructor(
     constructor(singleElement: Map.Entry<InkListItem, Int>) : this() {
         _map[singleElement.key] = singleElement.value
     }
+    constructor(singleOriginListName: String, originStory: Story) : this() {
+        setInitialOriginName(singleOriginListName)
+        val def = originStory.listDefinitionsOrigin?.getListDefinition(singleOriginListName)
+            ?: throw StoryException(
+                "InkList origin could not be found in story when constructing new list: $singleOriginListName"
+            )
+        origins = mutableListOf(def)
+    }
 
     // --- Origin management (identical across C#/Java/JS) ---
 
@@ -50,6 +58,17 @@ class InkList private constructor(
                 for (item in keys) _originNames!!.add(item.originName!!)
             }
             return _originNames
+        }
+
+    val singleOriginListName: String?
+        get() {
+            var name: String? = null
+            for ((item, _) in this) {
+                val originName = item.originName
+                if (name == null) name = originName
+                else if (name != originName) return null
+            }
+            return name
         }
 
     fun setInitialOriginName(initialOriginName: String) {
@@ -119,6 +138,9 @@ class InkList private constructor(
 
     fun containsItemNamed(itemName: String): Boolean =
         keys.any { it.itemName == itemName }
+
+    fun contains(listItemName: String): Boolean =
+        containsItemNamed(listItemName)
 
     // --- Comparison (identical in C#/Java/JS) ---
 
@@ -239,25 +261,31 @@ class InkList private constructor(
         throw IllegalStateException("Failed to add item — from unknown list definition")
     }
 
-    fun addItem(itemName: String) {
-        val origs = origins
+    fun addItem(itemName: String, storyObject: Story? = null) {
         var foundListDef: ListDefinition? = null
-        if (origs != null) {
-            for (origin in origs) {
-                if (origin.containsItemWithName(itemName)) {
-                    require(foundListDef == null) {
-                        "Ambiguous item $itemName — could be from ${origin.name} or ${foundListDef!!.name}"
-                    }
-                    foundListDef = origin
+        origins?.forEach { origin ->
+            if (origin.containsItemWithName(itemName)) {
+                if (foundListDef != null) {
+                    throw StoryException(
+                        "Could not add the item $itemName to this list because it could come from either ${origin.name} or ${foundListDef!!.name}"
+                    )
                 }
+                foundListDef = origin
             }
         }
         if (foundListDef == null) {
-            throw IllegalStateException("Could not add item $itemName — unknown to any associated list definition")
+            storyObject?.let { story ->
+                val (key, value) = fromString(itemName, story).orderedItems[0]
+                this[key] = value
+                return
+            } ?: throw StoryException(
+                "Could not add the item $itemName to this list because it isn't known to any list definitions previously associated with this list."
+            )
+        } else {
+            val item = InkListItem(foundListDef!!.name!!, itemName)
+            val itemVal = foundListDef!!.getValueForItem(item) ?: 0
+            this[item] = itemVal
         }
-        val item = InkListItem(foundListDef.name!!, itemName)
-        val itemVal = foundListDef.getValueForItem(item) ?: 0
-        this[item] = itemVal
     }
 
     // --- Equality (identical across all three) ---

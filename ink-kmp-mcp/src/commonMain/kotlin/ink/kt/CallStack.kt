@@ -69,6 +69,38 @@ class CallStack {
         }
 
         fun copy(): Thread = Thread(this)
+
+        fun writeJson(writer: SimpleJson.Writer) {
+            writer.writeObjectStart()
+
+            writer.writePropertyStart("callstack")
+            writer.writeArrayStart()
+            for (el in callstack) {
+                writer.writeObjectStart()
+                if (!el.currentPointer.isNull) {
+                    writer.writeProperty("cPath", el.currentPointer.container!!.path.componentsString)
+                    writer.writeProperty("idx", el.currentPointer.index)
+                }
+                writer.writeProperty("exp", el.inExpressionEvaluation)
+                writer.writeProperty("type", el.type.ordinal)
+                if (el.temporaryVariables.isNotEmpty()) {
+                    writer.writePropertyStart("temp")
+                    JsonSerialisation.writeDictionaryRuntimeObjs(writer, el.temporaryVariables)
+                    writer.writePropertyEnd()
+                }
+                writer.writeObjectEnd()
+            }
+            writer.writeArrayEnd()
+            writer.writePropertyEnd()
+
+            writer.writeProperty("threadIndex", threadIndex)
+
+            if (!previousPointer.isNull) {
+                writer.writeProperty("previousContentObject", previousPointer.resolve()!!.path.toString())
+            }
+
+            writer.writeObjectEnd()
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -248,6 +280,20 @@ class CallStack {
         _threads.addAll(threads)
         _threadCounter = threadCounter
         _startOfRoot.assign(Pointer.startOf(startOfRootContainer))
+    }
+
+    fun writeJson(writer: SimpleJson.Writer) {
+        writer.writeObject { w ->
+            w.writeProperty("threads") { w2 ->
+                w2.writeArrayStart()
+                for (thread in _threads) {
+                    thread.writeJson(w2)
+                }
+                w2.writeArrayEnd()
+            }
+
+            w.writeProperty("threadCounter", _threadCounter)
+        }
     }
 
     val threads: List<Thread> get() = _threads

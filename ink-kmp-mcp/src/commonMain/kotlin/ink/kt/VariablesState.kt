@@ -194,6 +194,20 @@ class VariablesState(
         }
     }
 
+    fun writeJson(writer: SimpleJson.Writer) {
+        writer.writeObjectStart()
+        for ((name, value) in globalVariables) {
+            if (dontSaveDefaultValues) {
+                val defaultVal = _defaultGlobalVariables?.get(name)
+                if (defaultVal != null && runtimeObjectsEqual(value, defaultVal)) continue
+            }
+            writer.writePropertyStart(name)
+            JsonSerialisation.writeRuntimeObject(writer, value)
+            writer.writePropertyEnd()
+        }
+        writer.writeObjectEnd()
+    }
+
     fun snapshotDefaultGlobals() {
         _defaultGlobalVariables = LinkedHashMap(_globalVariables)
     }

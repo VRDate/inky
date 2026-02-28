@@ -1857,6 +1857,14 @@ class Story : VariablesState.VariableChanged {
         return writer.toString()
     }
 
+    /**
+     * Write story state JSON to an Appendable (KMP-compatible stream alternative).
+     * C#/Java use Stream/OutputStream overloads; Kotlin uses Appendable for KMP compatibility.
+     */
+    fun toJson(appendable: Appendable) {
+        appendable.append(toJson())
+    }
+
     internal fun toJson(writer: SimpleJson.Writer) {
         writer.writeObjectStart()
         writer.writeProperty("inkVersion", INK_VERSION_CURRENT)

@@ -1238,12 +1238,12 @@ package "5. State" #E3F2FD {
       ----
       **C#** : VariablesState.cs
         IEnumerable<string>, delegate, indexer
-        WriteJson()               (MISSING in KT)
+        WriteJson()               writeJson()
       **Java** : VariablesState.java
         Iterable<String>, get/set methods
-        writeJson()               (MISSING in KT)
+        writeJson()               writeJson()
       ----
-      **Status**: GAP [toJsonElement()]
+      **Status**: COMPLETE
     end note
 
     interface "VariablesState.VariableChanged" as VarChanged <<fun interface>> {
@@ -2466,7 +2466,7 @@ note as PROGRESS
   | NativeFunctionCall | NativeFunctionCall | NativeFunctionCall | NativeFunctionCall | Expression | ✅ Complete |
   | VariableAssignment | VariableAssignment | VariableAssignment | VariableAssignment | Declaration | ✅ Complete |
   | VariableReference | VariableReference | VariableReference | VariableReference | — | ✅ Complete |
-  | VariablesState | VariablesState | VariablesState | VariablesState | VariableMap | ⚠️ GAP [toJsonElement] |
+  | VariablesState | VariablesState | VariablesState | VariablesState | VariableMap | ✅ Complete |
   | StatePatch | StatePatch | StatePatch | StatePatch | — | ✅ Complete |
   | InkList | InkList | InkList | InkList | — | ⚠️ GAP [4 members] |
   | InkListItem | InkListItem | InkListItem | InkListItem | — | ✅ Complete |
@@ -2531,7 +2531,7 @@ note as GAPS
   | Class | Gap | LOC | Priority |
   | StoryState | toJson(), loadJson(), toJsonObject(), fromJsonObject(), visitCountAtPathString() | ~192 | P2 |
   | JsonSerialisation | encodeFlow(), encodeCallStackThread(), decodeFlow() | ~80 | P2 |
-  | VariablesState | toJsonElement() | ~20 | P2 |
+
   | InkList | InkList(name,Story), singleOriginListName, addItem(name,story), contains(String) | ~30 | P3 |
   | Story | toJson(Appendable) stream overload | ~5 | P4 |
 

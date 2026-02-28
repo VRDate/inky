@@ -24,6 +24,50 @@ class Flow(
     val outputStream: MutableList<InkObject> = mutableListOf()
     val currentChoices: MutableList<Choice> = mutableListOf()
 
+    fun writeJson(writer: SimpleJson.Writer) {
+        writer.writeObjectStart()
+
+        writer.writeProperty("callstack") { w -> callStack.writeJson(w) }
+
+        writer.writeProperty("outputStream") { w ->
+            JsonSerialisation.writeListRuntimeObjs(w, outputStream)
+        }
+
+        // choiceThreads: optional
+        // Only written for choices whose generation thread is no longer active
+        var hasChoiceThreads = false
+        for (c in currentChoices) {
+            c.originalThreadIndex = c.threadAtGeneration!!.threadIndex
+
+            if (callStack.threadWithIndex(c.originalThreadIndex) == null) {
+                if (!hasChoiceThreads) {
+                    hasChoiceThreads = true
+                    writer.writePropertyStart("choiceThreads")
+                    writer.writeObjectStart()
+                }
+
+                writer.writePropertyStart(c.originalThreadIndex)
+                c.threadAtGeneration!!.writeJson(writer)
+                writer.writePropertyEnd()
+            }
+        }
+
+        if (hasChoiceThreads) {
+            writer.writeObjectEnd()
+            writer.writePropertyEnd()
+        }
+
+        writer.writeProperty("currentChoices") { w ->
+            w.writeArrayStart()
+            for (c in currentChoices) {
+                JsonSerialisation.writeChoice(w, c)
+            }
+            w.writeArrayEnd()
+        }
+
+        writer.writeObjectEnd()
+    }
+
     /**
      * Load choice threads from saved state.
      * Used both for old format and current.
