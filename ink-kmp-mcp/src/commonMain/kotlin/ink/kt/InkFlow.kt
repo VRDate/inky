@@ -5,9 +5,9 @@ package ink.kt
  * with its own call stack, output stream, and current choices.
  *
  * Design decisions from comparing all three implementations:
- * - C#: Flow class with CallStack, List<Object>, List<Choice>, WriteJson lambda delegates
- * - Java: Flow class with CallStack, List<RTObject>, List<Choice>, InnerWriter anonymous classes
- * - JS: Flow class with CallStack, InkObject[], Choice[], arguments[] constructor (untyped)
+ * - C#: Flow class (here InkFlow) with CallStack, List<Object>, List<Choice>, WriteJson lambda delegates
+ * - Java: Flow class (here InkFlow) with CallStack, List<RTObject>, List<Choice>, InnerWriter anonymous classes
+ * - JS: Flow class (here InkFlow) with CallStack, InkObject[], Choice[], arguments[] constructor (untyped)
  *
  * Kotlin improvements over all three:
  * - MutableList<InkObject> instead of raw Object/RTObject (type-safe output stream)
@@ -16,7 +16,7 @@ package ink.kt
  * - JSON serialization deferred to JsonSerialisation.kt (separation of concerns)
  * - choiceThreads logic preserved for save/load thread bookkeeping
  */
-class Flow(
+class InkFlow(
     var name: String,
     rootContentContainer: Container
 ) {
@@ -79,7 +79,7 @@ class Flow(
      * C#/Java/JS all have identical logic here — Kotlin just types it properly.
      */
     fun loadFlowChoiceThreads(
-        jChoiceThreads: Map<String, CallStack.Thread>?,
+        jChoiceThreads: Map<String, CallStack.InkThread>?,
         activeCallStack: CallStack = callStack
     ) {
         for (choice in currentChoices) {

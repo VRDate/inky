@@ -27,7 +27,7 @@ object JsonSerialisation {
     //                 "choiceCnt", "turn", "turns", "readc", "rnd", "srnd", "visit", "seq",
     //                 "thread", "done", "end", "listInt", "range", "lrnd", "#", "/#"
     // NativeFunction: "+", "-", "/", "*", "%", "~", "==", ">", "<", ">=", "<=", "!=", "!"...
-    // Void:           "void"
+    // InkVoid:        "void"
     // Value:          "^string value", "^^string value beginning with ^"
     //                 5, 5.2, true, false
     //                 {"^->": "path.target"}
@@ -170,7 +170,7 @@ object JsonSerialisation {
                 writer.writeObjectEnd()
             }
 
-            is Void -> writer.write("void")
+            is InkVoid -> writer.write("void")
 
             is Tag -> {
                 writer.writeObjectStart()
@@ -270,8 +270,8 @@ object JsonSerialisation {
                 return NativeFunctionCall.callWithName(funcName)
             }
 
-            // Void
-            if (str == "void") return Void()
+            // InkVoid
+            if (str == "void") return InkVoid()
         }
 
         // Dictionary-based objects

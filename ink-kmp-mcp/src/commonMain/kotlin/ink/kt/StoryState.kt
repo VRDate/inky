@@ -121,9 +121,9 @@ class StoryState(
 
     // --- Multi-flow support ---
 
-    var namedFlows: LinkedHashMap<String, Flow>? = null
+    var namedFlows: LinkedHashMap<String, InkFlow>? = null
         private set
-    var currentFlow: Flow
+    var currentFlow: InkFlow
         private set
 
     private var _aliveFlowNames: List<String>? = null
@@ -143,7 +143,7 @@ class StoryState(
     // --- Initialization ---
 
     init {
-        currentFlow = Flow(DEFAULT_FLOW_NAME, rootContentContainer)
+        currentFlow = InkFlow(DEFAULT_FLOW_NAME, rootContentContainer)
         outputStreamDirty()
         _aliveFlowNamesDirty = true
 
@@ -322,7 +322,7 @@ class StoryState(
 
         var flow = namedFlows!![flowName]
         if (flow == null) {
-            flow = Flow(flowName, rootContentContainer)
+            flow = InkFlow(flowName, rootContentContainer)
             namedFlows!![flowName] = flow
             _aliveFlowNamesDirty = true
         }
@@ -595,7 +595,7 @@ class StoryState(
         callStack.pop(PushPopType.FunctionEvaluationFromGame)
 
         if (returnedObj != null) {
-            if (returnedObj is Void) return null
+            if (returnedObj is InkVoid) return null
             val returnVal = returnedObj as? Value<*>
             if (returnVal?.valueType == ValueType.DivertTarget) {
                 return returnVal.valueObject.toString()
@@ -663,7 +663,7 @@ class StoryState(
         copy.patch = StatePatch(patch)
 
         // Hijack the new default flow to become a copy of our current one
-        copy.currentFlow = Flow(currentFlow.name, rootContentContainer).apply {
+        copy.currentFlow = InkFlow(currentFlow.name, rootContentContainer).apply {
             callStack = CallStack(this@StoryState.currentFlow.callStack)
             outputStream.addAll(this@StoryState.currentFlow.outputStream)
         }

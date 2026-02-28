@@ -614,7 +614,7 @@ class Story : VariablesState.VariableChanged {
                 "Could not create ink value from returned Object of type ${funcResult::class.simpleName}")
             created!!
         } else {
-            Void()
+            InkVoid()
         }
 
         state.pushEvaluationStack(returnObj)
@@ -1186,7 +1186,7 @@ class Story : VariablesState.VariableChanged {
                 state.popCallstack(PushPopType.Function)
 
                 if (state.inExpressionEvaluation) {
-                    state.pushEvaluationStack(Void())
+                    state.pushEvaluationStack(InkVoid())
                 }
 
                 didPop = true
@@ -1317,7 +1317,7 @@ class Story : VariablesState.VariableChanged {
                 ControlCommand.CommandType.EvalOutput -> {
                     if (state.evaluationStack.isNotEmpty()) {
                         val output = state.popEvaluationStack()
-                        if (output !is Void) {
+                        if (output !is InkVoid) {
                             state.pushToOutputStream(StringValue(output.toString()))
                         }
                     }
@@ -1340,7 +1340,7 @@ class Story : VariablesState.VariableChanged {
                         val popped = state.popEvaluationStack()
                         overrideTunnelReturnTarget = popped as? DivertTargetValue
                         if (overrideTunnelReturnTarget == null) {
-                            inkAssert(popped is Void, "Expected void if ->-> doesn't override target")
+                            inkAssert(popped is InkVoid, "Expected void if ->-> doesn't override target")
                         }
                     }
 
@@ -1498,7 +1498,7 @@ class Story : VariablesState.VariableChanged {
 
                     state.storySeed = seed!!.value
                     state.previousRandom = 0
-                    state.pushEvaluationStack(Void())
+                    state.pushEvaluationStack(InkVoid())
                 }
 
                 ControlCommand.CommandType.VisitIndex -> {

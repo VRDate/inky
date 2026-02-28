@@ -55,20 +55,20 @@ class CallStack {
     // C#: nested class, Java: static inner class with JSON constructor, JS: namespace property
     // Kotlin: nested class, JSON deserialization deferred to JsonSerialisation
     // -------------------------------------------------------------------------
-    class Thread {
+    class InkThread {
         var callstack: MutableList<Element> = mutableListOf()
         var threadIndex: Int = 0
         var previousPointer: Pointer = Pointer.Null
 
         constructor()
 
-        constructor(other: Thread) {
+        constructor(other: InkThread) {
             threadIndex = other.threadIndex
             for (e in other.callstack) callstack.add(e.copy())
             previousPointer = Pointer(other.previousPointer)
         }
 
-        fun copy(): Thread = Thread(this)
+        fun copy(): InkThread = InkThread(this)
 
         fun writeJson(writer: SimpleJson.Writer) {
             writer.writeObjectStart()
@@ -106,7 +106,7 @@ class CallStack {
     // -------------------------------------------------------------------------
     // CallStack state
     // -------------------------------------------------------------------------
-    private var _threads: MutableList<Thread> = mutableListOf()
+    private var _threads: MutableList<InkThread> = mutableListOf()
     private var _threadCounter: Int = 0
     private val _startOfRoot: Pointer
 
@@ -144,7 +144,7 @@ class CallStack {
 
     val currentElementIndex: Int get() = callStack.size - 1
 
-    var currentThread: Thread
+    var currentThread: InkThread
         get() = _threads.last()
         set(value) {
             _threads.clear()
@@ -164,7 +164,7 @@ class CallStack {
 
     fun reset() {
         _threads = mutableListOf()
-        _threads.add(Thread())
+        _threads.add(InkThread())
         _threads[0].callstack.add(Element(PushPopType.Tunnel, _startOfRoot))
     }
 
@@ -210,14 +210,14 @@ class CallStack {
         }
     }
 
-    fun forkThread(): Thread {
+    fun forkThread(): InkThread {
         val forkedThread = currentThread.copy()
         _threadCounter++
         forkedThread.threadIndex = _threadCounter
         return forkedThread
     }
 
-    fun threadWithIndex(index: Int): Thread? =
+    fun threadWithIndex(index: Int): InkThread? =
         _threads.firstOrNull { it.threadIndex == index }
 
     // --- Temporary variables ---
@@ -275,7 +275,7 @@ class CallStack {
     // --- JSON serialization support (deferred to JsonSerialisation) ---
 
     /** For JSON deserialization — replaces threads from saved state. */
-    fun setJsonToken(threads: List<Thread>, threadCounter: Int, startOfRootContainer: Container) {
+    fun setJsonToken(threads: List<InkThread>, threadCounter: Int, startOfRootContainer: Container) {
         _threads.clear()
         _threads.addAll(threads)
         _threadCounter = threadCounter
@@ -296,7 +296,7 @@ class CallStack {
         }
     }
 
-    val threads: List<Thread> get() = _threads
+    val threads: List<InkThread> get() = _threads
     val threadCounter: Int get() = _threadCounter
 
     // --- Debug trace ---

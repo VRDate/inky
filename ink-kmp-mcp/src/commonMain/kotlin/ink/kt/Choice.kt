@@ -28,7 +28,7 @@ class Choice() : Container(), Comparable<Choice> {
 
     // C#: Thread property, Java: getter/setter, JS: untyped field
     // Kotlin: properly typed now that CallStack is ported
-    var threadAtGeneration: CallStack.Thread? = null
+    var threadAtGeneration: CallStack.InkThread? = null
 
     var pathStringOnChoice: String?
         get() = targetPath?.toString()

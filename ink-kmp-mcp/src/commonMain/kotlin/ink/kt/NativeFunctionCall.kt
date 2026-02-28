@@ -73,7 +73,7 @@ class NativeFunctionCall : InkObject {
 
         var hasList = false
         for (p in parameters) {
-            if (p is Void) throw StoryException(
+            if (p is InkVoid) throw StoryException(
                 "Attempting to perform $name on a void value. Did you forget to 'return' a value from a function you called here?"
             )
             if (p is ListValue) hasList = true
