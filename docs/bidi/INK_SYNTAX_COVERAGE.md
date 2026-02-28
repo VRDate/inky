@@ -21,7 +21,8 @@
 | Functions | 6 | 5 | 0 | 83% | 0% |
 | Lists | 21 | 5 | 0 | 24% | 0% |
 | Project Structure | 1 | 0 | 0 | 0% | 0% |
-| **TOTAL** | **100** | **59** | **14** | **59%** | **14%** |
+| **Expression Extensions** | **10** | **0** | **0** | **0%** | **0%** |
+| **TOTAL** | **110** | **59** | **14** | **54%** | **13%** |
 
 ### Test Files
 
@@ -834,3 +835,86 @@ These ink features exist in the language but are entirely absent from all test f
 | `TURNS()` | `TURNS()` | Used in thread_in_tunnel.ink but not tested |
 | Fallback choice `* ->` | `* ->` | Used in storylets.ink but not tested |
 | Multi-valued lists | `VAR x = (a, b, c)` | Used in murder_scene.ink but not tested |
+
+---
+
+## 10. Expression Extensions (mica-ink / ink.kt only)
+
+> **Origin:** [EvalEx](https://github.com/uklimaschewski/EvalEx) expression evaluator,
+> carried into [mica-ink](https://github.com/micabytes/mica-ink), ported to ink.kt KMP.
+>
+> **These features are NOT part of the official ink specification.**
+> Scripts using them are **not portable** to C#/inkjs engines.
+> For portable conditionals, use ink's native `{cond: true_text | false_text}` syntax.
+
+### 10.1 Expression Functions
+
+| Function | Params | Description | Example | Portable Alternative |
+|---|---|---|---|---|
+| `if(cond, t, f)` | 3 | Ternary conditional | `{if(x > 0, x, 0)}` → value of x or 0 | `{x > 0: {x} \| 0}` |
+| `not(expr)` | 1 | Logical negation | `{not(0)}` → 1.0 | `not` keyword |
+| `floor(x)` | 1 | Floor to integer | `{floor(3.7)}` → 3.0 | `FLOOR(x)` (official) |
+| `random(n)` | 1 | Random 0 to n-1 | `{random(6)}` → 0-5 | `RANDOM(0, n-1)` (2-param) |
+| `isnull(x)` | 1 | Zero/null check | `{isnull(x)}` → 1.0 if x==0 | `{x == 0: ...}` |
+
+- All function names are **case-insensitive**: `if`, `IF`, `If` all work.
+- **Test coverage:** `ExpressionTest.kt` covers `if`, `not`, `TRUE`/`FALSE` constants.
+- **Missing tests:** `isnull`, `random`, `floor` have no expression-level tests.
+
+### 10.2 Extra Operators
+
+| Operator | Precedence | Description | Example | Portable Alternative |
+|---|---|---|---|---|
+| `?:` | 40 | Elvis / null coalescing | `{damage ?: 0}` → damage if non-zero, else 0 | `{damage > 0: {damage} \| 0}` |
+| `<>` | 7 | Not-equal alias | `{x <> y}` → 1.0 if x != y | `!=` |
+
+- **Test coverage:** None. Both operators are untested.
+
+### 10.3 Math Constants
+
+| Constant | Value | Example |
+|---|---|---|
+| `PI` | 3.14159265358979... | `{PI * r * r}` (circle area) |
+| `e` | 2.71828182845904... | `{e ^ x}` (exponential) |
+
+- Also registered: `TRUE` = 1.0, `FALSE` = 0.0 (same as official ink).
+- **Test coverage:** `TRUE`/`FALSE` tested. `PI`/`e` untested.
+
+### 10.4 Game Object Method Calls (InkCallable)
+
+Host objects can be called from ink expressions via `obj.method(args)`:
+
+```kotlin
+// Kotlin host code
+class Npc : Expression.InkCallable {
+    fun greet(name: String) = "Hello, $name!"
+    override fun inkCall(method: String, params: List<Any>) = when (method) {
+        "greet" -> greet(params[0] as String)
+        else -> throw InkRunTimeException("Unknown: $method")
+    }
+}
+story.putVariable("npc", Npc())
+```
+
+```ink
+// In ink script
+{npc.greet("Alice")}
+```
+
+- **Replaces JVM reflection** (`obj::class.java`) with pure Kotlin dispatch.
+- **KMP compatible** — works on JVM, JS, and Native targets.
+- **Test coverage:** `ExternTest.kt` covers `hello()`, `number(n)`, `wrong()`.
+
+### 10.5 Comparison: Official Ink vs mica-ink/ink.kt Expression Syntax
+
+| Feature | Official ink | mica-ink / ink.kt |
+|---|---|---|
+| Inline conditional | `{cond: a \| b}` | `{if(cond, a, b)}` or `{cond: a \| b}` |
+| Negation | `not cond` (keyword) | `not(cond)` (function call) |
+| Random | `RANDOM(min, max)` (2 params) | `random(n)` (1 param, 0 to n-1) |
+| Floor | `FLOOR(x)` (VM function) | `floor(x)` (expression function) |
+| Null coalescing | N/A | `x ?: default` |
+| Math constants | N/A | `PI`, `e` |
+| Object method calls | `EXTERNAL` + fallback | `obj.method(args)` via InkCallable |
+| String equality | `==` only | `=`, `==`, `!=`, `<>` |
+| String concatenation | N/A in expressions | `"a" + "b"` via `+` operator |

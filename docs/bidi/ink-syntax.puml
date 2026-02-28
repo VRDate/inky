@@ -547,6 +547,86 @@ ListFuncs -[hidden]-> MultiList
 IncludeStmt -[hidden]-> EndDone
 
 ' ────────────────────────────────────────
+' EXPRESSION EXTENSIONS (mica-ink / ink.kt)
+' ────────────────────────────────────────
+package "9. Expression Extensions (mica-ink / ink.kt)" as ExprExtPkg #E8EAF6 {
+  note as ExprNote
+    **Origin:** EvalEx expression evaluator (github.com/uklimaschewski/EvalEx)
+    ported via mica-ink (github.com/micabytes/mica-ink) to ink.kt KMP.
+    **NOT part of the official ink specification.**
+    Scripts using these are **not portable** to C#/inkjs engines.
+    Use ink's native {cond: a | b} for portable conditionals.
+  end note
+
+  class "Expression Functions" as ExprFuncs {
+    Ternary conditional (3 params)
+    --
+    if(condition, trueVal, falseVal)
+    IF(x > 0, x, 0)
+    if(TRUE, 5, 3) → 5.0
+    ..
+    Null/zero check (1 param)
+    --
+    isnull(x) → 1.0 if x == 0
+    isnull(42) → 0.0
+    ..
+    Logical NOT (1 param)
+    --
+    not(expr)
+    not(0) → 1.0
+    NOT(TRUE) → 0.0
+    ..
+    Random integer (1 param)
+    --
+    random(n) → 0 to n-1
+    Note: ink RANDOM(min,max) takes 2 params
+    ..
+    Floor (1 param)
+    --
+    floor(3.7) → 3.0
+  }
+
+  class "Extra Operators" as ExprOps {
+    Elvis / null coalescing
+    --
+    x ?: default
+    Returns x if non-zero, else default
+    {damage ?: 0}
+    ..
+    Not-equal alias (VB/Pascal)
+    --
+    x <> y
+    Alias for x != y
+  }
+
+  class "Math Constants" as ExprConsts {
+    Mathematical constants
+    --
+    PI = 3.14159265358979...
+    e  = 2.71828182845904...
+    ..
+    {PI * r * r}  (circle area)
+    {e ^ x}       (exponential)
+  }
+
+  class "Game Object Calls" as GameObjCalls {
+    Call methods on host objects
+    --
+    {obj.method(args)}
+    ..
+    Object must implement InkCallable:
+      inkCall(method, params): Any
+    ..
+    story.putVariable("npc", myNpc)
+    ink: {npc.greet("hello")}
+  }
+}
+
+ExprFuncs -[hidden]-> ExprOps
+ExprOps -[hidden]-> ExprConsts
+ExprConsts -[hidden]-> GameObjCalls
+
+' ────────────────────────────────────────
 ' CROSS-PACKAGE RELATIONSHIPS
 ' ────────────────────────────────────────
 
@@ -564,20 +644,24 @@ StringInterp ..> GlobalVar : embeds
 Labels ..> VisitCounts : enables
 Assignment ..> GlobalVar : modifies
 Assignment ..> TempVar : modifies
+ExprFuncs ..> GlobalVar : reads
+GameObjCalls ..> ExternalFunc : extends
+ExprFuncs ..> InlineCond : alternative to
 
 legend right
-  |= Category |= Count |
-  | Text Output | 7 elements |
-  | Flow Control | 7 elements |
-  | Choices | 7 elements |
-  | Variables & Types | 6 elements |
-  | Logic & Conditionals | 8 elements |
-  | Functions | 4 elements |
-  | Lists | 6 elements |
-  | Project Structure | 2 elements |
-  | **Total** | **47 syntax elements** |
+  |= Category |= Count |= Portable? |
+  | Text Output | 7 elements | Yes |
+  | Flow Control | 7 elements | Yes |
+  | Choices | 7 elements | Yes |
+  | Variables & Types | 6 elements | Yes |
+  | Logic & Conditionals | 8 elements | Yes |
+  | Functions | 4 elements | Yes |
+  | Lists | 6 elements | Yes |
+  | Project Structure | 2 elements | Yes |
+  | Expression Extensions | 4 elements | **ink.kt only** |
+  | **Total** | **51 syntax elements** | |
 endlegend
 
-footer Generated for inkle/inky Bidi project — ink language syntax reference
+footer Generated for inkle/inky Bidi project — ink language syntax reference\nExpression extensions from EvalEx via mica-ink (ink.kt KMP only)
 
 @enduml
