@@ -1,8 +1,6 @@
 syntax = "proto3";
 package ink.model;
 
-option java_package = "ink.java.model";
-option java_multiple_files = true;
 option csharp_namespace = "Ink.Cs.Model";
 
 // Asset pipeline types — bridges 2D emoji text tags → 3D asset references.

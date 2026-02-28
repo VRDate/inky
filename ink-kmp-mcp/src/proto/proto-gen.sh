@@ -3,16 +3,17 @@
 #
 # Proto source:  src/proto/ink/model/*.proto     (package ink.model)
 #
-# Output per target (KMP source set layout):
-#   java  → src/jvmMain/java/ink/java/model/     (package ink.java.model — via java_package)
-#   kt    → src/commonMain/kotlin/ink/kt/model/   (package ink.kt.model — post-processed)
-#   cs    → src/csMain/ink/cs/model/              (namespace Ink.Cs.Model — via csharp_namespace)
-#   py    → src/pyMain/ink/py/model/              (package ink.py.model — post-processed)
-#   ts    → src/tsMain/ink/ts/model/              (module ink/ts/model — post-processed)
+# Kotlin (KMP):  Wire Gradle plugin (./gradlew generateProtos)
+#                Wire → build/generated/source/wire/ink/model/  (package ink.model)
 #
-# Usage:  ./proto-gen.sh [cs] [kt] [java] [js] [ts] [py]
+# This script generates non-Kotlin targets only:
+#   cs    → src/csMain/ink/cs/model/             (namespace Ink.Cs.Model — via csharp_namespace)
+#   py    → src/pyMain/ink/py/model/             (package ink.py.model — post-processed)
+#   ts    → src/tsMain/ink/ts/model/             (module ink/ts/model — post-processed)
+#
+# Usage:  ./proto-gen.sh [cs] [py] [ts]
 #         ./proto-gen.sh           # generates all targets
-#         ./proto-gen.sh cs kt     # generates only C# and Kotlin
+#         ./proto-gen.sh cs py     # generates only C# and Python
 
 set -euo pipefail
 
@@ -23,10 +24,7 @@ PROTO_MODEL="$SCRIPT_DIR/ink/model"                # .proto source files
 
 # ── Locate protoc ────────────────────────────────────────────────
 find_protoc() {
-    if command -v protoc &>/dev/null; then
-        echo "$(command -v protoc)"
-        return
-    fi
+    command -v protoc && return
     local gradle_home="${GRADLE_USER_HOME:-$HOME/.gradle}"
     local cached
     cached=$(find "$gradle_home/caches" -name "protoc-*-$(uname -s | tr '[:upper:]' '[:lower:]')*" -type f 2>/dev/null | sort -V | tail -1)
@@ -45,7 +43,7 @@ PROTOS=("$PROTO_MODEL"/*.proto)
 echo "Proto files: ${#PROTOS[@]} (package ink.model)"
 
 # ── Target selection ─────────────────────────────────────────────
-ALL_TARGETS=(java kt cs py ts)
+ALL_TARGETS=(cs py ts)
 if [[ $# -eq 0 ]]; then
     TARGETS=("${ALL_TARGETS[@]}")
 else
@@ -61,37 +59,6 @@ count_ext() { find "$1" -name "*.$2" 2>/dev/null | wc -l; }
 # ── Generate ─────────────────────────────────────────────────────
 for target in "${TARGETS[@]}"; do
     case "$target" in
-
-    java)
-        # java_package = "ink.java.model" → protoc generates into ink/java/model/
-        JAVA_OUT="$SRC/jvmMain/java/ink/java/model"
-        rm -rf "$JAVA_OUT" 2>/dev/null
-        echo "[$target] → $JAVA_OUT"
-        "$PROTOC" \
-            --proto_path="$PROTO_ROOT" \
-            --java_out="$SRC/jvmMain/java" \
-            "${PROTOS[@]}"
-        echo "[$target] ✓ $(count_ext "$JAVA_OUT" java) files → ink.java.model"
-        ;;
-
-    kt)
-        # kotlin_out follows java_package → generates ink/java/model/
-        # Post-process: rename package to ink.kt.model, output to commonMain
-        KT_OUT="$SRC/commonMain/kotlin/ink/kt/model"
-        TMP="$SRC/.kt-tmp"
-        rm -rf "$TMP" "$KT_OUT" 2>/dev/null
-        mkdir -p "$TMP" "$KT_OUT"
-        echo "[$target] → $KT_OUT"
-        "$PROTOC" \
-            --proto_path="$PROTO_ROOT" \
-            --kotlin_out="$TMP" \
-            "${PROTOS[@]}"
-        find "$TMP/ink/java/model" -name '*.kt' -exec bash -c '
-            sed -E "s/package ink\.java\.model/package ink.kt.model/g; s/ink\.java\.model\.([A-Z][a-zA-Z]*Kt)/\1/g; s/\x60ink\.java\.model\x60\.([A-Z][a-zA-Z]*Kt)/\1/g" "$1" > "'"$KT_OUT"'/$(basename "$1")"
-        ' _ {} \;
-        rm -rf "$TMP"
-        echo "[$target] ✓ $(count_ext "$KT_OUT" kt) files → ink.kt.model"
-        ;;
 
     cs)
         # csharp_namespace = "Ink.Cs.Model" controls the namespace
@@ -173,8 +140,7 @@ done
 echo ""
 echo "Done."
 echo "  proto: src/proto/ink/model/ ($(find "$PROTO_MODEL" -name '*.proto' | wc -l) files)"
-echo "  java:  src/jvmMain/java/ink/java/model/ ($(count_ext "$SRC/jvmMain/java/ink/java/model" java) files)"
-echo "  kt:    src/commonMain/kotlin/ink/kt/model/ ($(count_ext "$SRC/commonMain/kotlin/ink/kt/model" kt) files)"
+echo "  kt:    Wire Gradle plugin → build/generated/source/wire/ink/model/"
 echo "  cs:    src/csMain/ink/cs/model/ ($(count_ext "$SRC/csMain/ink/cs/model" cs) files)"
 echo "  py:    src/pyMain/ink/py/model/ ($(count_ext "$SRC/pyMain/ink/py/model" py) files)"
 echo "  ts:    src/tsMain/ink/ts/model/ ($(count_ext "$SRC/tsMain/ink/ts/model" ts) files)"

@@ -7,6 +7,8 @@ camel = "4.18.0"
 langchain4j = "1.11.0"
 jlama = "0.8.4"
 protobuf = "4.28.3"
+wire = "5.4.0"
+moshi = "1.15.2"
 faker = "2.0.0-rc.7"
 kotlinx-serialization = "1.7.3"
 kotlinx-datetime = "0.6.2"
@@ -70,9 +72,17 @@ ical4j = { module = "org.mnode.ical4j:ical4j", version.ref = "ical4j" }
 ezvcard = { module = "com.googlecode.ez-vcard:ez-vcard", version.ref = "ezvcard" }
 sardine = { module = "com.github.lookfirst:sardine", version.ref = "sardine" }
 
-# Protobuf
+# Protobuf (legacy — used by proto-gen.sh for cs/py/ts only)
 protobuf-kotlin = { module = "com.google.protobuf:protobuf-kotlin", version.ref = "protobuf" }
 protobuf-java-util = { module = "com.google.protobuf:protobuf-java-util", version.ref = "protobuf" }
+
+# Wire (KMP protobuf — generates pure Kotlin data classes for all targets)
+wire-runtime = { module = "com.squareup.wire:wire-runtime", version.ref = "wire" }
+wire-moshi-adapter = { module = "com.squareup.wire:wire-moshi-adapter", version.ref = "wire" }
+
+# Moshi (JSON — used by Wire moshi adapter for proto JSON serialization)
+moshi = { module = "com.squareup.moshi:moshi", version.ref = "moshi" }
+moshi-kotlin = { module = "com.squareup.moshi:moshi-kotlin", version.ref = "moshi" }
 
 # RSocket
 rsocket-ktor-server = { module = "io.rsocket.kotlin:rsocket-ktor-server", version.ref = "rsocket" }
@@ -129,8 +139,9 @@ langchain4j-all = ["langchain4j", "langchain4j-jlama", "langchain4j-openai"]
 rsocket = ["rsocket-ktor-server", "rsocket-ktor-client"]
 jackson = ["jackson-msgpack", "jackson-kotlin"]
 faker-all = ["faker", "faker-games"]
-protobuf = ["protobuf-kotlin", "protobuf-java-util"]
+# protobuf bundle removed — Wire replaces protobuf-java/kotlin for KMP
 
 [plugins]
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+wire = { id = "com.squareup.wire", version.ref = "wire" }

@@ -88,9 +88,11 @@ object SillyTavernConfig {
         }
 
         val scenario = buildString {
-            appendLine("This is an interactive fiction game. Present the story text to the user.")
-            appendLine("When choices are available, present them as numbered options.")
-            appendLine("The user responds by choosing a number or describing their action.")
+            appendLine("""
+                This is an interactive fiction game. Present the story text to the user.
+                When choices are available, present them as numbered options.
+                The user responds by choosing a number or describing their action.
+            """.trimIndent())
             if (choices.isNotEmpty()) {
                 appendLine("\nCurrent choices:")
                 choices.forEachIndexed { i, c -> appendLine("${i + 1}. $c") }
@@ -98,9 +100,11 @@ object SillyTavernConfig {
         }
 
         val systemPrompt = buildString {
-            appendLine("You are narrating an interactive fiction story. The story is written in ink format.")
-            appendLine("Present the story text naturally, offer choices when available.")
-            appendLine("Track the story state and respond appropriately to user choices.")
+            appendLine("""
+                You are narrating an interactive fiction story. The story is written in ink format.
+                Present the story text naturally, offer choices when available.
+                Track the story state and respond appropriately to user choices.
+            """.trimIndent())
             if (globalVars.isNotEmpty()) {
                 appendLine("\nStory variables: ${globalVars.joinToString("; ")}")
             }

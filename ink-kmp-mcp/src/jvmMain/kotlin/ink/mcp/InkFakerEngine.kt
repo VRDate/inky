@@ -111,48 +111,56 @@ class InkFakerEngine(
     fun generateStoryMd(config: FakerConfig): String {
         val characters = generateCharacters(config)
         val items = generateItems(config)
-
-        val sb = StringBuilder()
-        sb.appendLine("<!-- seed: ${config.seed}, level: ${config.level} -->")
-        sb.appendLine()
-
-        // Characters section
-        sb.appendLine("# characters")
-        sb.appendLine()
-        sb.appendLine(tableToMarkdown(characters))
-        sb.appendLine()
-        sb.appendLine("```ink")
-        sb.appendLine("// Auto-generated characters")
-        if (characters.rows.isNotEmpty()) {
-            val first = characters.rows[0]
-            sb.appendLine("VAR player_name = \"${first["name"]}\"")
-            sb.appendLine("VAR player_class = \"${first["class"]}\"")
-            sb.appendLine("VAR player_race = \"${first["race"]}\"")
-        }
-        sb.appendLine("=== start ===")
-        sb.appendLine("You are {player_name}, a {player_race} {player_class}.")
-        sb.appendLine("-> tavern")
-        sb.appendLine("```")
-        sb.appendLine()
-
-        // Items section
-        sb.appendLine("# items")
-        sb.appendLine()
-        sb.appendLine(tableToMarkdown(items))
-        sb.appendLine()
-        sb.appendLine("```ink")
-        sb.appendLine("// Auto-generated items")
         val itemNames = items.rows.map { it["name"]?.lowercase()?.replace(" ", "_") ?: "item" }
-        sb.appendLine("LIST inventory = ${itemNames.joinToString(", ")}")
-        sb.appendLine("=== tavern ===")
-        sb.appendLine("The shopkeeper shows you the wares.")
-        for ((i, row) in items.rows.withIndex()) {
-            sb.appendLine("+ [Buy ${row["name"]}] -> bought_${itemNames[i]}")
-        }
-        sb.appendLine("+ [Leave] -> END")
-        sb.appendLine("```")
 
-        return sb.toString()
+        return buildString {
+            // Characters section
+            appendLine(
+                """
+                <!-- seed: ${config.seed}, level: ${config.level} -->
+
+                # characters
+
+                ${tableToMarkdown(characters)}
+
+                ```ink
+                // Auto-generated characters
+                """.trimIndent()
+            )
+            if (characters.rows.isNotEmpty()) {
+                val first = characters.rows[0]
+                appendLine("VAR player_name = \"${first["name"]}\"")
+                appendLine("VAR player_class = \"${first["class"]}\"")
+                appendLine("VAR player_race = \"${first["race"]}\"")
+            }
+            appendLine(
+                """
+                === start ===
+                You are {player_name}, a {player_race} {player_class}.
+                -> tavern
+                ```
+
+                # items
+
+                ${tableToMarkdown(items)}
+
+                ```ink
+                // Auto-generated items
+                LIST inventory = ${itemNames.joinToString(", ")}
+                === tavern ===
+                The shopkeeper shows you the wares.
+                """.trimIndent()
+            )
+            for ((i, row) in items.rows.withIndex()) {
+                appendLine("+ [Buy ${row["name"]}] -> bought_${itemNames[i]}")
+            }
+            appendLine(
+                """
+                + [Leave] -> END
+                ```
+                """.trimIndent()
+            )
+        }
     }
 
     /**
@@ -265,16 +273,14 @@ class InkFakerEngine(
         }
     }
 
-    private fun tableToMarkdown(table: InkMdEngine.MdTable): String {
-        val sb = StringBuilder()
+    private fun tableToMarkdown(table: InkMdEngine.MdTable): String = buildString {
         // Header
-        sb.appendLine("| ${table.columns.joinToString(" | ")} |")
+        appendLine("| ${table.columns.joinToString(" | ")} |")
         // Separator
-        sb.appendLine("| ${table.columns.joinToString(" | ") { "---" }} |")
+        appendLine("| ${table.columns.joinToString(" | ") { "---" }} |")
         // Rows
         for (row in table.rows) {
-            sb.appendLine("| ${table.columns.joinToString(" | ") { row[it] ?: "" }} |")
+            appendLine("| ${table.columns.joinToString(" | ") { row[it] ?: "" }} |")
         }
-        return sb.toString().trimEnd()
-    }
+    }.trimEnd()
 }

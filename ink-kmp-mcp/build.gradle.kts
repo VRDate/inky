@@ -1,8 +1,7 @@
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.kotlin.serialization)
-    // Protobuf codegen: java plugin incompatible with KMP 2.3 — use pre-generated sources
-    // or move to ink-model-proto submodule with java-library plugin
+    alias(libs.plugins.wire)
 }
 
 group = "ink.mcp"
@@ -48,6 +47,8 @@ kotlin {
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.datetime)
             implementation(libs.kotlinx.coroutines.core)
+            // Wire KMP protobuf runtime
+            api(libs.wire.runtime)
             // Ktor HTTP client (MCP client for all platforms)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.content.negotiation)
@@ -91,11 +92,12 @@ kotlin {
                 implementation(libs.ezvcard)
                 implementation(libs.sardine)
 
-                // Protocol Buffers — pre-generated ink.model contract
-                implementation(libs.bundles.protobuf)
-
                 // RSocket-Kotlin — event-driven transport
                 implementation(libs.bundles.rsocket)
+
+                // Wire JSON adapter (Moshi) — proto ↔ JSON on JVM
+                implementation(libs.wire.moshi.adapter)
+                implementation(libs.moshi)
 
                 // msgpack + Jackson serialization
                 implementation(libs.bundles.jackson)
@@ -199,6 +201,17 @@ tasks.register<Test>("testFast") {
     testLogging {
         events("passed", "skipped", "failed")
         showStandardStreams = false
+    }
+}
+
+// ── Wire protobuf → KMP Kotlin data classes ────────────────────────
+wire {
+    sourcePath {
+        srcDir("src/proto")
+    }
+    kotlin {
+        // Wire generates @Serializable data classes into commonMain for all KMP targets
+        // Proto package ink.model → Kotlin package ink.model
     }
 }
 

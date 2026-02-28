@@ -39,23 +39,25 @@ class SymbolTestDataGenerator(
         }
         val result = parser.parseUnicodeData(lines, mapOf(blockName to range))
 
-        val sb = StringBuilder()
-        sb.appendLine("# Generated from UnicodeData.txt for block: $blockName")
-        sb.appendLine("# group: $blockName")
+        return buildString {
+            appendLine("""
+                # Generated from UnicodeData.txt for block: $blockName
+                # group: $blockName
+            """.trimIndent())
 
-        var currentSubgroup = ""
-        for (entry in result.entries) {
-            val subgroup = subgroupMapper(entry)
-            if (subgroup != currentSubgroup) {
-                currentSubgroup = subgroup
-                sb.appendLine("# subgroup: $subgroup")
+            var currentSubgroup = ""
+            for (entry in result.entries) {
+                val subgroup = subgroupMapper(entry)
+                if (subgroup != currentSubgroup) {
+                    currentSubgroup = subgroup
+                    appendLine("# subgroup: $subgroup")
+                }
+                val hex = entry.codePoints.joinToString(" ") { "%04X".format(it) }
+                appendLine("%-40s ; fully-qualified     # %s -- %s".format(
+                    hex, entry.symbol, entry.name
+                ))
             }
-            val hex = entry.codePoints.joinToString(" ") { "%04X".format(it) }
-            sb.appendLine("%-40s ; fully-qualified     # %s -- %s".format(
-                hex, entry.symbol, entry.name
-            ))
         }
-        return sb.toString()
     }
 
     /** Generate IPA Extensions in emoji-test.txt format with phonetic subgroups */

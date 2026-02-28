@@ -37,7 +37,13 @@
       "Bash(bash:*)",
       "Bash(__NEW_LINE_7173315d3f4e7939__ mkdir:*)",
       "Bash(do:*)",
-      "Bash(./gradlew compileTestKotlinJvm:*)"
+      "Bash(./gradlew compileTestKotlinJvm:*)",
+      "Bash(sed:*)",
+      "WebFetch(domain:square.github.io)",
+      "Bash(./gradlew :ink-kmp-mcp:generateProtos:*)",
+      "Bash(do sed:*)",
+      "Bash(jar tf:*)",
+      "Bash(unzip:*)"
     ]
   }
 }

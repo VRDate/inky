@@ -57,35 +57,34 @@ class InkProofTest {
         val inputs = inputText?.trim()?.lines()?.filter { it.isNotEmpty() } ?: emptyList()
 
         val story = Story(bytecodeJson)
-        val actualOutput = StringBuilder()
         var inputIdx = 0
 
-        while (story.canContinue() || story.currentChoices.isNotEmpty()) {
-            while (story.canContinue()) {
-                val text = story.continueStory()
-                actualOutput.append(text)
-            }
-
-            val choices = story.currentChoices
-            if (choices.isNotEmpty()) {
-                actualOutput.appendLine()
-                for (choice in choices) {
-                    actualOutput.appendLine("${choice.index + 1}: ${choice.text}")
+        val actual = buildString {
+            while (story.canContinue() || story.currentChoices.isNotEmpty()) {
+                while (story.canContinue()) {
+                    val text = story.continueStory()
+                    append(text)
                 }
 
-                if (inputIdx < inputs.size) {
-                    val choiceNum = inputs[inputIdx].trim().toInt()
-                    inputIdx++
-                    val selectedChoice = choices[choiceNum - 1]
-                    actualOutput.appendLine("?> ${selectedChoice.text}")
-                    story.chooseChoiceIndex(choiceNum - 1)
-                } else {
-                    break
+                val choices = story.currentChoices
+                if (choices.isNotEmpty()) {
+                    appendLine()
+                    for (choice in choices) {
+                        appendLine("${choice.index + 1}: ${choice.text}")
+                    }
+
+                    if (inputIdx < inputs.size) {
+                        val choiceNum = inputs[inputIdx].trim().toInt()
+                        inputIdx++
+                        val selectedChoice = choices[choiceNum - 1]
+                        appendLine("?> ${selectedChoice.text}")
+                        story.chooseChoiceIndex(choiceNum - 1)
+                    } else {
+                        break
+                    }
                 }
             }
-        }
-
-        val actual = actualOutput.toString().trimEnd()
+        }.trimEnd()
         assertEquals(
             expectedTranscript,
             actual,

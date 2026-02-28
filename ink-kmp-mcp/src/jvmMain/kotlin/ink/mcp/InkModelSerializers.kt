@@ -1,32 +1,31 @@
 package ink.mcp
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
-import com.google.protobuf.Descriptors
-import com.google.protobuf.Message
-import com.google.protobuf.util.JsonFormat
+import com.squareup.moshi.Moshi
+import com.squareup.wire.Message
+import com.squareup.wire.ProtoAdapter
+import com.squareup.wire.WireField
+import com.squareup.wire.WireJsonAdapterFactory
 import kotlinx.serialization.json.*
 import org.msgpack.jackson.dataformat.MessagePackFactory
-import com.fasterxml.jackson.databind.ObjectMapper
 
 /**
- * Multi-format serialization for ink.model proto messages.
+ * Multi-format serialization for ink.model Wire messages.
  *
  * Drives all protocols from a single proto source of truth:
- *   - MCP JSON-RPC: proto → JSON via JsonFormat
- *   - RSocket: proto → msgpack via Jackson
- *   - WSS/SSE: proto → JSON
- *   - Yjs: proto field names = Y.Map keys
- *   - ink VARs: proto MdTable → generateVarDeclarations()
- *   - JSON Schema: proto descriptor → MCP inputSchema
+ *   - MCP JSON-RPC: Wire → JSON via Moshi
+ *   - RSocket: Wire → msgpack via Jackson
+ *   - WSS/SSE: Wire → JSON
+ *   - Yjs: Wire field names = Y.Map keys
+ *   - JSON Schema: Wire @WireField annotations → MCP inputSchema
  */
 object InkModelSerializers {
 
-    private val jsonPrinter: JsonFormat.Printer = JsonFormat.printer()
-        .omittingInsignificantWhitespace()
-        .preservingProtoFieldNames()
-
-    private val jsonParser: JsonFormat.Parser = JsonFormat.parser()
-        .ignoringUnknownFields()
+    @PublishedApi
+    internal val moshi: Moshi = Moshi.Builder()
+        .add(WireJsonAdapterFactory())
+        .build()
 
     private val msgpackMapper: ObjectMapper = ObjectMapper(MessagePackFactory()).apply {
         registerModule(KotlinModule.Builder().build())
@@ -34,45 +33,47 @@ object InkModelSerializers {
 
     // ── MCP JSON-RPC ─────────────────────────────────────────────
 
-    /** Serialize proto message → JSON string (for MCP JSON-RPC, SSE, WSS).
-     *  Reverses Gson's HTML-safe escaping so that `=`, `<`, `>`, `&`
-     *  appear as literal characters instead of `\\u003d` etc. */
-    fun <T : Message> toJson(msg: T): String =
-        jsonPrinter.print(msg).unescapeHtmlCharacters()
+    /** Serialize Wire message → JSON string (for MCP JSON-RPC, SSE, WSS) */
+    fun <T : Message<T, *>> toJson(msg: T): String {
+        @Suppress("UNCHECKED_CAST")
+        val adapter = moshi.adapter(msg::class.java as Class<T>)
+        return adapter.toJson(msg)
+    }
 
-    /** Deserialize JSON string → proto message builder */
-    fun <T : Message.Builder> fromJson(json: String, builder: T): T {
-        jsonParser.merge(json, builder)
-        return builder
+    /** Deserialize JSON string → Wire message */
+    inline fun <reified T : Message<T, *>> fromJson(json: String): T {
+        val adapter = moshi.adapter(T::class.java)
+        return adapter.fromJson(json) ?: throw IllegalArgumentException("Failed to parse JSON to ${T::class.simpleName}")
     }
 
     // ── RSocket msgpack ──────────────────────────────────────────
 
-    /** Serialize proto message → msgpack bytes (for RSocket transport) */
-    fun <T : Message> toMsgpack(msg: T): ByteArray =
+    /** Serialize Wire message → msgpack bytes (for RSocket transport) */
+    fun <T : Message<T, *>> toMsgpack(msg: T): ByteArray =
         msgpackMapper.writeValueAsBytes(msgpackMapper.readTree(toJson(msg)))
 
-    /** Deserialize msgpack bytes → JSON string (then parse to proto) */
+    /** Deserialize msgpack bytes → JSON string (then parse to Wire message) */
     fun msgpackToJson(bytes: ByteArray): String =
         msgpackMapper.readTree(bytes).toString()
 
     // ── Binary protobuf ──────────────────────────────────────────
 
-    /** Serialize proto message → binary protobuf (for gRPC, compact storage) */
-    fun <T : Message> toBytes(msg: T): ByteArray = msg.toByteArray()
+    /** Serialize Wire message → binary protobuf (for gRPC, compact storage) */
+    fun <T : Message<T, *>> toBytes(msg: T): ByteArray = msg.encode()
 
     // ── JSON Schema (for MCP tool inputSchema) ───────────────────
 
-    /** Generate JSON Schema object from proto message descriptor.
+    /** Generate JSON Schema object from Wire message class.
+     *  Inspects @WireField annotations on constructor fields.
      *  Used to produce `inputSchema` for McpToolInfo. */
-    fun toJsonSchema(descriptor: Descriptors.Descriptor): JsonObject {
+    fun toJsonSchema(type: Class<out Message<*, *>>): JsonObject {
         return buildJsonObject {
             put("type", "object")
             putJsonObject("properties") {
-                for (field in descriptor.fields) {
-                    if (field.options.deprecated) continue
+                for (field in type.declaredFields) {
+                    val wireField = field.getAnnotation(WireField::class.java) ?: continue
                     putJsonObject(field.name) {
-                        put("type", protoTypeToJsonSchemaType(field))
+                        put("type", wireAdapterToJsonSchemaType(wireField))
                         put("description", field.name.replace("_", " "))
                     }
                 }
@@ -80,49 +81,29 @@ object InkModelSerializers {
         }
     }
 
-    /** Convert proto field type → JSON Schema type string */
-    private fun protoTypeToJsonSchemaType(field: Descriptors.FieldDescriptor): String {
-        if (field.isRepeated && !field.isMapField) return "array"
-        if (field.isMapField) return "object"
-        return when (field.type) {
-            Descriptors.FieldDescriptor.Type.STRING -> "string"
-            Descriptors.FieldDescriptor.Type.BOOL -> "boolean"
-            Descriptors.FieldDescriptor.Type.INT32,
-            Descriptors.FieldDescriptor.Type.INT64,
-            Descriptors.FieldDescriptor.Type.SINT32,
-            Descriptors.FieldDescriptor.Type.SINT64,
-            Descriptors.FieldDescriptor.Type.UINT32,
-            Descriptors.FieldDescriptor.Type.UINT64,
-            Descriptors.FieldDescriptor.Type.FIXED32,
-            Descriptors.FieldDescriptor.Type.FIXED64,
-            Descriptors.FieldDescriptor.Type.SFIXED32,
-            Descriptors.FieldDescriptor.Type.SFIXED64 -> "integer"
-            Descriptors.FieldDescriptor.Type.FLOAT,
-            Descriptors.FieldDescriptor.Type.DOUBLE -> "number"
-            Descriptors.FieldDescriptor.Type.ENUM -> "string"
-            Descriptors.FieldDescriptor.Type.MESSAGE -> "object"
-            Descriptors.FieldDescriptor.Type.BYTES -> "string"
-            else -> "string"
+    /** Convert Wire adapter string → JSON Schema type */
+    private fun wireAdapterToJsonSchemaType(field: WireField): String {
+        if (field.label == WireField.Label.REPEATED) return "array"
+        val adapter = field.adapter
+        return when {
+            adapter.endsWith("#STRING") -> "string"
+            adapter.endsWith("#BOOL") -> "boolean"
+            adapter.endsWith("#INT32") || adapter.endsWith("#INT64") ||
+            adapter.endsWith("#SINT32") || adapter.endsWith("#SINT64") ||
+            adapter.endsWith("#UINT32") || adapter.endsWith("#UINT64") ||
+            adapter.endsWith("#FIXED32") || adapter.endsWith("#FIXED64") ||
+            adapter.endsWith("#SFIXED32") || adapter.endsWith("#SFIXED64") -> "integer"
+            adapter.endsWith("#FLOAT") || adapter.endsWith("#DOUBLE") -> "number"
+            adapter.endsWith("#BYTES") -> "string"
+            else -> "object" // message or enum types
         }
     }
 
     // ── kotlinx.serialization bridge ─────────────────────────────
 
-    /** Convert proto message → kotlinx JsonElement (for Ktor content negotiation) */
-    fun <T : Message> toJsonElement(msg: T): JsonElement {
+    /** Convert Wire message → kotlinx JsonElement (for Ktor content negotiation) */
+    fun <T : Message<T, *>> toJsonElement(msg: T): JsonElement {
         val jsonString = toJson(msg)
         return Json.parseToJsonElement(jsonString)
     }
-
-    // ── Internal ──────────────────────────────────────────────────
-
-    /** Undo Gson HTML-safe escaping that protobuf's JsonFormat.Printer applies.
-     *  Gson escapes `=` → `\u003d`, `<` → `\u003c`, `>` → `\u003e`, `&` → `\u0026`
-     *  which breaks round-trip assertions on string values containing these chars
-     *  (e.g. POI formulas like `=C2+C2*0.5`). */
-    private fun String.unescapeHtmlCharacters(): String =
-        replace("\\u003d", "=")
-            .replace("\\u003c", "<")
-            .replace("\\u003e", ">")
-            .replace("\\u0026", "&")
 }
