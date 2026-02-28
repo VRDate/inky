@@ -163,7 +163,7 @@ class InkWebDavEngine(
             if (file.isDirectory || isAllowedFile(file)) {
                 mapOf(
                     "name" to file.name,
-                    "path" to file.relativeTo(baseDir).path,
+                    "path" to file.relPath(),
                     "is_directory" to file.isDirectory,
                     "size" to if (file.isFile) file.length() else 0L,
                     "last_modified" to file.lastModified(),
@@ -185,7 +185,7 @@ class InkWebDavEngine(
 
         return mapOf(
             "name" to file.name,
-            "path" to file.relativeTo(baseDir).path,
+            "path" to file.relPath(),
             "size" to file.length(),
             "content_type" to contentTypeFor(file),
             "content" to file.readText(StandardCharsets.UTF_8),
@@ -212,10 +212,10 @@ class InkWebDavEngine(
         file.parentFile?.mkdirs()
         file.writeText(content, StandardCharsets.UTF_8)
 
-        log.info("WebDAV PUT: {} ({} bytes)", file.relativeTo(baseDir).path, content.length)
+        log.info("WebDAV PUT: {} ({} bytes)", file.relPath(), content.length)
         return mapOf(
             "ok" to true,
-            "path" to file.relativeTo(baseDir).path,
+            "path" to file.relPath(),
             "size" to file.length(),
             "content_type" to contentTypeFor(file)
         )
@@ -236,10 +236,10 @@ class InkWebDavEngine(
             file.delete()
         }
 
-        log.info("WebDAV DELETE: {} (ok={})", file.relativeTo(baseDir).path, deleted)
+        log.info("WebDAV DELETE: {} (ok={})", file.relPath(), deleted)
         return mapOf(
             "ok" to deleted,
-            "path" to file.relativeTo(baseDir).path
+            "path" to file.relPath()
         )
     }
 
@@ -251,16 +251,16 @@ class InkWebDavEngine(
         if (dir.exists()) {
             return mapOf(
                 "ok" to dir.isDirectory,
-                "path" to dir.relativeTo(baseDir).path,
+                "path" to dir.relPath(),
                 "message" to if (dir.isDirectory) "Directory already exists" else "Path exists as file"
             )
         }
 
         val created = dir.mkdirs()
-        log.info("WebDAV MKCOL: {} (ok={})", dir.relativeTo(baseDir).path, created)
+        log.info("WebDAV MKCOL: {} (ok={})", dir.relPath(), created)
         return mapOf(
             "ok" to created,
-            "path" to dir.relativeTo(baseDir).path
+            "path" to dir.relPath()
         )
     }
 
@@ -278,11 +278,11 @@ class InkWebDavEngine(
         dest.parentFile?.mkdirs()
         src.copyTo(dest, overwrite = true)
 
-        log.info("WebDAV COPY: {} -> {}", src.relativeTo(baseDir).path, dest.relativeTo(baseDir).path)
+        log.info("WebDAV COPY: {} -> {}", src.relPath(), dest.relPath())
         return mapOf(
             "ok" to true,
-            "src" to src.relativeTo(baseDir).path,
-            "dest" to dest.relativeTo(baseDir).path,
+            "src" to src.relPath(),
+            "dest" to dest.relPath(),
             "size" to dest.length()
         )
     }
@@ -316,11 +316,11 @@ class InkWebDavEngine(
         val backupFile = File(backupDir, "$timestamp.$ext")
         file.copyTo(backupFile, overwrite = true)
 
-        log.info("Backup created: {} -> {}", file.relativeTo(baseDir).path, backupFile.relativeTo(baseDir).path)
+        log.info("Backup created: {} -> {}", file.relPath(), backupFile.relPath())
         return mapOf(
             "ok" to true,
-            "master" to file.relativeTo(baseDir).path,
-            "backup" to backupFile.relativeTo(baseDir).path,
+            "master" to file.relPath(),
+            "backup" to backupFile.relPath(),
             "timestamp" to timestamp,
             "size" to backupFile.length()
         )
@@ -349,7 +349,7 @@ class InkWebDavEngine(
 
             val backupFile = File(backupDir, "$timestamp.$ext")
             masterFile.copyTo(backupFile, overwrite = true)
-            backedUp.add(backupFile.relativeTo(baseDir).path)
+            backedUp.add(backupFile.relPath())
         }
 
         log.info("Backup set created for {}: {} files", scriptPath, backedUp.size)
@@ -378,7 +378,7 @@ class InkWebDavEngine(
             ?.map { backup ->
                 mapOf(
                     "name" to backup.name,
-                    "path" to backup.relativeTo(baseDir).path,
+                    "path" to backup.relPath(),
                     "size" to backup.length(),
                     "timestamp" to backup.nameWithoutExtension,
                     "extension" to backup.extension,
@@ -402,11 +402,11 @@ class InkWebDavEngine(
 
         backup.copyTo(master, overwrite = true)
 
-        log.info("Backup restored: {} -> {}", backup.relativeTo(baseDir).path, master.relativeTo(baseDir).path)
+        log.info("Backup restored: {} -> {}", backup.relPath(), master.relPath())
         return mapOf(
             "ok" to true,
-            "backup" to backup.relativeTo(baseDir).path,
-            "master" to master.relativeTo(baseDir).path,
+            "backup" to backup.relPath(),
+            "master" to master.relPath(),
             "size" to master.length()
         )
     }
@@ -495,11 +495,11 @@ class InkWebDavEngine(
             copiedFiles.add(file.name)
         }
 
-        log.info("Working copy created: {} -> {} ({} files)", originDir.relativeTo(baseDir).path, workDir.relativeTo(baseDir).path, copied)
+        log.info("Working copy created: {} -> {} ({} files)", originDir.relPath(), workDir.relPath(), copied)
         return mapOf(
             "ok" to true,
-            "origin" to originDir.relativeTo(baseDir).path,
-            "working_copy" to workDir.relativeTo(baseDir).path,
+            "origin" to originDir.relPath(),
+            "working_copy" to workDir.relPath(),
             "model_id" to modelId,
             "copied_count" to copied,
             "copied_files" to copiedFiles
@@ -664,6 +664,10 @@ class InkWebDavEngine(
             }
         }
     }
+
+    /** Return the relative path from baseDir using forward slashes (platform-independent). */
+    private fun File.relPath(): String =
+        relativeTo(baseDir).path.replace('\\', '/')
 
     private fun isAllowedFile(file: File): Boolean {
         return file.isFile && isAllowedExtension(file.extension)

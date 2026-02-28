@@ -76,10 +76,10 @@ function getInklecatePath() {
   // Try to find Inky's bundled inklecate
   const possiblePaths = [
     // Inky installed alongside (sibling directory)
-    path.join(__dirname, '../../../inky_digi/app/main-process/ink', binaryName),
+    path.join(__dirname, '../../../inky_digi/ink-electron/main-process/ink', binaryName),
     // User's home directory Inky installation (common locations)
-    path.join(os.homedir(), 'inky_digi/app/main-process/ink', binaryName),
-    path.join(os.homedir(), 'Inky/app/main-process/ink', binaryName),
+    path.join(os.homedir(), 'inky_digi/ink-electron/main-process/ink', binaryName),
+    path.join(os.homedir(), 'Inky/ink-electron/main-process/ink', binaryName),
     // Custom path from environment variable
     process.env.INKLECATE_PATH,
     // User might have inklecate in PATH

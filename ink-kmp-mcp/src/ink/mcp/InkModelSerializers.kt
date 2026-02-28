@@ -34,8 +34,11 @@ object InkModelSerializers {
 
     // ── MCP JSON-RPC ─────────────────────────────────────────────
 
-    /** Serialize proto message → JSON string (for MCP JSON-RPC, SSE, WSS) */
-    fun <T : Message> toJson(msg: T): String = jsonPrinter.print(msg)
+    /** Serialize proto message → JSON string (for MCP JSON-RPC, SSE, WSS).
+     *  Reverses Gson's HTML-safe escaping so that `=`, `<`, `>`, `&`
+     *  appear as literal characters instead of `\\u003d` etc. */
+    fun <T : Message> toJson(msg: T): String =
+        jsonPrinter.print(msg).unescapeHtmlCharacters()
 
     /** Deserialize JSON string → proto message builder */
     fun <T : Message.Builder> fromJson(json: String, builder: T): T {
@@ -110,4 +113,16 @@ object InkModelSerializers {
         val jsonString = toJson(msg)
         return Json.parseToJsonElement(jsonString)
     }
+
+    // ── Internal ──────────────────────────────────────────────────
+
+    /** Undo Gson HTML-safe escaping that protobuf's JsonFormat.Printer applies.
+     *  Gson escapes `=` → `\u003d`, `<` → `\u003c`, `>` → `\u003e`, `&` → `\u0026`
+     *  which breaks round-trip assertions on string values containing these chars
+     *  (e.g. POI formulas like `=C2+C2*0.5`). */
+    private fun String.unescapeHtmlCharacters(): String =
+        replace("\\u003d", "=")
+            .replace("\\u003c", "<")
+            .replace("\\u003e", ">")
+            .replace("\\u0026", "&")
 }

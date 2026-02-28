@@ -1,7 +1,7 @@
 plugins {
     kotlin("jvm") version "2.3.0"
     kotlin("plugin.serialization") version "2.3.0"
-    id("com.google.protobuf") version "0.9.4"
+    id("com.google.protobuf") version "0.9.6"
     application
 }
 
@@ -157,6 +157,7 @@ application {
 }
 
 tasks.test {
+    dependsOn(":npmInstallApp")  // BidiTddInkTest.kt needs ink-electron/node_modules/inkjs
     useJUnitPlatform()
     maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
     setForkEvery(50)

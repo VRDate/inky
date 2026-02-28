@@ -19,8 +19,10 @@ object KtTestFixtures {
 
     /** Mono repo root (parent of ink-kmp-mcp/, ink-electron/, docs/, etc.). */
     val projectRoot: String = System.getProperty("user.dir")
-        .let { if (it.endsWith("ink-kmp-mcp")) it else "$it/ink-kmp-mcp" }
-        .removeSuffix("/ink-kmp-mcp")
+        .let { dir ->
+            val f = java.io.File(dir)
+            if (f.name == "ink-kmp-mcp") f.parent else java.io.File(dir, "ink-kmp-mcp").parent
+        }
 
     /** Path to inkjs full distribution (JVM/GraalJS only). */
     val inkjsPath: String = "$projectRoot/ink-electron/node_modules/inkjs/dist/ink-full.js"

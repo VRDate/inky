@@ -44,7 +44,7 @@ class Declaration internal constructor(
                 )
             }
         }
-        story.variables[variable] = evaluate(value, vMap)
+        story.putVariable(variable, evaluate(value, vMap))
     }
 
     private fun calculate(story: Story) {
@@ -64,7 +64,7 @@ class Declaration internal constructor(
             throw InkRunTimeException(
                 "CalculateVariable $variable is not defined in variable expression on line $lineNumber"
             )
-        story.variables[variable] = evaluate(value, vMap)
+        story.putVariable(variable, evaluate(value, vMap))
     }
 
     companion object {

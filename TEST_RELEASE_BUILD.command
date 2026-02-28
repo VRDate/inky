@@ -1,3 +1,3 @@
 cd "`dirname "$0"`"
-cd app
+cd ink-electron
 npm test

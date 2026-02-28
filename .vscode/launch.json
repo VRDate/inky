@@ -5,11 +5,11 @@
             "name": "Inky",
             "type": "node",
             "request": "launch",
-            "program": "${workspaceRoot}/app/main-process/main.js",
+            "program": "${workspaceRoot}/ink-electron/main-process/main.js",
             "stopOnEntry": false,
             "args": [],
             "cwd": "${workspaceRoot}",
-            "runtimeExecutable": "${workspaceRoot}/app/node_modules/.bin/electron",
+            "runtimeExecutable": "${workspaceRoot}/ink-electron/node_modules/.bin/electron",
             "runtimeArgs": [/*
                 ".",
                 "--enable-logging"

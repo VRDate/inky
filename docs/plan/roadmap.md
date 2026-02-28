@@ -1,4 +1,4 @@
-# Roadmap: ink.kt KMP Runtime + Multi-Format Annotations + Test Porting
+# Roadmap: ink.kt KMP Runtime + MAUI/Unity/SteelToe Integration
 
 > **Consolidated roadmap** — merges:
 > - Event-Driven Emoji Asset Pipeline + Three-Layer Architecture
@@ -6,6 +6,7 @@
 > - Feature Parity Merge analysis (Java/C# → ink.kt)
 > - KMP Multiplatform Build Migration + JS/JVM Annotations
 > - Test Porting Strategy (C#/Java/JS → commonTest/jvmTest/jsTest)
+> - **.NET MAUI App + Unity UAAL + SteelToe Cloud-Native Integration**
 >
 > **Constraint**: NO JVM imports in commonMain — pure Kotlin everywhere
 
@@ -22,6 +23,9 @@ The ink.kt package (60 files, ~9600 LOC) contains both the compiled runtime (fro
 5. **PUML = our map** — ALL 70 classes in ink.[lang].puml diagrams with detailed doc notes and progress tracking. All 7 puml files (kt, cs, java, js, ts, proto, mica) in sync with cross-language notes to/from ink.kt. **The key for the full port is detailed class diagrams with docs notes and progress.**
 6. **Event pipeline** — RSocket + msgpack + AsyncAPI for asset events
 7. **Auth + Calendar + vCard** — Keycloak OIDC + iCal4j + ez-vcard
+8. **.NET MAUI app** — C# ink runtime + proto model + WebSocket+msgpack transport client
+9. **Unity UAAL** — Embed Unity as Library inside MAUI (Android AAR, iOS framework)
+10. **SteelToe** — Service discovery (Eureka), config server, circuit breaker (Polly), distributed tracing (OpenTelemetry)
 
 ---
 
@@ -66,6 +70,7 @@ The ink.kt package (60 files, ~9600 LOC) contains both the compiled runtime (fro
 | **KT/JVM** | **ink.kt** (pure Kotlin) | blade-ink Java | `InkKtEngine` / `InkJavaEngine` |
 | **KT/JS** | **ink.kt/JS** (compiled) | inkjs (native) | `InkKtEngine` / `InkJsEngine` |
 | **C#/Unity** | ink-csharp Runtime | — | `InkOneJsBinding.cs` |
+| **C#/MAUI** | ink-csharp Runtime | — | `InkRuntimeService.cs` (Phase 14) |
 | **JS/Electron** | inkjs | — | `inklecate.js` |
 | **JS/BabylonJS** | inkjs | — | `InkRuntimeAdapter.ts` |
 
@@ -237,6 +242,128 @@ Three KMP ink engines coexist — `legacy` boolean selects between ink.kt and th
   ```
 - [ ] **Files**: `commonMain/kotlin/ink/kt/engine/InkEngineProvider.kt`, `jvmMain/kotlin/ink/kt/engine/`, `jsMain/kotlin/ink/kt/engine/`, `ink-electron/test/engine-parity.spec.ts`
 
+### Phase 13: C# Proto Codegen (Foundation)
+
+Generate C# message classes from the 14 existing `.proto` files so all C# consumers share one contract with the Kotlin MCP server.
+
+- [ ] Create `ink-model-csharp/Ink.Model.csproj` — `net8.0` class library
+- [ ] NuGet deps: `Google.Protobuf 4.28.x`, `Grpc.Tools 2.68.x`
+- [ ] Configure `<Protobuf>` item group pointing to `../ink-kmp-mcp/src/main/proto/ink/model/*.proto` with `ProtoRoot="../ink-kmp-mcp/src/main/proto/"`, `GrpcServices="None"`
+- [ ] All 14 proto files already declare `option csharp_namespace = "Ink.Model"` (`event.proto:6`, `asset.proto:6`, etc.)
+- [ ] Prepare `Ink.Model.Grpc.csproj` variant with `GrpcServices="Both"` for future gRPC stubs
+- [ ] Add Gradle `Exec` task: `dotnet build ink-model-csharp/`
+- [ ] **Verify**: `dotnet build` produces `Ink.Model.dll` with `AssetEvent`, `InkTagEvent`, `StoryState`, `Choice`, etc.
+- [ ] **Files**: `ink-model-csharp/Ink.Model.csproj`
+
+### Phase 14: MAUI App Scaffolding + Ink Runtime Integration
+
+Create a .NET 9 MAUI application with the ink C# runtime and proto model library.
+
+- [ ] Scaffold `ink-maui/InkMaui/InkMaui.csproj` — targets `net9.0-android`, `net9.0-ios`, `net9.0-maccatalyst`, `net9.0-windows10.0.19041.0`
+- [ ] Add project references to `ink-csharp/ink-engine-runtime/`, `ink-csharp/compiler/`, `ink-model-csharp/`
+- [ ] Create `IInkRuntime.cs` interface — 11-method contract matching `InkOneJsBinding.cs:30-200`
+- [ ] Create `InkRuntimeService.cs` — wraps `Ink.Runtime.Story`, returns `Ink.Model` proto types, uses `SemaphoreSlim(1,1)` compilation lock (same pattern as `InkStorySession.cs:24`)
+- [ ] Register `IInkRuntime` in MAUI DI: `builder.Services.AddSingleton<IInkRuntime, InkRuntimeService>()`
+- [ ] Create `StoryPage.xaml` — text display, choice buttons, variable inspector, save/load/reset toolbar
+- [ ] Unit tests validate 11-method contract using `bidi_and_tdd.ink` fixture
+- [ ] **Reuse**: `InkStorySession.cs` fluent API pattern, `InkTestFixtures.cs` project root resolution
+- [ ] **Verify**: `dotnet build ink-maui/InkMaui.sln` compiles for all target platforms
+- [ ] **Files**: `ink-maui/InkMaui.sln`, `ink-maui/InkMaui/InkMaui.csproj`, `Services/IInkRuntime.cs`, `Services/InkRuntimeService.cs`, `Pages/StoryPage.xaml`
+
+### Phase 15: WebSocket+msgpack Transport Client
+
+Enable the MAUI app to receive asset events from the Kotlin MCP server over WebSocket with msgpack serialization.
+
+- [ ] Create `IAssetEventTransport.cs` interface — `ConnectAsync`, `SubscribeAsync`, `FireAndForgetAsync`, channel event delegates
+- [ ] Create `MsgpackAssetEventClient.cs` — `System.Net.WebSockets.ClientWebSocket` + `MessagePack` (neuecc, MIT). Uses `ContractlessStandardResolver` to match Jackson's string-key msgpack format (`McpRouter.kt:500-502`)
+- [ ] Create `JsonAssetEventClient.cs` — text frame fallback matching `McpRouter.kt:602` JSON path
+- [ ] Protocol matches `McpRouter.kt:507-512`:
+  - Client→Server: `{ "type": "subscribe", "session_id": "...", "channels": [...] }` (msgpack binary)
+  - Client→Server: `{ "type": "fire_and_forget", "channel": "ink/asset/loaded", "data": {...} }` (msgpack)
+  - Server→Client: `{ "channel": "ink/story/tags", "event": {...}, "timestamp": 123456 }` (msgpack binary)
+- [ ] 6 channels from `AssetEventBus.kt:117-128`: `ink/story/tags`, `ink/asset/load`, `ink/asset/loaded`, `ink/inventory/change`, `ink/voice/synthesize`, `ink/voice/ready`
+- [ ] Thread-safe event queue — `ConcurrentQueue<T>` with main-thread pump (matches `InkAssetEventReceiver.cs:51-67`)
+- [ ] NuGet deps: `MessagePack >= 2.5.0` (neuecc/MessagePack-CSharp)
+- [ ] **Interop note**: Jackson (Kotlin) uses string-key msgpack; `ContractlessStandardResolver` on C# side matches this
+- [ ] **Verify**: Start Kotlin MCP server (`ink.mcp.MainKt`), connect C# client, subscribe, trigger story with tags, verify events received
+- [ ] **Files**: `ink-maui/InkMaui/Transport/IAssetEventTransport.cs`, `MsgpackAssetEventClient.cs`, `JsonAssetEventClient.cs`
+
+### Phase 16: SteelToe Cloud-Native Services
+
+Add service discovery, config server, circuit breaker, and distributed tracing.
+
+- [ ] Create `ink-maui/InkMaui.Api/InkMaui.Api.csproj` — ASP.NET Core Web API (`net8.0`)
+- [ ] NuGet deps: `Steeltoe.Discovery.Eureka 4.x`, `Steeltoe.Extensions.Configuration.ConfigServerCore 4.x`, `Steeltoe.Management.TracingCore 4.x`, `Polly 8.x`
+- [ ] `InkSessionDiscovery.cs` — Eureka service registration; MAUI clients discover Kotlin MCP server + C# API dynamically
+- [ ] `InkConfigService.cs` — externalized config (story path, asset server URL, voice model path, auth issuer) via Spring Cloud Config Server
+- [ ] `ResilientAssetLoader.cs` — Polly circuit breaker wrapping `IAssetEventTransport` (5 failures in 30s → open circuit for 60s, fallback to cached assets)
+- [ ] `InkTracingService.cs` — OpenTelemetry traces across MAUI → C# API → Kotlin MCP server; export to Jaeger/Zipkin
+- [ ] `appsettings.json` — Eureka, Config Server, Zipkin tracing config sections
+- [ ] MAUI app uses `Steeltoe.Discovery.ClientCore` to discover ink API service
+- [ ] **SteelToe 4.x targets .NET 8**: keep API project on `net8.0`, MAUI on `net9.0`
+- [ ] **Verify**: Start Eureka + Kotlin server + C# API, verify mutual discovery. Simulate failure → circuit breaker opens. Trace full story interaction in Jaeger/Zipkin.
+- [ ] **Files**: `ink-maui/InkMaui.Api/InkMaui.Api.csproj`, `Services/InkSessionDiscovery.cs`, `InkConfigService.cs`, `ResilientAssetLoader.cs`, `InkTracingService.cs`, `appsettings.json`
+
+### Phase 17: Unity UAAL Bridge
+
+Embed Unity as a Library inside the MAUI app following the [UnityUaal.Maui](https://github.com/matthewrdev/UnityUaal.Maui) pattern.
+
+- [ ] Create `ink-unity/InkUnityUaal/` — Unity project for UAAL export (imports existing `InkOneJsBinding.cs`, `InkAssetEventReceiver.cs`, OneJS)
+- [ ] `ink-maui/InkMaui/Platforms/Android/UnityBridge.cs` — AAR hosting, `UnitySendMessage("InkAssetEventReceiver", "ProcessEvent", json)`
+- [ ] `ink-maui/InkMaui/Platforms/iOS/UnityBridge.cs` — iOS framework hosting
+- [ ] `ink-maui/InkMaui/Views/UnityView.cs` — MAUI `View` hosting Unity rendering surface
+- [ ] `ink-maui/InkMaui/Services/UnityEventBridge.cs` — subscribes to `IAssetEventTransport`, serializes `Ink.Model` events to JSON, forwards to Unity via platform bridge
+- [ ] Add `ProcessBridgeEvent(string json)` to `InkAssetEventReceiver.cs` for MAUI attribution (existing `ProcessEvent` at line 86 already handles thread-safe queuing)
+- [ ] **Platform matrix**:
+  | Platform | MAUI Host | Unity UAAL | Transport |
+  |----------|-----------|------------|-----------|
+  | Android | MauiActivity | AAR (ARM64) | In-process bridge |
+  | iOS | MauiViewController | .framework (ARM64) | In-process bridge |
+  | Windows | WinUI3 | N/A (no UAAL) | WebSocket to standalone Unity |
+  | macOS | Catalyst | N/A (no UAAL) | WebSocket to standalone Unity |
+- [ ] **Verify**: Android/iOS: MAUI launches, Unity view renders, story Continue → tag → asset appears. Windows/macOS: events via WebSocket to standalone Unity build.
+- [ ] **Files**: `ink-unity/InkUnityUaal/`, `Platforms/Android/UnityBridge.cs`, `Platforms/iOS/UnityBridge.cs`, `Views/UnityView.cs`, `Services/UnityEventBridge.cs`
+
+### Phase 18: NuGet Packaging + Cross-Platform Conformance Tests
+
+Package all C# libraries and establish cross-platform conformance testing.
+
+- [ ] **NuGet packages**:
+  1. `Inky.Ink.Model` — proto-generated C# classes (depends: `Google.Protobuf`)
+  2. `Inky.Ink.AssetEvents` — transport client (depends: `Inky.Ink.Model`, `MessagePack`)
+  3. `Inky.Ink.Unity` — non-MonoBehaviour event parsing (depends: `Inky.Ink.Model`)
+- [ ] `ink-maui/InkMaui.ConformanceTests/` — runs 135 ink-proof stories through 3 runtimes:
+  1. C# ink runtime (directly via `InkStorySession`)
+  2. Kotlin ink.kt (via MCP server HTTP API)
+  3. inkjs (via Node.js subprocess)
+  - Assert identical output transcripts across all 3
+- [ ] Proto round-trip conformance: C# `Ink.Model.StoryState` ↔ Kotlin `ink.model.StoryState` via protobuf, JSON, msgpack — verify field-by-field equality in both directions
+- [ ] Transport conformance: Kotlin server serializes `InkTagEvent` (msgpack) → C# client deserializes → verify all 6 channel message types
+- [ ] `dotnet pack` produces `.nupkg` files for all 3 packages
+- [ ] **Verify**: `dotnet test` on conformance project passes all 135 stories × 3 runtimes
+- [ ] **Files**: `ink-maui/InkMaui.ConformanceTests/`, NuGet `.csproj` files with `<PackageId>`, `<Version>`, `<Authors>`
+
+### Phase Dependency Graph
+
+```
+Phases 7-12 (KMP Track)     ── independent, runs in parallel with C# track
+                             ── Phase 7 enables iOS native for Phase 17
+
+Phase 13 (C# Proto) ──┬──> Phase 14 (MAUI App) ──> Phase 15 (Transport) ──┬──> Phase 17 (Unity UAAL)
+                       │                                                    │
+                       └──> Phase 18 (NuGet + Tests)                        └──> Phase 16 (SteelToe)
+```
+
+**Recommended order**: Phase 7 + Phase 13 (parallel) → Phase 14 → Phase 15 → Phase 16 + Phase 17 (parallel) → Phase 18
+
+### Risk Mitigations (C# Track)
+
+1. **msgpack interop** — Jackson (Kotlin) uses string-key msgpack; use `ContractlessStandardResolver` on C# side
+2. **Proto version skew** — pin C# `Google.Protobuf` to 4.28.x to match Kotlin's `protobufVersion`
+3. **Unity UAAL desktop** — no official support on Windows/macOS; plan uses WebSocket fallback
+4. **SteelToe 4.x + .NET 9** — SteelToe targets .NET 8; keep API project on `net8.0`, MAUI on `net9.0`
+5. **KMP scope** — only 60 pure-Kotlin runtime classes move to `commonMain`; 27 JVM-dependent engines stay in `jvmMain`
+
 ---
 
 ## 6. Deferred Steps
@@ -253,6 +380,11 @@ Three KMP ink engines coexist — `legacy` boolean selects between ink.kt and th
 ### BabylonJS Unity Exporter (deferred)
 - `BabylonJsAssetLoader.ts` — glTF mesh loading from AssetEvents
 - `InkBabylonExporter.cs` — Unity scene -> BabylonJS glTF
+
+### gRPC Transport (deferred — after Phase 15 WebSocket+msgpack)
+- `Ink.Model.Grpc.csproj` with `GrpcServices="Both"` for C# gRPC stubs
+- `GrpcAssetEventClient.cs` implementing `IAssetEventTransport` via gRPC
+- Kotlin server: add gRPC endpoint alongside existing WebSocket `/rsocket`
 
 ---
 
@@ -295,6 +427,16 @@ Three KMP ink engines coexist — `legacy` boolean selects between ink.kt and th
 | 12 | `ink/kt/engine/InkEngineProvider.kt` | Engine selection interface |
 | 12 | `jvmMain/kotlin/ink/kt/engine/` | Java + KT engine providers |
 | 12 | `jsMain/kotlin/ink/kt/engine/` | JS + KT/JS engine providers |
+| 13 | `ink-model-csharp/Ink.Model.csproj` | C# proto codegen from 14 `.proto` files |
+| 14 | `ink-maui/InkMaui/InkMaui.csproj` | MAUI app scaffolding (.NET 9) |
+| 14 | `ink-maui/InkMaui/Services/InkRuntimeService.cs` | C# ink runtime wrapper (11-method contract) |
+| 15 | `ink-maui/InkMaui/Transport/MsgpackAssetEventClient.cs` | WebSocket+msgpack C# client |
+| 15 | `ink-kmp-mcp/src/ink/mcp/McpRouter.kt:507-620` | Kotlin WebSocket `/rsocket` protocol (target) |
+| 15 | `ink-kmp-mcp/src/ink/mcp/AssetEventBus.kt` | 6-channel pub/sub with replay (server side) |
+| 16 | `ink-maui/InkMaui.Api/InkMaui.Api.csproj` | ASP.NET Core + SteelToe backend |
+| 17 | `ink-unity/InkAssetEventReceiver.cs` | Unity event consumer (add MAUI bridge path) |
+| 17 | `ink-maui/InkMaui/Services/UnityEventBridge.cs` | MAUI → Unity event forwarding |
+| 18 | `ink-maui/InkMaui.ConformanceTests/` | 135 ink-proof stories × 3 runtimes |
 
 ---
 
@@ -310,6 +452,13 @@ Three KMP ink engines coexist — `legacy` boolean selects between ink.kt and th
 8. **PUML completeness**: All 91+ classes in diagrams with notes
 9. **Reference files**: `git diff` confirms mica/blade-ink untouched
 10. **TypeScript defs**: `.d.ts` generated, matches inkjs public API surface
+11. **C# proto codegen**: `dotnet build ink-model-csharp/` produces `Ink.Model.dll` with all 14 proto message namespaces
+12. **MAUI compilation**: `dotnet build ink-maui/InkMaui.sln` compiles for Android, iOS, macOS Catalyst, Windows
+13. **Transport interop**: Kotlin server msgpack frame → C# `MsgpackAssetEventClient` deserializes all 6 channel event types correctly
+14. **SteelToe discovery**: Eureka registers both Kotlin MCP server and C# API; MAUI client resolves both
+15. **Unity UAAL**: Android/iOS MAUI app embeds Unity view, ink story tags trigger asset loading in Unity
+16. **Conformance**: 135 ink-proof stories × 3 runtimes (C#, ink.kt, inkjs) produce identical transcripts
+17. **NuGet packages**: `dotnet pack` produces `Inky.Ink.Model`, `Inky.Ink.AssetEvents`, `Inky.Ink.Unity` .nupkg files
 
 ---
 
@@ -364,6 +513,8 @@ faker-kotlin + k-random -> emoji MD tables (characters, items, stats)
 |-----------|----------|-----|
 | KT/JVM | In-process | Server-side origin |
 | C#/Unity + OneJS | In-process via `__inkBridge` | Same process |
+| **C#/MAUI (Android/iOS)** | **In-process via Unity UAAL bridge** | **Phase 17** |
+| **C#/MAUI (Windows/macOS)** | **WebSocket+msgpack → `/rsocket`** | **Phase 15** |
 | JS/BabylonJS | WebSocket -> `/rsocket` | Browser |
 | JS/Electron | WebSocket -> `/rsocket` | Desktop |
 | Inkey editor | WebSocket -> `/rsocket` | Browser |
@@ -422,3 +573,18 @@ Parses `emoji-test.txt` and `UnicodeData.txt`. Supports IPA Extensions, Mathemat
 | ktor-server-auth-jwt | 3.1.1 | Auth |
 | ical4j | 4.0.7 | Calendar |
 | ez-vcard | 0.12.1 | vCard |
+
+### C# / .NET Dependencies (Phases 13-18)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| Google.Protobuf | 4.28.x | C# proto codegen (match Kotlin) |
+| Grpc.Tools | 2.68.x | Proto compiler for C# |
+| MessagePack | >= 2.5.0 | msgpack serialization (neuecc) |
+| Microsoft.Maui | 9.0.x | MAUI UI framework |
+| Steeltoe.Discovery.Eureka | 4.x | Service discovery |
+| Steeltoe.Extensions.Configuration.ConfigServerCore | 4.x | Config server |
+| Steeltoe.Management.TracingCore | 4.x | Distributed tracing |
+| Polly | 8.x | Circuit breaker / resilience |
+| Ink.Runtime (ink-csharp) | netstandard2.0 | C# ink runtime (zero deps) |
+| xunit | 2.7.x | Test framework |
