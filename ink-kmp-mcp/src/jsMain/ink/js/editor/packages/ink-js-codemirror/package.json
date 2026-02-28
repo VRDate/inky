@@ -1,0 +1,25 @@
+{
+  "name": "@inky/ink-js-codemirror",
+  "version": "0.1.0",
+  "description": "CodeMirror 6 extension for ink interactive fiction language — syntax highlighting, autocompletion, folding, Yjs collab",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@inky/ink-js-language": "0.1.0",
+    "@codemirror/language": "^6.10.0",
+    "@codemirror/autocomplete": "^6.16.0",
+    "@codemirror/state": "^6.4.0",
+    "@codemirror/view": "^6.26.0",
+    "@lezer/highlight": "^1.2.0",
+    "y-codemirror.next": "^0.3.5",
+    "yjs": "^13.6.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  },
+  "license": "MIT"
+}

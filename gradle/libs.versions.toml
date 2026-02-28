@@ -1,0 +1,131 @@
+[versions]
+kotlin = "2.3.0"
+jdk = "24"
+ktor = "3.1.1"
+graal = "25.0.2"
+camel = "4.18.0"
+langchain4j = "1.11.0"
+jlama = "0.8.4"
+protobuf = "4.28.3"
+faker = "2.0.0-rc.7"
+kotlinx-serialization = "1.7.3"
+kotlinx-datetime = "0.6.2"
+kotlinx-coroutines = "1.9.0"
+rsocket = "0.16.0"
+jackson = "2.17.2"
+logback = "1.5.15"
+plantuml = "1.2024.8"
+ical4j = "4.0.7"
+ezvcard = "0.12.1"
+sardine = "5.12"
+poi = "5.2.5"
+msgpack = "0.9.8"
+wiremock = "3.10.0"
+flexmark = "0.64.8"
+
+[libraries]
+# Kotlinx
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx-datetime" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
+
+# Ktor server
+ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktor" }
+ktor-server-netty = { module = "io.ktor:ktor-server-netty", version.ref = "ktor" }
+ktor-server-content-negotiation = { module = "io.ktor:ktor-server-content-negotiation", version.ref = "ktor" }
+ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
+ktor-server-cors = { module = "io.ktor:ktor-server-cors", version.ref = "ktor" }
+ktor-server-status-pages = { module = "io.ktor:ktor-server-status-pages", version.ref = "ktor" }
+ktor-server-sse = { module = "io.ktor:ktor-server-sse", version.ref = "ktor" }
+ktor-server-websockets = { module = "io.ktor:ktor-server-websockets", version.ref = "ktor" }
+ktor-server-auth = { module = "io.ktor:ktor-server-auth", version.ref = "ktor" }
+ktor-server-auth-jwt = { module = "io.ktor:ktor-server-auth-jwt", version.ref = "ktor" }
+
+# GraalJS
+graal-polyglot = { module = "org.graalvm.polyglot:polyglot", version.ref = "graal" }
+graal-js = { module = "org.graalvm.polyglot:js", version.ref = "graal" }
+
+# Apache Camel
+camel-core = { module = "org.apache.camel:camel-core", version.ref = "camel" }
+camel-main = { module = "org.apache.camel:camel-main", version.ref = "camel" }
+camel-direct = { module = "org.apache.camel:camel-direct", version.ref = "camel" }
+camel-langchain4j-chat = { module = "org.apache.camel:camel-langchain4j-chat", version.ref = "camel" }
+camel-langchain4j-tools = { module = "org.apache.camel:camel-langchain4j-tools", version.ref = "camel" }
+camel-jackson = { module = "org.apache.camel:camel-jackson", version.ref = "camel" }
+
+# LangChain4j
+langchain4j = { module = "dev.langchain4j:langchain4j", version.ref = "langchain4j" }
+langchain4j-jlama = { module = "dev.langchain4j:langchain4j-jlama", version = "1.11.0-beta19" }
+langchain4j-openai = { module = "dev.langchain4j:langchain4j-open-ai", version.ref = "langchain4j" }
+
+# JLama
+jlama-core = { module = "com.github.tjake:jlama-core", version.ref = "jlama" }
+jlama-native = { module = "com.github.tjake:jlama-native", version.ref = "jlama" }
+
+# PlantUML
+plantuml = { module = "net.sourceforge.plantuml:plantuml-mit", version.ref = "plantuml" }
+
+# Calendar + vCard + WebDAV
+ical4j = { module = "org.mnode.ical4j:ical4j", version.ref = "ical4j" }
+ezvcard = { module = "com.googlecode.ez-vcard:ez-vcard", version.ref = "ezvcard" }
+sardine = { module = "com.github.lookfirst:sardine", version.ref = "sardine" }
+
+# Protobuf
+protobuf-kotlin = { module = "com.google.protobuf:protobuf-kotlin", version.ref = "protobuf" }
+protobuf-java-util = { module = "com.google.protobuf:protobuf-java-util", version.ref = "protobuf" }
+
+# RSocket
+rsocket-ktor-server = { module = "io.rsocket.kotlin:rsocket-ktor-server", version.ref = "rsocket" }
+rsocket-ktor-client = { module = "io.rsocket.kotlin:rsocket-ktor-client", version.ref = "rsocket" }
+
+# Serialization (msgpack + Jackson)
+jackson-msgpack = { module = "org.msgpack:jackson-dataformat-msgpack", version.ref = "msgpack" }
+jackson-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin", version.ref = "jackson" }
+
+# kotlin-faker
+faker = { module = "io.github.serpro69:kotlin-faker", version.ref = "faker" }
+faker-games = { module = "io.github.serpro69:kotlin-faker-games", version.ref = "faker" }
+
+# Apache POI
+poi-ooxml = { module = "org.apache.poi:poi-ooxml", version.ref = "poi" }
+
+# Logging
+logback = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
+
+# Test
+ktor-server-test-host = { module = "io.ktor:ktor-server-test-host", version.ref = "ktor" }
+ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
+wiremock = { module = "org.wiremock:wiremock", version.ref = "wiremock" }
+flexmark = { module = "com.vladsch.flexmark:flexmark-all", version.ref = "flexmark" }
+
+[bundles]
+ktor-server = [
+    "ktor-server-core",
+    "ktor-server-netty",
+    "ktor-server-content-negotiation",
+    "ktor-serialization-kotlinx-json",
+    "ktor-server-cors",
+    "ktor-server-status-pages",
+    "ktor-server-sse",
+    "ktor-server-websockets",
+    "ktor-server-auth",
+    "ktor-server-auth-jwt",
+]
+graal = ["graal-polyglot", "graal-js"]
+camel = [
+    "camel-core",
+    "camel-main",
+    "camel-direct",
+    "camel-langchain4j-chat",
+    "camel-langchain4j-tools",
+    "camel-jackson",
+]
+langchain4j-all = ["langchain4j", "langchain4j-jlama", "langchain4j-openai"]
+rsocket = ["rsocket-ktor-server", "rsocket-ktor-client"]
+jackson = ["jackson-msgpack", "jackson-kotlin"]
+faker-all = ["faker", "faker-games"]
+protobuf = ["protobuf-kotlin", "protobuf-java-util"]
+
+[plugins]
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

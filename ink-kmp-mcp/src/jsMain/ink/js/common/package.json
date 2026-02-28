@@ -1,0 +1,45 @@
+{
+  "name": "@inky/common",
+  "version": "0.1.0",
+  "description": "Shared utilities for the Inky ink editor ecosystem",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/types/index.d.ts"
+    },
+    "./mcp-client": {
+      "import": "./dist/esm/mcp-client.js",
+      "require": "./dist/cjs/mcp-client.js",
+      "types": "./dist/types/mcp-client.d.ts"
+    },
+    "./inklecate-runner": {
+      "import": "./dist/esm/inklecate-runner.js",
+      "require": "./dist/cjs/inklecate-runner.js",
+      "types": "./dist/types/inklecate-runner.d.ts"
+    },
+    "./ai-mcp-client": {
+      "import": "./dist/esm/ai-mcp-client.js",
+      "require": "./dist/cjs/ai-mcp-client.js",
+      "types": "./dist/types/ai-mcp-client.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "npm run build:cjs && npm run build:esm",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "test": "node --test dist/cjs/__tests__/"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  },
+  "files": [
+    "dist/",
+    "src/"
+  ],
+  "license": "MIT"
+}
