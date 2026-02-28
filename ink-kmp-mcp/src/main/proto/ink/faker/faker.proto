@@ -1,0 +1,25 @@
+syntax = "proto3";
+package ink.faker.model;
+
+option java_package = "ink.faker.model";
+option java_multiple_files = true;
+option csharp_namespace = "Ink.Faker.Model";
+
+// Faker engine configuration and emoji category → faker method mapping.
+// Used by: InkFakerEngine (KT kotlin-faker), client-side faker-js.
+
+message FakerConfig {
+  int64 seed = 1;              // Deterministic seed for kotlin.random.Random
+  string locale = 2;           // "en", "he", "de"
+  int32 count = 3;             // Number of rows to generate
+  int32 level = 4;             // Game level for per-level stat modifiers
+  repeated string categories = 5;  // Filter by emoji category names
+}
+
+message EmojiCategory {
+  string emoji = 1;            // "🗡️"
+  string faker_provider = 2;   // "game.elderScrolls.weapon"
+  string method_chain = 3;     // "name"
+  int32 range_min = 4;         // Min value for random stat range
+  int32 range_max = 5;         // Max value for random stat range
+}

@@ -2,19 +2,20 @@ package ink.kt
 
 /**
  * JS actual — ink.kt only. No blade-ink Java compiler available on JS target.
- * Compilation is not supported on JS; use pre-compiled JSON.
+ *
+ * When `legacy=false`, [InkLauncher] uses [InkParser] directly (common code).
+ * This actual is only invoked for `legacy=true`, which is not available on JS.
  */
 actual object InkPlatform {
 
     actual fun createStory(json: String, legacy: Boolean): Story {
-        // JS target: always use ink.kt Story (no legacy engine available)
         return Story(json)
     }
 
     actual fun compile(source: String, legacy: Boolean): InkLauncher.CompileResult {
         return InkLauncher.CompileResult(
             success = false,
-            errors = listOf("Ink compilation not available on JS target. Use pre-compiled JSON with startSessionFromJson().")
+            errors = listOf("Legacy ink compilation not available on JS target. Use legacy=false for InkParser.")
         )
     }
 }

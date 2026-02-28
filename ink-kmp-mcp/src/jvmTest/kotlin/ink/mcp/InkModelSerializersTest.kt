@@ -1,6 +1,9 @@
 package ink.mcp
 
-import ink.model.*
+import ink.story.model.*
+import ink.table.model.*
+import ink.asset.model.*
+import ink.faker.model.*
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive

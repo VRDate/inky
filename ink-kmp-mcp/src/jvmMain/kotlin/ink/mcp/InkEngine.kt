@@ -15,7 +15,7 @@ import java.util.UUID
  *
  * Each story session gets its own GraalJS context for isolation.
  */
-class InkEngine(private val inkjsPath: String, private val bidifyPath: String? = null) {
+class InkEngine(private val inkjsPath: String, private val bidifyPath: String? = null) : McpInkOps {
 
     private val log = LoggerFactory.getLogger(InkEngine::class.java)
     private val sessions = ConcurrentHashMap<String, StorySession>()
@@ -23,26 +23,6 @@ class InkEngine(private val inkjsPath: String, private val bidifyPath: String? =
     // Pre-read JS sources once
     private val inkjsSource: String = File(inkjsPath).readText()
     private val bidifySource: String? = bidifyPath?.let { File(it).readText() }
-
-    data class CompileResult(
-        val success: Boolean,
-        val json: String? = null,
-        val errors: List<String> = emptyList(),
-        val warnings: List<String> = emptyList()
-    )
-
-    data class ContinueResult(
-        val text: String,
-        val canContinue: Boolean,
-        val choices: List<ChoiceInfo> = emptyList(),
-        val tags: List<String> = emptyList()
-    )
-
-    data class ChoiceInfo(
-        val index: Int,
-        val text: String,
-        val tags: List<String> = emptyList()
-    )
 
     class StorySession(
         val id: String,
@@ -86,7 +66,7 @@ class InkEngine(private val inkjsPath: String, private val bidifyPath: String? =
     }
 
     /** Compile ink source to JSON */
-    fun compile(inkSource: String): CompileResult {
+    override fun compile(inkSource: String): McpInkOps.CompileResult {
         val ctx = createContext()
         try {
             ctx.getBindings("js").putMember("__inkSource", inkSource)
@@ -108,7 +88,7 @@ class InkEngine(private val inkjsPath: String, private val bidifyPath: String? =
                 }
             """.trimIndent())
 
-            return CompileResult(
+            return McpInkOps.CompileResult(
                 success = ctx.eval("js", "__success").asBoolean(),
                 json = ctx.eval("js", "__json").let { if (it.isNull) null else it.asString() },
                 errors = readStringArray(ctx, "__errors"),
@@ -120,7 +100,7 @@ class InkEngine(private val inkjsPath: String, private val bidifyPath: String? =
     }
 
     /** Start a new story session from ink source, returns session ID + initial output */
-    fun startSession(inkSource: String, sessionId: String? = null): Pair<String, ContinueResult> {
+    override fun startSession(inkSource: String, sessionId: String?): Pair<String, McpInkOps.ContinueResult> {
         val id = sessionId ?: UUID.randomUUID().toString().take(8)
         endSession(id)
 
@@ -139,7 +119,7 @@ class InkEngine(private val inkjsPath: String, private val bidifyPath: String? =
     }
 
     /** Start a session from pre-compiled JSON */
-    fun startSessionFromJson(json: String, sessionId: String? = null): Pair<String, ContinueResult> {
+    override fun startSessionFromJson(json: String, sessionId: String?): Pair<String, McpInkOps.ContinueResult> {
         val id = sessionId ?: UUID.randomUUID().toString().take(8)
         endSession(id)
 
@@ -152,7 +132,7 @@ class InkEngine(private val inkjsPath: String, private val bidifyPath: String? =
     }
 
     /** Continue the story, collecting all text until a choice or end */
-    fun continueStory(sessionId: String): ContinueResult {
+    override fun continueStory(sessionId: String): McpInkOps.ContinueResult {
         val session = sessions[sessionId] ?: throw IllegalStateException("No session: $sessionId")
         val ctx = session.context
 
@@ -174,7 +154,7 @@ class InkEngine(private val inkjsPath: String, private val bidifyPath: String? =
             }
         """.trimIndent())
 
-        return ContinueResult(
+        return McpInkOps.ContinueResult(
             text = ctx.eval("js", "__text").asString(),
             canContinue = ctx.eval("js", "__canContinue").asBoolean(),
             choices = readChoices(ctx),
@@ -183,7 +163,7 @@ class InkEngine(private val inkjsPath: String, private val bidifyPath: String? =
     }
 
     /** Make a choice in the story */
-    fun choose(sessionId: String, choiceIndex: Int): ContinueResult {
+    override fun choose(sessionId: String, choiceIndex: Int): McpInkOps.ContinueResult {
         val session = sessions[sessionId] ?: throw IllegalStateException("No session: $sessionId")
         session.context.getBindings("js").putMember("__choiceIdx", choiceIndex)
         session.context.eval("js", "__story.ChooseChoiceIndex(__choiceIdx);")
@@ -191,14 +171,14 @@ class InkEngine(private val inkjsPath: String, private val bidifyPath: String? =
     }
 
     /** Get a story variable */
-    fun getVariable(sessionId: String, varName: String): Any? {
+    override fun getVariable(sessionId: String, varName: String): Any? {
         val session = sessions[sessionId] ?: throw IllegalStateException("No session: $sessionId")
         session.context.getBindings("js").putMember("__varName", varName)
         return graalToKotlin(session.context.eval("js", "__story.variablesState[__varName]"))
     }
 
     /** Set a story variable */
-    fun setVariable(sessionId: String, varName: String, value: Any?) {
+    override fun setVariable(sessionId: String, varName: String, value: Any?) {
         val session = sessions[sessionId] ?: throw IllegalStateException("No session: $sessionId")
         session.context.getBindings("js").putMember("__varName", varName)
         session.context.getBindings("js").putMember("__varValue", value)
@@ -206,7 +186,7 @@ class InkEngine(private val inkjsPath: String, private val bidifyPath: String? =
     }
 
     /** Save story state as JSON */
-    fun saveState(sessionId: String): String {
+    override fun saveState(sessionId: String): String {
         val session = sessions[sessionId] ?: throw IllegalStateException("No session: $sessionId")
         val state = session.context.eval("js", "__story.state.ToJson()").asString()
         session.stateJson = state
@@ -214,21 +194,21 @@ class InkEngine(private val inkjsPath: String, private val bidifyPath: String? =
     }
 
     /** Load story state from JSON */
-    fun loadState(sessionId: String, stateJson: String) {
+    override fun loadState(sessionId: String, stateJson: String) {
         val session = sessions[sessionId] ?: throw IllegalStateException("No session: $sessionId")
         session.context.getBindings("js").putMember("__stateJson", stateJson)
         session.context.eval("js", "__story.state.LoadJson(__stateJson);")
     }
 
     /** Reset story to beginning */
-    fun resetStory(sessionId: String): ContinueResult {
+    override fun resetStory(sessionId: String): McpInkOps.ContinueResult {
         val session = sessions[sessionId] ?: throw IllegalStateException("No session: $sessionId")
         session.context.eval("js", "__story.ResetState();")
         return continueStory(sessionId)
     }
 
     /** Evaluate an ink function */
-    fun evaluateFunction(sessionId: String, funcName: String, args: List<Any?> = emptyList()): Any? {
+    override fun evaluateFunction(sessionId: String, funcName: String, args: List<Any?>): Any? {
         val session = sessions[sessionId] ?: throw IllegalStateException("No session: $sessionId")
         val ctx = session.context
         ctx.getBindings("js").putMember("__funcName", funcName)
@@ -238,13 +218,13 @@ class InkEngine(private val inkjsPath: String, private val bidifyPath: String? =
     }
 
     /** Get global tags */
-    fun getGlobalTags(sessionId: String): List<String> {
+    override fun getGlobalTags(sessionId: String): List<String> {
         val session = sessions[sessionId] ?: throw IllegalStateException("No session: $sessionId")
         return readStringArray(session.context, "__story.globalTags || []")
     }
 
     /** Bidify text */
-    fun bidify(text: String): String {
+    override fun bidify(text: String): String {
         if (bidifySource == null) return text
         val ctx = createContext()
         try {
@@ -256,7 +236,7 @@ class InkEngine(private val inkjsPath: String, private val bidifyPath: String? =
     }
 
     /** Strip bidi markers */
-    fun stripBidi(text: String): String {
+    override fun stripBidi(text: String): String {
         if (bidifySource == null) return text
         val ctx = createContext()
         try {
@@ -268,7 +248,7 @@ class InkEngine(private val inkjsPath: String, private val bidifyPath: String? =
     }
 
     /** Bidify compiled JSON */
-    fun bidifyJson(jsonString: String): String {
+    override fun bidifyJson(jsonString: String): String {
         if (bidifySource == null) return jsonString
         val ctx = createContext()
         try {
@@ -280,14 +260,14 @@ class InkEngine(private val inkjsPath: String, private val bidifyPath: String? =
     }
 
     /** End a session */
-    fun endSession(sessionId: String) {
+    override fun endSession(sessionId: String) {
         sessions.remove(sessionId)?.let { s ->
             try { s.context.close() } catch (_: Exception) {}
         }
     }
 
     /** List active session IDs */
-    fun listSessions(): List<String> = sessions.keys().toList()
+    override fun listSessions(): List<String> = sessions.keys().toList()
 
     /** Check if session exists */
     fun hasSession(sessionId: String): Boolean = sessions.containsKey(sessionId)
@@ -300,7 +280,7 @@ class InkEngine(private val inkjsPath: String, private val bidifyPath: String? =
         return (0 until arr.arraySize).map { arr.getArrayElement(it).asString() }
     }
 
-    private fun readChoices(ctx: Context): List<ChoiceInfo> {
+    private fun readChoices(ctx: Context): List<McpInkOps.ChoiceInfo> {
         val arr = ctx.eval("js", "__choices")
         if (!arr.hasArrayElements()) return emptyList()
         return (0 until arr.arraySize).map { i ->
@@ -309,7 +289,7 @@ class InkEngine(private val inkjsPath: String, private val bidifyPath: String? =
                 if (t.hasArrayElements()) (0 until t.arraySize).map { t.getArrayElement(it).asString() }
                 else emptyList()
             }
-            ChoiceInfo(
+            McpInkOps.ChoiceInfo(
                 index = c.getMember("index").asInt(),
                 text = c.getMember("text").asString(),
                 tags = tags

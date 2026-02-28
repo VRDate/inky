@@ -477,9 +477,9 @@ class BidiTddInkE2eTest {
             // Serialize function results to JSON and verify round-trip
             val w = SimpleJson.Writer()
             w.writeObjectStart()
-            w.writeProperty("clamp_200", (clamped as Number).toInt())
-            w.writeProperty("clamp_neg50", (clampedLow as Number).toInt())
-            w.writeProperty("clamp_42", (clampedMid as Number).toInt())
+            w.writeProperty("clamp_200", clamped.toInt())
+            w.writeProperty("clamp_neg50", clampedLow.toInt())
+            w.writeProperty("clamp_42", clampedMid.toInt())
             w.writeProperty("t_en", enText as String)
             w.writeProperty("t_he", heText as String)
             w.writeProperty("t_both", bothText as String)

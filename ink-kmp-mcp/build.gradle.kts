@@ -48,6 +48,10 @@ kotlin {
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.datetime)
             implementation(libs.kotlinx.coroutines.core)
+            // Ktor HTTP client (MCP client for all platforms)
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
@@ -61,6 +65,8 @@ kotlin {
             dependencies {
                 // Ktor 3.x server
                 implementation(libs.bundles.ktor.server)
+                // Ktor CIO client engine (JVM)
+                implementation(libs.ktor.client.cio)
 
                 // GraalJS engine (Oracle GraalVM)
                 implementation(libs.bundles.graal)
@@ -112,10 +118,14 @@ kotlin {
         }
 
         // ── JS (Electron UI — jsActual) ──────────────────────────────
-        // jsMain/jsTest — Electron UI is the JS actual implementation
+        jsMain.dependencies {
+            implementation(libs.ktor.client.js)  // Ktor JS client engine
+        }
 
         // ── WASM (ink.kt compiled to WASM — replaces legacy inkjs) ───
-        // wasmJsMain/wasmJsTest — pure ink.kt runtime compiled to WASM
+        wasmJsMain.dependencies {
+            implementation(libs.ktor.client.js)  // Ktor JS client engine (also works for WASM/JS)
+        }
     }
 }
 

@@ -59,7 +59,7 @@ fun startServer(
 
     // Initialize LLM engine based on mode
     val llmEngine = if (enableLlm) LlmEngine(
-        modelCachePath = java.nio.file.Path.of(modelCachePath ?: System.getProperty("user.home") + "/.jlama")
+        modelCachePath = java.nio.file.Path.of(modelCachePath ?: (System.getProperty("user.home") + "/.jlama"))
     ) else null
 
     // Initialize LM Studio engine if mode is lmstudio
@@ -77,7 +77,7 @@ fun startServer(
     val webDavEngine = InkWebDavEngine(vcardEngine)
 
     // Initialize edit + puml engines (shared)
-    val editEngine = InkEditEngine()
+    val editEngine = EditEngine()
     val ink2PumlEngine = Ink2PumlEngine(editEngine)
 
     // Initialize asset event pipeline
@@ -85,27 +85,34 @@ fun startServer(
     val assetEventBus = AssetEventBus()
     val assetEventEngine = InkAssetEventEngine(assetManifest, assetEventBus)
 
+    // Initialize faker engine for asset pipeline
+    val fakerEngine = InkFakerEngine()
+
     // Initialize Camel routes with asset event engine
     val camelRoutes = if (enableLlm && llmEngine != null) {
         CamelRoutes(inkEngine, llmEngine, assetEventEngine)
     } else null
 
+    // Initialize JVM adapters for McpTools interface params
+    val jvmLlmOps = if (enableLlm) JvmLlmOps(llmEngine, camelRoutes) else null
+    val jvmServiceOps = jvmLlmOps?.let { JvmServiceOps(it) }
+    val jvmAssetOps = JvmAssetOps(assetManifest, fakerEngine, assetEventEngine, assetEventBus)
+
     // Initialize tools with all engines
     val tools = McpTools(
         engine = inkEngine,
-        llmEngine = llmEngine,
-        camelRoutes = camelRoutes,
+        llmOps = jvmLlmOps,
+        serviceOps = jvmServiceOps,
         debugEngine = InkDebugEngine(inkEngine),
         editEngine = editEngine,
         colabEngine = colabEngine,
         inkMdEngine = InkMdEngine(),
-        ink2PumlEngine = ink2PumlEngine,
+        pumlOps = ink2PumlEngine,
         calendarEngine = calendarEngine,
         vcardEngine = vcardEngine,
         authEngine = authEngine,
         webDavEngine = webDavEngine,
-        assetManifest = assetManifest,
-        assetEventEngine = assetEventEngine
+        assetOps = jvmAssetOps
     )
     val mcpSessions = ConcurrentHashMap<String, McpSession>()
 

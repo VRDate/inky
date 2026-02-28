@@ -59,13 +59,54 @@ class InkLauncher(val legacy: Boolean = false) {
 
     // ── Compile ─────────────────────────────────────────────────────
 
-    /** Compile ink source to JSON. Delegates to [InkPlatform] for compiler selection. */
-    fun compile(inkSource: String): CompileResult = InkPlatform.compile(inkSource, legacy)
+    /**
+     * Compile/validate ink source.
+     *
+     * - `legacy=false` (default): Validates source with [InkParser] (common code, all targets).
+     * - `legacy=true`: Delegates to platform-specific compiler via [InkPlatform]
+     *   (blade-ink on JVM; not available on JS/WASM).
+     */
+    fun compile(inkSource: String): CompileResult {
+        if (legacy) return InkPlatform.compile(inkSource, legacy = true)
+        return compileWithInkKt(inkSource)
+    }
+
+    private fun compileWithInkKt(source: String): CompileResult {
+        return try {
+            val wrapper = SourceStoryWrapper(source)
+            InkParser.parse(source, wrapper, "source.ink")
+            // InkParser parsed successfully — source is valid ink.
+            // Store source as json field for API compatibility; startSession
+            // will parse directly with InkParser instead of going through JSON.
+            CompileResult(success = true, json = source)
+        } catch (e: Exception) {
+            CompileResult(success = false, errors = listOf(e.message ?: "Parse error"))
+        }
+    }
 
     // ── Session lifecycle ───────────────────────────────────────────
 
-    /** Compile ink source and start a new session, returning (sessionId, initial output). */
+    /**
+     * Compile ink source and start a new session, returning (sessionId, initial output).
+     *
+     * - `legacy=false`: Parses directly with [InkParser] (no JSON roundtrip).
+     * - `legacy=true`: Compiles to JSON, then loads via [Story] JSON constructor.
+     */
     fun startSession(inkSource: String, sessionId: String? = null): Pair<String, ContinueResult> {
+        if (!legacy) {
+            return try {
+                val id = sessionId ?: newSessionId()
+                val wrapper = SourceStoryWrapper(inkSource)
+                val story = InkParser.parse(inkSource, wrapper, "session.ink")
+                sessions[id] = StorySession(id, story, inkSource)
+                Pair(id, doContinue(story))
+            } catch (e: Exception) {
+                Pair(
+                    sessionId ?: newSessionId(),
+                    ContinueResult("", false, errors = listOf(e.message ?: "Parse error"))
+                )
+            }
+        }
         val compiled = compile(inkSource)
         if (!compiled.success || compiled.json == null) {
             return Pair(
@@ -138,6 +179,18 @@ class InkLauncher(val legacy: Boolean = false) {
     fun hasSession(sessionId: String): Boolean = sessions.containsKey(sessionId)
 
     // ── Internal ────────────────────────────────────────────────────
+
+    /** Minimal [StoryWrapper] for parsing source text directly. */
+    private class SourceStoryWrapper(private val source: String) : StoryWrapper {
+        override fun getFileContent(fileId: String): String = source
+        override fun getStoryObject(objId: String): Any = Unit
+        override fun getInterrupt(s: String): StoryInterrupt =
+            throw UnsupportedOperationException("Interrupts not available in source mode")
+        override fun resolveTag(t: String) {}
+        override fun logDebug(m: String) {}
+        override fun logError(m: String) {}
+        override fun logException(e: Exception) {}
+    }
 
     private fun getSession(sessionId: String): StorySession =
         sessions[sessionId] ?: throw IllegalArgumentException("Unknown session: $sessionId")

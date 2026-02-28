@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * Auth is opt-in: when KEYCLOAK_REALM_URL is not set, server runs open.
  */
-class InkAuthEngine {
+class InkAuthEngine : McpAuthOps {
 
     private val log = LoggerFactory.getLogger(InkAuthEngine::class.java)
 
@@ -90,12 +90,12 @@ class InkAuthEngine {
     }
 
     /** Create basicauth credentials for an LLM model, with jCard as JWT claim */
-    fun createLlmCredential(
+    override fun createLlmCredential(
         modelName: String,
-        host: String = "localhost",
-        port: Int = 3001,
-        jcard: String? = null
-    ): Map<String, String> {
+        host: String,
+        port: Int,
+        jcard: String?
+    ): Map<String, Any> {
         val builder = JWT.create()
             .withIssuer("inky-mcp")
             .withSubject(modelName)
@@ -158,7 +158,7 @@ class InkAuthEngine {
     }
 
     /** Get auth system status */
-    fun getAuthStatus(): Map<String, Any> = mapOf(
+    override fun getAuthStatus(): Map<String, Any> = mapOf(
         "keycloak_configured" to isConfigured(),
         "keycloak_realm_url" to (keycloakRealmUrl ?: "not set"),
         "keycloak_client_id" to keycloakClientId,

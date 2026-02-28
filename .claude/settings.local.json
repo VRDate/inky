@@ -21,7 +21,23 @@
       "Bash(dotnet test:*)",
       "Bash(./gradlew buildPwaChrome:*)",
       "Bash(./gradlew buildPwaAll:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(./gradlew compileKotlinJvm:*)",
+      "Bash(./gradlew :ink-kmp-mcp:compileKotlinWasmJs:*)",
+      "Bash(done)",
+      "Bash(find \":*)",
+      "Bash(./gradlew :ink-kmp-mcp:jvmTest:*)",
+      "Bash(./gradlew :ink-kmp-mcp:compileTestKotlinJvm:*)",
+      "Bash(./gradlew :ink-kmp-mcp:tasks:*)",
+      "Bash(./gradlew :ink-kmp-mcp:testFast:*)",
+      "Bash(npm:*)",
+      "Bash(\"$PROTOC\":*)",
+      "Bash(\"/c/Users/tom/.gradle/caches/modules-2/files-2.1/com.google.protobuf/protoc/4.28.3/d64d8116a8da167f8b274a0020e3e23b30529118/protoc-4.28.3-windows-x86_64.exe\":*)",
+      "Bash(chmod +x:*)",
+      "Bash(bash:*)",
+      "Bash(__NEW_LINE_7173315d3f4e7939__ mkdir:*)",
+      "Bash(do:*)",
+      "Bash(./gradlew compileTestKotlinJvm:*)"
     ]
   }
 }

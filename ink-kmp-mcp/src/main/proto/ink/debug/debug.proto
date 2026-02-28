@@ -1,0 +1,60 @@
+syntax = "proto3";
+package ink.debug.model;
+
+option java_package = "ink.debug.model";
+option java_multiple_files = true;
+option csharp_namespace = "Ink.Debug.Model";
+
+import "ink/story/story.proto";
+
+// Debug engine types.
+// Replaces: KT Breakpoint, WatchVariable, DebugSession, VisitEntry, StepResult.
+
+message Breakpoint {
+  string id = 1;
+  string type = 2;             // knot, stitch, pattern, variable_change
+  string target = 3;
+  bool enabled = 4;
+}
+
+message WatchVariable {
+  string name = 1;
+  string last_value = 2;
+  int32 change_count = 3;
+}
+
+message VisitEntry {
+  int32 step = 1;
+  string text = 2;
+  int32 choices_made = 3;
+  repeated string variables_changed = 4;
+  int64 timestamp = 5;
+}
+
+message DebugSession {
+  string session_id = 1;
+  repeated Breakpoint breakpoints = 2;
+  map<string, WatchVariable> watches = 3;
+  repeated VisitEntry visit_log = 4;
+  bool stepping = 5;
+  int32 step_count = 6;
+  int32 total_steps = 7;
+  bool is_paused = 8;
+  string last_output = 9;
+}
+
+message WatchChange {
+  string old_value = 1;
+  string new_value = 2;
+}
+
+message StepResult {
+  string text = 1;
+  bool can_continue = 2;
+  repeated ink.story.model.Choice choices = 3;
+  repeated string tags = 4;
+  Breakpoint hit_breakpoint = 5;
+  map<string, WatchChange> watch_changes = 6;
+  int32 step_number = 7;
+  bool is_paused = 8;
+}

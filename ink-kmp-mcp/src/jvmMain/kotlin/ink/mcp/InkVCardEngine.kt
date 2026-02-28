@@ -38,7 +38,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class InkVCardEngine(
     private val authEngine: InkAuthEngine? = null
-) {
+) : McpVCardOps {
 
     private val log = LoggerFactory.getLogger(InkVCardEngine::class.java)
 
@@ -74,7 +74,18 @@ class InkVCardEngine(
      * For LLM models: creates basicauth credentials with jCard embedded in JWT.
      * The latest JWT is stored in the vCard X-AUTH extended property.
      */
-    fun createPrincipal(
+    /** McpVCardOps override. */
+    override fun createPrincipal(
+        id: String,
+        name: String,
+        email: String?,
+        role: String,
+        isLlm: Boolean,
+        folderPath: String?
+    ): Map<String, Any> = createPrincipalFull(id, name, email, role, isLlm, folderPath)
+
+    /** Full createPrincipal with MCP URI host/port for LLM models. */
+    fun createPrincipalFull(
         id: String,
         name: String,
         email: String? = null,
@@ -98,8 +109,8 @@ class InkVCardEngine(
             val jcard = Ezvcard.writeJson(vcard).go()
 
             val cred = authEngine.createLlmCredential(id, host, port, jcard)
-            mcpUri = cred["mcp_uri"]
-            jwtToken = cred["token"]
+            mcpUri = cred["mcp_uri"] as String?
+            jwtToken = cred["token"] as String?
 
             // Store latest JWT in X-AUTH extended property
             vcard.setExtendedProperty("X-AUTH", jwtToken)
@@ -137,7 +148,7 @@ class InkVCardEngine(
     }
 
     /** List all principals */
-    fun listPrincipals(isLlm: Boolean? = null): List<Map<String, Any>> {
+    override fun listPrincipals(isLlm: Boolean?): List<Map<String, Any>> {
         return principals.entries
             .filter { (id, _) ->
                 isLlm == null || llmFlags[id] == isLlm
@@ -146,7 +157,7 @@ class InkVCardEngine(
     }
 
     /** Get full details of a principal including jCard, X-AUTH, and domain hierarchy */
-    fun getPrincipal(id: String): Map<String, Any>? {
+    override fun getPrincipal(id: String): Map<String, Any>? {
         val vcard = principals[id] ?: return null
         val map = vcardToMap(id, vcard).toMutableMap()
         map["vcard_text"] = Ezvcard.write(vcard).go()
@@ -166,7 +177,7 @@ class InkVCardEngine(
     }
 
     /** Delete a principal */
-    fun deletePrincipal(id: String): Map<String, Any> {
+    override fun deletePrincipal(id: String): Map<String, Any> {
         val existed = principals.remove(id) != null
         folderMappings.remove(id)
         roleMappings.remove(id)
@@ -311,7 +322,7 @@ class InkVCardEngine(
         val cred = authEngine.createLlmCredential(id, host, port, jcard)
 
         // Update X-AUTH with new JWT
-        vcard.setExtendedProperty("X-AUTH", cred["token"])
+        vcard.setExtendedProperty("X-AUTH", cred["token"] as String?)
 
         log.info("Refreshed credential for LLM principal: {}", id)
         return mapOf(

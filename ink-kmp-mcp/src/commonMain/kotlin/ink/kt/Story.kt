@@ -771,7 +771,7 @@ class Story : VariablesState.VariableChanged {
 
         durationStopwatch.stop()
 
-        var changedVariablesToObserve: HashMap<String, InkObject>? = null
+        var changedVariablesToObserve: LinkedHashMap<String, InkObject>? = null
 
         // Successfully finished evaluation in time (or in error)
         if (outputStreamEndsInNewline || !canContinue()) {

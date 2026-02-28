@@ -27,7 +27,7 @@ class InkVCardEngineTest {
 
     @Test
     fun `createPrincipal creates human principal`() {
-        val result = engine.createPrincipal("user1", "Alice Smith", email = "alice@example.com", role = "edit")
+        val result = engine.createPrincipalFull("user1", "Alice Smith", email = "alice@example.com", role = "edit")
 
         assertTrue(result["ok"] as Boolean, "createPrincipal should succeed")
         assertEquals("user1", result["id"])
@@ -45,7 +45,7 @@ class InkVCardEngineTest {
 
     @Test
     fun `createPrincipal creates LLM principal with isLlm true`() {
-        val result = engine.createPrincipal(
+        val result = engine.createPrincipalFull(
             "claude-3", "Claude Sonnet",
             role = "view", isLlm = true
         )
@@ -63,7 +63,7 @@ class InkVCardEngineTest {
 
     @Test
     fun `createPrincipal with explicit folderPath uses provided path`() {
-        val result = engine.createPrincipal(
+        val result = engine.createPrincipalFull(
             "user2", "Bob", folderPath = "/custom/path/"
         )
 
@@ -78,9 +78,9 @@ class InkVCardEngineTest {
 
     @Test
     fun `listPrincipals lists all principals`() {
-        engine.createPrincipal("human1", "Alice", isLlm = false)
-        engine.createPrincipal("llm1", "Claude", isLlm = true)
-        engine.createPrincipal("human2", "Bob", isLlm = false)
+        engine.createPrincipalFull("human1", "Alice", isLlm = false)
+        engine.createPrincipalFull("llm1", "Claude", isLlm = true)
+        engine.createPrincipalFull("human2", "Bob", isLlm = false)
 
         val all = engine.listPrincipals()
         assertEquals(3, all.size, "Should list all 3 principals")
@@ -93,10 +93,10 @@ class InkVCardEngineTest {
 
     @Test
     fun `listPrincipals with isLlm filter returns only matching type`() {
-        engine.createPrincipal("human1", "Alice", isLlm = false)
-        engine.createPrincipal("llm1", "Claude", isLlm = true)
-        engine.createPrincipal("human2", "Bob", isLlm = false)
-        engine.createPrincipal("llm2", "GPT", isLlm = true)
+        engine.createPrincipalFull("human1", "Alice", isLlm = false)
+        engine.createPrincipalFull("llm1", "Claude", isLlm = true)
+        engine.createPrincipalFull("human2", "Bob", isLlm = false)
+        engine.createPrincipalFull("llm2", "GPT", isLlm = true)
 
         val humans = engine.listPrincipals(isLlm = false)
         assertEquals(2, humans.size, "Should list 2 human principals")
@@ -115,7 +115,7 @@ class InkVCardEngineTest {
 
     @Test
     fun `getPrincipal returns details for known principal`() {
-        engine.createPrincipal("user1", "Alice Smith", email = "alice@example.com", role = "edit")
+        engine.createPrincipalFull("user1", "Alice Smith", email = "alice@example.com", role = "edit")
 
         val principal = engine.getPrincipal("user1")
         assertNotNull(principal, "Should find existing principal")
@@ -146,7 +146,7 @@ class InkVCardEngineTest {
 
     @Test
     fun `deletePrincipal removes existing principal`() {
-        engine.createPrincipal("user1", "Alice")
+        engine.createPrincipalFull("user1", "Alice")
 
         val result = engine.deletePrincipal("user1")
         assertTrue(result["ok"] as Boolean, "Deleting existing principal should return ok=true")
@@ -172,8 +172,8 @@ class InkVCardEngineTest {
 
     @Test
     fun `hasRole checks assigned role correctly`() {
-        engine.createPrincipal("editor", "Alice", role = "edit")
-        engine.createPrincipal("viewer", "Bob", role = "view")
+        engine.createPrincipalFull("editor", "Alice", role = "edit")
+        engine.createPrincipalFull("viewer", "Bob", role = "view")
 
         assertTrue(engine.hasRole("editor", "edit"), "editor should have 'edit' role")
         assertFalse(engine.hasRole("editor", "view"), "editor should not have 'view' role")
@@ -189,7 +189,7 @@ class InkVCardEngineTest {
     @Test
     fun `lifecycle create then get then delete`() {
         // 1) Create
-        val createResult = engine.createPrincipal(
+        val createResult = engine.createPrincipalFull(
             "lifecycle1", "Lifecycle User",
             email = "lifecycle@test.org", role = "edit"
         )

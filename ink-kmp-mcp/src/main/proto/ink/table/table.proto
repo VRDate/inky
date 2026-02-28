@@ -1,0 +1,37 @@
+syntax = "proto3";
+package ink.table.model;
+
+option java_package = "ink.table.model";
+option java_multiple_files = true;
+option csharp_namespace = "Ink.Table.Model";
+
+// Flexible-schema MD table types.
+// Columns are dynamic (data, not schema) — supports any emoji category,
+// any DnD stat, any custom formula column.
+
+enum CellType {
+  STRING = 0;
+  INT = 1;
+  FLOAT = 2;
+  BOOL = 3;
+  FORMULA = 4;     // POI XLSX formula (e.g. "=D2+E2*F2")
+  EMOJI = 5;       // Emoji category reference (resolved by EmojiAssetManifest)
+  FAKER = 6;       // Faker method placeholder (resolved by InkFakerEngine)
+}
+
+message MdCell {
+  string value = 1;        // Raw text value
+  string formula = 2;      // POI formula (when type=FORMULA)
+  string evaluated = 3;    // Computed result after POI evaluation
+  CellType type = 4;
+}
+
+message MdRow {
+  map<string, MdCell> cells = 1;  // column_name → typed cell
+}
+
+message MdTable {
+  string name = 1;
+  repeated string columns = 2;   // Dynamic column names
+  repeated MdRow rows = 3;
+}

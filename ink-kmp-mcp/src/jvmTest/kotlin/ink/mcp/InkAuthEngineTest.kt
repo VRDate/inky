@@ -54,9 +54,9 @@ class InkAuthEngineTest {
         assertEquals("test-model", cred["model_name"],
             "model_name should match the provided name")
         assertNotNull(cred["token"], "Credential should include a JWT token")
-        assertTrue(cred["token"]!!.isNotBlank(), "Token should not be blank")
+        assertTrue((cred["token"] as String).isNotBlank(), "Token should not be blank")
         assertNotNull(cred["mcp_uri"], "Credential should include mcp_uri")
-        assertTrue(cred["mcp_uri"]!!.startsWith("mcp://test-model:"),
+        assertTrue((cred["mcp_uri"] as String).startsWith("mcp://test-model:"),
             "mcp_uri should start with mcp://model_name:")
         assertNotNull(cred["basic_auth"], "Credential should include basic_auth")
         assertEquals("test-model:${cred["token"]}", cred["basic_auth"],
@@ -114,7 +114,7 @@ class InkAuthEngineTest {
 
         // Create credential
         val cred = engine.createLlmCredential("llama-3", host = "10.0.0.1", port = 8080)
-        val token = cred["token"]!!
+        val token = cred["token"] as String
 
         // Token retrievable
         assertEquals(token, engine.getLatestToken("llama-3"),
@@ -133,7 +133,7 @@ class InkAuthEngineTest {
             "Auth status llm_models should contain the created model name")
 
         // mcp_uri uses custom host and port
-        assertTrue(cred["mcp_uri"]!!.contains("@10.0.0.1:8080"),
+        assertTrue((cred["mcp_uri"] as String).contains("@10.0.0.1:8080"),
             "mcp_uri should reflect the custom host and port")
     }
 }

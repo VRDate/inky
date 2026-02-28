@@ -24,7 +24,7 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * Each calendar is identified by a string ID (typically matching a story/doc ID).
  */
-class InkCalendarEngine {
+class InkCalendarEngine : McpCalendarOps {
 
     private val log = LoggerFactory.getLogger(InkCalendarEngine::class.java)
 
@@ -41,6 +41,11 @@ class InkCalendarEngine {
         val location: String? = null,
         val status: String? = null
     )
+
+    /** McpCalendarOps override — creates an InkEvent from individual parameters. */
+    override fun createEvent(calId: String, summary: String, description: String?, dtStart: String, dtEnd: String?, category: String?): Map<String, Any> {
+        return createEvent(calId, InkEvent(summary = summary, description = description, dtStart = dtStart, dtEnd = dtEnd, category = category))
+    }
 
     /** Create a game event in a calendar */
     fun createEvent(calendarId: String, event: InkEvent): Map<String, Any> {
@@ -69,7 +74,7 @@ class InkCalendarEngine {
     }
 
     /** List events in a calendar, optionally filtered by category */
-    fun listEvents(calendarId: String, category: String? = null): List<Map<String, Any>> {
+    override fun listEvents(calendarId: String, category: String?): List<Map<String, Any>> {
         val calendar = calendars[calendarId]
             ?: return emptyList()
 
@@ -86,7 +91,7 @@ class InkCalendarEngine {
     }
 
     /** Export a calendar as ICS string */
-    fun exportIcs(calendarId: String): String {
+    override fun exportIcs(calendarId: String): String {
         val calendar = calendars[calendarId]
             ?: throw IllegalArgumentException("Calendar not found: $calendarId")
 
@@ -96,7 +101,7 @@ class InkCalendarEngine {
     }
 
     /** Import events from ICS content into a calendar */
-    fun importIcs(calendarId: String, icsContent: String): Map<String, Any> {
+    override fun importIcs(calendarId: String, icsContent: String): Map<String, Any> {
         val imported = CalendarBuilder().build(StringReader(icsContent))
         val calendar = getOrCreateCalendar(calendarId)
 

@@ -233,7 +233,7 @@ tasks.register<Exec>("npmInstallAi") {
 tasks.register("testKotlin") {
     description = "Run Kotlin tests in ink-kmp-mcp/"
     group = "verification"
-    dependsOn("npmInstallApp")  // BidiTddInkTest.kt needs ink/js/electron/node_modules/inkjs
+    //dependsOn("npmInstallApp")  // BidiTddInkTest.kt needs ink/js/electron/node_modules/inkjs
     dependsOn(":ink-kmp-mcp:test")
 }
 

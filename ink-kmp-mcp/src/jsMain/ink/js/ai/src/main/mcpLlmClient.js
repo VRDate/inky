@@ -5,7 +5,7 @@
  * AI operations through the Kotlin MCP server instead of calling
  * OpenAI-compatible APIs directly.
  *
- * Uses @inky/common/ai-mcp-client under the hood.
+ * Uses @inky/common/ai-mcp-client (InkMcpClient) under the hood.
  *
  * Benefits over direct OpenAI:
  *   - Server manages model lifecycle (JLama, LM Studio, cloud services)
@@ -15,14 +15,14 @@
  *   - Shared model state across all connected clients
  */
 
-const { AiMcpClient } = require('@inky/common');
+const { InkMcpClient } = require('@inky/common');
 
 class McpLlmClient {
   /**
    * @param {string} serverUrl - MCP server URL (default: http://localhost:3001)
    */
   constructor(serverUrl = 'http://localhost:3001') {
-    this.client = new AiMcpClient({ serverUrl });
+    this.client = new InkMcpClient({ serverUrl });
     this.serverUrl = serverUrl;
   }
 
@@ -76,7 +76,7 @@ class McpLlmClient {
    */
   async generateInkCode(prompt, _context = '') {
     const result = await this.client.generateInk(prompt);
-    return result.source;
+    return result.ink_source;
   }
 
   /**

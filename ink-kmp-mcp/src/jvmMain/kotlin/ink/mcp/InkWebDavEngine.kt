@@ -58,7 +58,7 @@ import java.time.temporal.ChronoUnit
 class InkWebDavEngine(
     private val vcardEngine: InkVCardEngine? = null,
     private val basePath: String = "./ink-scripts"
-) {
+) : McpWebDavOps {
 
     private val log = LoggerFactory.getLogger(InkWebDavEngine::class.java)
     private val baseDir = File(basePath)
@@ -90,7 +90,7 @@ class InkWebDavEngine(
      * @param write True for write operations (PUT, DELETE, MKCOL)
      * @return true if access is allowed
      */
-    fun canAccess(principalId: String?, path: String, write: Boolean): Boolean {
+    override fun canAccess(principalId: String?, path: String, write: Boolean): Boolean {
         val normalized = path.removePrefix("/").removePrefix("ink-scripts/")
         val parts = normalized.split("/").filter { it.isNotEmpty() }
 
@@ -141,7 +141,7 @@ class InkWebDavEngine(
     /**
      * Check if a path is in a shared folder (publicly readable).
      */
-    fun isSharedPath(path: String): Boolean {
+    override fun isSharedPath(path: String): Boolean {
         val normalized = path.removePrefix("/").removePrefix("ink-scripts/")
         val parts = normalized.split("/").filter { it.isNotEmpty() }
         return parts.size >= 3 && parts[2] == "shared"
@@ -155,7 +155,7 @@ class InkWebDavEngine(
      * List files and directories at a path (PROPFIND).
      * Returns file metadata including name, size, type, and modification time.
      */
-    fun listFiles(path: String): List<Map<String, Any>> {
+    override fun listFiles(path: String): List<Map<String, Any>> {
         val dir = resolveFile(path)
         if (!dir.exists() || !dir.isDirectory) return emptyList()
 
@@ -178,7 +178,7 @@ class InkWebDavEngine(
      * Get file content (GET).
      * Returns file content as string with metadata.
      */
-    fun getFile(path: String): Map<String, Any>? {
+    override fun getFile(path: String): Map<String, Any>? {
         val file = resolveFile(path)
         if (!file.exists() || !file.isFile) return null
         if (!isAllowedFile(file)) return null
@@ -197,7 +197,7 @@ class InkWebDavEngine(
      * Write file content (PUT).
      * Creates parent directories if needed.
      */
-    fun putFile(path: String, content: String): Map<String, Any> {
+    override fun putFile(path: String, content: String): Map<String, Any> {
         val file = resolveFile(path)
 
         // Validate extension
@@ -224,7 +224,7 @@ class InkWebDavEngine(
     /**
      * Delete a file or empty directory (DELETE).
      */
-    fun deleteFile(path: String): Map<String, Any> {
+    override fun deleteFile(path: String): Map<String, Any> {
         val file = resolveFile(path)
         if (!file.exists()) {
             return mapOf("ok" to false, "error" to "Not found: $path")
@@ -246,7 +246,7 @@ class InkWebDavEngine(
     /**
      * Create a directory (MKCOL).
      */
-    fun mkDir(path: String): Map<String, Any> {
+    override fun mkDir(path: String): Map<String, Any> {
         val dir = resolveFile(path)
         if (dir.exists()) {
             return mapOf(
@@ -334,7 +334,7 @@ class InkWebDavEngine(
      *   script.puml -> script/timestamp.puml
      *   script.svg  -> script/timestamp.svg
      */
-    fun createBackupSet(scriptPath: String): Map<String, Any> {
+    override fun createBackupSet(scriptPath: String): Map<String, Any> {
         val extensions = listOf("ink", "puml", "svg")
         val timestamp = backupTimestampFormat.format(Instant.now())
         val backedUp = mutableListOf<String>()
@@ -365,7 +365,7 @@ class InkWebDavEngine(
     /**
      * List backups for a master file, newest first.
      */
-    fun listBackups(path: String): List<Map<String, Any>> {
+    override fun listBackups(path: String): List<Map<String, Any>> {
         val file = resolveFile(path)
         val baseName = file.nameWithoutExtension
         val backupDir = File(file.parentFile, baseName)
@@ -392,7 +392,7 @@ class InkWebDavEngine(
      * Restore a backup to the master file.
      * Copies the backup content over the master (no-timestamp) file.
      */
-    fun restoreBackup(backupPath: String, masterPath: String): Map<String, Any> {
+    override fun restoreBackup(backupPath: String, masterPath: String): Map<String, Any> {
         val backup = resolveFile(backupPath)
         val master = resolveFile(masterPath)
 
@@ -464,7 +464,7 @@ class InkWebDavEngine(
      * Multiple models can share the same working copy path convention.
      * Yjs/HocusPocus sync merges changes back if enabled.
      */
-    fun createWorkingCopy(
+    override fun createWorkingCopy(
         originPath: String,
         modelId: String
     ): Map<String, Any> {
@@ -594,7 +594,7 @@ class InkWebDavEngine(
      * Sync files from a remote WebDAV server to a local path.
      * Downloads all files from remoteUrl into the local ink-scripts path.
      */
-    fun syncFromRemote(
+    override fun syncFromRemote(
         remoteUrl: String,
         localPath: String,
         username: String?,

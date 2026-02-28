@@ -31,14 +31,14 @@ class McpRouterTest {
 
     companion object {
         private val tools: McpTools by lazy {
-            val editEngine = InkEditEngine()
+            val editEngine = EditEngine()
             McpTools(
                 engine = engine,
                 debugEngine = InkDebugEngine(engine),
                 editEngine = editEngine,
                 colabEngine = ColabEngine(),
                 inkMdEngine = InkMdEngine(),
-                ink2PumlEngine = Ink2PumlEngine(editEngine)
+                pumlOps = Ink2PumlEngine(editEngine)
             )
         }
     }

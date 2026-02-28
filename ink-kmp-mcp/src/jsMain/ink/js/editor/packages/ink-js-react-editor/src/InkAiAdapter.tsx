@@ -11,18 +11,23 @@
  *
  *   // In any child component:
  *   const ai = useInkAi();
- *   const code = await ai.generateInk("A detective story in a train");
+ *   const result = await ai.generateInk("A detective story in a train");
+ *   console.log(result.ink_source); // generated ink code
  */
 
 import React, { createContext, useContext, useMemo, useState, useCallback } from "react";
 import {
-  AiMcpClient,
-  createAiMcpClient,
+  InkMcpClient,
+  createInkMcpClient,
   type LlmModelInfo,
   type LlmService,
+  type LoadModelResult,
   type GenerateInkResult,
   type ReviewInkResult,
   type GenerateCompilePlayResult,
+  type ListModelsResult,
+  type ListServicesResult,
+  type ConnectServiceResult,
 } from "@inky/common/ai-mcp-client";
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -30,10 +35,10 @@ import {
 export interface InkAiState {
   /** Whether the MCP server is reachable. */
   available: boolean;
-  /** Currently loaded model info (null if none loaded). */
-  model: LlmModelInfo | null;
-  /** Connected service info (null if using local JLama). */
-  service: LlmService | null;
+  /** Currently loaded model ID (null if none loaded). */
+  modelId: string | null;
+  /** Connected service ID (null if using local JLama). */
+  serviceId: string | null;
   /** Whether an AI operation is in progress. */
   loading: boolean;
   /** Last error message (null if no error). */
@@ -64,17 +69,17 @@ export interface InkAiActions {
 
   // ── Model Management ──
   /** List available models. */
-  listModels(vramGb?: number): Promise<LlmModelInfo[]>;
+  listModels(vramGb?: number): Promise<ListModelsResult>;
   /** Load a model by ID. */
-  loadModel(modelId: string): Promise<LlmModelInfo>;
+  loadModel(modelId: string): Promise<LoadModelResult>;
   /** Get info about currently loaded model. */
-  modelInfo(): Promise<LlmModelInfo>;
+  modelInfo(): Promise<Record<string, unknown>>;
 
   // ── Service Management ──
   /** List available LLM service providers. */
-  listServices(): Promise<LlmService[]>;
+  listServices(): Promise<ListServicesResult>;
   /** Connect to an external LLM service. */
-  connectService(serviceId: string, options?: { apiKey?: string; model?: string }): Promise<void>;
+  connectService(serviceId: string, options?: { apiKey?: string; model?: string }): Promise<ConnectServiceResult>;
 
   // ── Health ──
   /** Refresh availability status. */
@@ -96,12 +101,12 @@ export interface InkAiProviderProps {
 }
 
 export function InkAiProvider({ serverUrl = "http://localhost:3001", children }: InkAiProviderProps) {
-  const client = useMemo(() => createAiMcpClient(serverUrl), [serverUrl]);
+  const client = useMemo(() => createInkMcpClient(serverUrl), [serverUrl]);
 
   const [state, setState] = useState<InkAiState>({
     available: false,
-    model: null,
-    service: null,
+    modelId: null,
+    serviceId: null,
     loading: false,
     error: null,
   });
@@ -135,23 +140,21 @@ export function InkAiProvider({ serverUrl = "http://localhost:3001", children }:
 
       listModels: (vramGb) => withLoading(() => client.listModels(vramGb)),
       loadModel: async (modelId) => {
-        const info = await withLoading(() => client.loadModel(modelId));
-        setState((s) => ({ ...s, model: info }));
-        return info;
+        const result = await withLoading(() => client.loadModel(modelId));
+        setState((s) => ({ ...s, modelId: result.model_id }));
+        return result;
       },
       modelInfo: async () => {
         const info = await withLoading(() => client.modelInfo());
-        setState((s) => ({ ...s, model: info }));
+        setState((s) => ({ ...s, modelId: (info as any).model_id ?? null }));
         return info;
       },
 
       listServices: () => withLoading(() => client.listServices()),
       connectService: async (serviceId, options) => {
-        await withLoading(() => client.connectService(serviceId, options));
-        setState((s) => ({
-          ...s,
-          service: { id: serviceId, name: serviceId, baseUrl: "", isLocal: false, requiresApiKey: true },
-        }));
+        const result = await withLoading(() => client.connectService(serviceId, options));
+        setState((s) => ({ ...s, serviceId }));
+        return result;
       },
 
       checkAvailability: async () => {

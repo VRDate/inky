@@ -16,12 +16,24 @@ import java.io.ByteArrayOutputStream
  * Also provides PlantUML → SVG rendering via the PlantUML Java API.
  */
 class Ink2PumlEngine(
-    private val editEngine: InkEditEngine = InkEditEngine()
-) {
+    private val editEngine: EditEngine = EditEngine()
+) : McpPumlOps {
 
     private val log = LoggerFactory.getLogger(Ink2PumlEngine::class.java)
 
     enum class DiagramMode { ACTIVITY, STATE }
+
+    // ── McpPumlOps interface override (String mode → DiagramMode) ──
+
+    override fun inkToPuml(source: String, mode: String, title: String): String {
+        val diagramMode = when (mode.lowercase()) {
+            "state" -> DiagramMode.STATE
+            else -> DiagramMode.ACTIVITY
+        }
+        return inkToPuml(source, diagramMode, title)
+    }
+
+    // ── Internal methods (DiagramMode-based) ─────────────────
 
     /**
      * Convert ink source to PlantUML diagram source.
@@ -61,7 +73,7 @@ class Ink2PumlEngine(
      *   ## Diagram
      *   - mcp:ink2puml → activity diagram | mcp:ink2svg → SVG
      */
-    fun generateToc(inkSource: String): String {
+    override fun generateToc(inkSource: String): String {
         val structure = editEngine.parse(inkSource)
         return buildString {
             appendLine("# Ink Story — Table of Contents")
@@ -128,7 +140,7 @@ class Ink2PumlEngine(
                 "${structure.sections.count { it.type == "stitch" }} stitches, " +
                 "${functions.size} functions, " +
                 "${structure.variables.size} variables, " +
-                "${structure.diverts.size} diverts, " +
+                "${structure.divertCount} diverts, " +
                 "${structure.totalLines} lines")
             appendLine("  mcp:ink_stats {\"source\": \"...\"}")
             appendLine()
@@ -153,7 +165,7 @@ class Ink2PumlEngine(
      * Generate a compact PlantUML TOC diagram with MCP links embedded in notes.
      * Designed for LLMs to scan quickly and call the right MCP tool.
      */
-    fun generateTocPuml(inkSource: String, title: String = "Ink Story TOC"): String {
+    override fun generateTocPuml(inkSource: String, title: String): String {
         val structure = editEngine.parse(inkSource)
         val knots = structure.sections.filter { it.type == "knot" }
         val functions = structure.sections.filter { it.type == "function" }
@@ -259,7 +271,7 @@ class Ink2PumlEngine(
      *
      * Uses net.sourceforge.plantuml.SourceStringReader.
      */
-    fun pumlToSvg(pumlSource: String): String {
+    override fun pumlToSvg(pumlSource: String): String {
         return try {
             val readerClass = Class.forName("net.sourceforge.plantuml.SourceStringReader")
             val fileFormatClass = Class.forName("net.sourceforge.plantuml.FileFormat")
@@ -291,7 +303,7 @@ class Ink2PumlEngine(
     // ── Activity Diagram ──────────────────────────────────────────────
 
     private fun generateActivityDiagram(
-        structure: InkEditEngine.InkStructure,
+        structure: InkStructureResponse,
         inkSource: String,
         title: String,
         mcpLinks: Boolean = true
@@ -448,7 +460,7 @@ class Ink2PumlEngine(
     // ── State Diagram ─────────────────────────────────────────────────
 
     private fun generateStateDiagram(
-        structure: InkEditEngine.InkStructure,
+        structure: InkStructureResponse,
         inkSource: String,
         title: String,
         mcpLinks: Boolean = true

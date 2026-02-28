@@ -1,0 +1,34 @@
+syntax = "proto3";
+package ink.llm.model;
+
+option java_package = "ink.llm.model";
+option java_multiple_files = true;
+option csharp_namespace = "Ink.Llm.Model";
+
+// LLM model and service configuration types.
+// Replaces: KT GgufModel, ServiceDef.
+
+message GgufModel {
+  string id = 1;
+  string hugging_face_repo = 2;
+  string file_name = 3;
+  string parameters = 4;
+  string quantization = 5;
+  string architecture = 6;
+  double size_gb = 7;
+  int32 min_vram_gb = 8;
+  bool jlama_compatible = 9;
+  string description = 10;
+}
+
+message ServiceDef {
+  string id = 1;
+  string name = 2;
+  string base_url = 3;
+  string default_model = 4;
+  string api_key_env = 5;
+  string description = 6;
+  bool requires_api_key = 7;
+  bool is_local = 8;
+  string doc_url = 9;
+}

@@ -4,18 +4,20 @@ import com.bladecoder.ink.compiler.Compiler
 import com.bladecoder.ink.runtime.Error.ErrorType
 
 /**
- * JVM actual — uses blade-ink Java compiler for compilation,
+ * JVM actual — uses blade-ink Java compiler for legacy compilation,
  * ink.kt Story for runtime (both read identical JSON format).
+ *
+ * When `legacy=false`, [InkLauncher] uses [InkParser] directly (common code).
+ * This actual is only invoked for `legacy=true`.
  */
 actual object InkPlatform {
 
     actual fun createStory(json: String, legacy: Boolean): Story {
-        // Both ink.kt Story and blade-ink Story read the same JSON format.
-        // Legacy flag reserved for future blade-ink Java runtime parity testing.
         return Story(json)
     }
 
     actual fun compile(source: String, legacy: Boolean): InkLauncher.CompileResult {
+        require(legacy) { "Non-legacy compile uses InkParser in common code" }
         return compileWithBladeInk(source)
     }
 

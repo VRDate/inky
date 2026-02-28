@@ -3,14 +3,14 @@ package ink.mcp
 import kotlin.test.*
 
 /**
- * Unit tests for InkEditEngine — ink source code parsing, editing, and statistics.
+ * Unit tests for EditEngine — ink source code parsing, editing, and statistics.
  *
  * Tests: parse (knots, stitches, functions, variables, includes, diverts),
  * getSection, replaceSection, insertAfter, rename, getStats.
  */
-class InkEditEngineTest {
+class EditEngineTest {
 
-    private val engine = InkEditEngine()
+    private val engine = EditEngine()
 
     companion object {
         private val sampleInk = """
@@ -212,7 +212,7 @@ class InkEditEngineTest {
     fun `listSections returns all sections`() {
         val sections = engine.listSections(sampleInk)
         assertTrue(sections.size >= 4, "Should list >= 4 sections")
-        val names = sections.map { it["name"] as String }
+        val names = sections.map { it.name }
         assertTrue("start" in names)
         assertTrue("ending" in names)
     }

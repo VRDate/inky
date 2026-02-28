@@ -16,17 +16,10 @@ import java.util.concurrent.ConcurrentHashMap
  * Works on top of InkEngine story sessions — each debug session wraps
  * an existing story session and adds instrumentation.
  */
-class InkDebugEngine(private val inkEngine: InkEngine) {
+class InkDebugEngine(private val inkEngine: InkEngine) : McpDebugOps {
 
     private val log = LoggerFactory.getLogger(InkDebugEngine::class.java)
     private val debugSessions = ConcurrentHashMap<String, DebugSession>()
-
-    data class Breakpoint(
-        val id: String,
-        val type: String,      // "knot", "stitch", "pattern", "variable_change"
-        val target: String,    // knot name, stitch path, regex pattern, or variable name
-        val enabled: Boolean = true
-    )
 
     data class WatchVariable(
         val name: String,
@@ -36,7 +29,7 @@ class InkDebugEngine(private val inkEngine: InkEngine) {
 
     data class DebugSession(
         val sessionId: String,
-        val breakpoints: MutableList<Breakpoint> = mutableListOf(),
+        val breakpoints: MutableList<McpDebugOps.Breakpoint> = mutableListOf(),
         val watches: MutableMap<String, WatchVariable> = mutableMapOf(),
         val visitLog: MutableList<VisitEntry> = mutableListOf(),
         var stepping: Boolean = false,
@@ -54,19 +47,8 @@ class InkDebugEngine(private val inkEngine: InkEngine) {
         val timestamp: Long = System.currentTimeMillis()
     )
 
-    data class StepResult(
-        val text: String,
-        val canContinue: Boolean,
-        val choices: List<InkEngine.ChoiceInfo>,
-        val tags: List<String>,
-        val hitBreakpoint: Breakpoint? = null,
-        val watchChanges: Map<String, Pair<Any?, Any?>> = emptyMap(),
-        val stepNumber: Int,
-        val isPaused: Boolean
-    )
-
     /** Start debugging an existing story session */
-    fun startDebug(sessionId: String): Map<String, Any> {
+    override fun startDebug(sessionId: String): Map<String, Any?> {
         if (!inkEngine.hasSession(sessionId)) {
             throw IllegalStateException("No story session: $sessionId")
         }
@@ -83,9 +65,9 @@ class InkDebugEngine(private val inkEngine: InkEngine) {
     }
 
     /** Add a breakpoint */
-    fun addBreakpoint(sessionId: String, type: String, target: String): Breakpoint {
+    override fun addBreakpoint(sessionId: String, type: String, target: String): McpDebugOps.Breakpoint {
         val debug = requireDebug(sessionId)
-        val bp = Breakpoint(
+        val bp = McpDebugOps.Breakpoint(
             id = "bp_${debug.breakpoints.size + 1}",
             type = type,
             target = target
@@ -96,18 +78,18 @@ class InkDebugEngine(private val inkEngine: InkEngine) {
     }
 
     /** Remove a breakpoint */
-    fun removeBreakpoint(sessionId: String, breakpointId: String): Boolean {
+    override fun removeBreakpoint(sessionId: String, breakpointId: String): Boolean {
         val debug = requireDebug(sessionId)
         return debug.breakpoints.removeIf { it.id == breakpointId }
     }
 
     /** List breakpoints */
-    fun listBreakpoints(sessionId: String): List<Breakpoint> {
+    fun listBreakpoints(sessionId: String): List<McpDebugOps.Breakpoint> {
         return requireDebug(sessionId).breakpoints.toList()
     }
 
     /** Add a variable to the watch list */
-    fun addWatch(sessionId: String, varName: String): WatchVariable {
+    override fun addWatch(sessionId: String, varName: String): McpDebugOps.WatchInfo {
         val debug = requireDebug(sessionId)
         val currentValue = try {
             inkEngine.getVariable(sessionId, varName)
@@ -115,7 +97,7 @@ class InkDebugEngine(private val inkEngine: InkEngine) {
 
         val watch = WatchVariable(name = varName, lastValue = currentValue)
         debug.watches[varName] = watch
-        return watch
+        return McpDebugOps.WatchInfo(name = varName, lastValue = currentValue)
     }
 
     /** Remove a watch */
@@ -139,7 +121,7 @@ class InkDebugEngine(private val inkEngine: InkEngine) {
     }
 
     /** Step: continue story until next output, checking breakpoints and watches */
-    fun step(sessionId: String): StepResult {
+    override fun step(sessionId: String): McpDebugOps.StepResult {
         val debug = requireDebug(sessionId)
 
         // Snapshot watch values before step
@@ -179,7 +161,7 @@ class InkDebugEngine(private val inkEngine: InkEngine) {
             variablesChanged = watchChanges.keys.toList()
         ))
 
-        return StepResult(
+        return McpDebugOps.StepResult(
             text = result.text,
             canContinue = result.canContinue,
             choices = result.choices,
@@ -192,11 +174,11 @@ class InkDebugEngine(private val inkEngine: InkEngine) {
     }
 
     /** Continue until a breakpoint is hit or story ends */
-    fun continueDebug(sessionId: String, maxSteps: Int = 100): StepResult {
+    override fun continueDebug(sessionId: String, maxSteps: Int): McpDebugOps.StepResult {
         val debug = requireDebug(sessionId)
         debug.isPaused = false
 
-        var lastResult: StepResult? = null
+        var lastResult: McpDebugOps.StepResult? = null
         var stepsRemaining = maxSteps
 
         while (stepsRemaining > 0) {
@@ -208,7 +190,7 @@ class InkDebugEngine(private val inkEngine: InkEngine) {
             }
         }
 
-        return lastResult ?: StepResult(
+        return lastResult ?: McpDebugOps.StepResult(
             text = "",
             canContinue = false,
             choices = emptyList(),
@@ -219,7 +201,7 @@ class InkDebugEngine(private val inkEngine: InkEngine) {
     }
 
     /** Inspect the current story state */
-    fun inspect(sessionId: String): Map<String, Any?> {
+    override fun inspect(sessionId: String): Map<String, Any?> {
         val debug = requireDebug(sessionId)
 
         return mapOf(
@@ -241,7 +223,7 @@ class InkDebugEngine(private val inkEngine: InkEngine) {
     }
 
     /** Get the full visit log / execution trace */
-    fun getTrace(sessionId: String, lastN: Int = 50): List<Map<String, Any?>> {
+    override fun getTrace(sessionId: String, lastN: Int): List<Map<String, Any?>> {
         val debug = requireDebug(sessionId)
         return debug.visitLog.takeLast(lastN).map { v ->
             mapOf(
@@ -273,7 +255,7 @@ class InkDebugEngine(private val inkEngine: InkEngine) {
         debug: DebugSession,
         text: String,
         watchChanges: Map<String, Pair<Any?, Any?>>
-    ): Breakpoint? {
+    ): McpDebugOps.Breakpoint? {
         for (bp in debug.breakpoints) {
             if (!bp.enabled) continue
 

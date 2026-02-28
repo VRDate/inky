@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentHashMap
  * @see <a href="https://docs.yjs.dev/">Yjs Documentation</a>
  * @see <a href="https://tiptap.dev/hocuspocus">Hocuspocus Protocol</a>
  */
-class ColabEngine {
+class ColabEngine : McpColabOps {
 
     private val log = LoggerFactory.getLogger(ColabEngine::class.java)
 
@@ -58,7 +58,7 @@ class ColabEngine {
     }
 
     /** List active documents with client counts */
-    fun listDocuments(): List<Map<String, Any>> {
+    override fun listDocuments(): List<Map<String, Any>> {
         return documents.map { (id, doc) ->
             mapOf(
                 "doc_id" to id,
@@ -69,7 +69,7 @@ class ColabEngine {
     }
 
     /** Get document info */
-    fun getDocumentInfo(docId: String): Map<String, Any>? {
+    override fun getDocumentInfo(docId: String): Map<String, Any>? {
         return documents[docId]?.let { doc ->
             mapOf(
                 "doc_id" to docId,
@@ -82,7 +82,7 @@ class ColabEngine {
     }
 
     /** Total connected clients across all documents */
-    val totalClients: Int get() = documents.values.sumOf { it.clientCount }
+    override val totalClients: Int get() = documents.values.sumOf { it.clientCount }
 }
 
 /**

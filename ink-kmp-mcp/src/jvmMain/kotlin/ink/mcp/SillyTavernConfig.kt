@@ -57,7 +57,7 @@ object SillyTavernConfig {
         inkSource: String,
         inkEngine: InkEngine? = null
     ): StCharacterCard {
-        val editEngine = InkEditEngine()
+        val editEngine = EditEngine()
         val structure = editEngine.parse(inkSource)
 
         // Extract metadata from global tags

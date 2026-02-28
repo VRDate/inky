@@ -2,8 +2,9 @@ package ink.kt
 
 /**
  * WASM actual — ink.kt compiled to WebAssembly.
- * Replaces legacy pure JS (inkjs) with compiled Kotlin WASM runtime.
- * Compilation uses ink.kt directly (no blade-ink Java compiler).
+ *
+ * When `legacy=false`, [InkLauncher] uses [InkParser] directly (common code).
+ * This actual is only invoked for `legacy=true`, which is not available on WASM.
  */
 actual object InkPlatform {
 
@@ -14,7 +15,7 @@ actual object InkPlatform {
     actual fun compile(source: String, legacy: Boolean): InkLauncher.CompileResult {
         return InkLauncher.CompileResult(
             success = false,
-            errors = listOf("Ink compilation not yet available on WASM target. Use pre-compiled JSON with startSessionFromJson().")
+            errors = listOf("Legacy ink compilation not available on WASM target. Use legacy=false for InkParser.")
         )
     }
 }

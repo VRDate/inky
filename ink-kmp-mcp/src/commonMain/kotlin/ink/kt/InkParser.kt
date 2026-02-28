@@ -30,8 +30,7 @@ object InkParser {
                     val tagTxt = tag.trim()
                     if (tagTxt.isNotEmpty()) {
                         val current = Tag(tagTxt, currentContainer, lineNumber)
-                        if (currentContainer != null)
-                            currentContainer.add(current)
+                        currentContainer?.add(current)
                         if (!content.containsKey(current.id))
                             content[current.id] = current
                     }

@@ -35,6 +35,19 @@ export {
   type InkAiContext,
 } from "./InkAiAdapter";
 
+// Re-export key types from @inky/common for convenience
+export type {
+  GenerateInkResult,
+  ReviewInkResult,
+  GenerateCompilePlayResult,
+  LlmModelInfo,
+  LlmService,
+  LoadModelResult,
+  ListModelsResult,
+  ListServicesResult,
+  ConnectServiceResult,
+} from "@inky/common/ai-mcp-client";
+
 // Runtime Adapter
 export {
   type InkRuntimeAdapter,

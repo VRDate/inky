@@ -1161,16 +1161,28 @@ package "ink/js/[component]" as InkJsComponents #E3F2FD {
             getTempCompileDir(namespace?)
             stripBom(text)
             --
-            **ai-mcp-client.ts**
-            AiMcpClient(serverUrl)
-            chat(message) / explain(query, code?)
-            generateInk(prompt) / reviewInk(source)
-            translateToHebrew(source)
-            generateCompilePlay(prompt)
-            fixErrors(code, errors)
-            listModels() / loadModel(id) / modelInfo()
-            listServices() / connectService(id, opts)
-            isAvailable()
+            **ai-mcp-client.ts (81 tools)**
+            InkMcpClient(serverUrl)
+            ..Ink (17): compile/play/bidi..
+            compileInk() / startStory() / choose()
+            continueStory() / get/setVariable()
+            save/loadState() / bidify/stripBidi()
+            ..Debug (8): breakpoints/watches..
+            startDebug() / debugStep/Continue()
+            addBreakpoint() / addWatch()
+            ..Edit (6): parse/sections..
+            parseInk() / getSection()
+            replaceSection() / renameSection()
+            ..Ink+MD (3) / PlantUML (5)..
+            parseInkMd() / ink2puml() / ink2svg()
+            ..LLM (8): chat/generate/review..
+            chat() / generateInk() / reviewInk()
+            translateToHebrew() / fixErrors()
+            ..Services (2) / Collab (2)..
+            listServices() / connectService()
+            ..Calendar (4) / vCard (4) / Auth (2)..
+            ..WebDAV (10): list/get/put/backup..
+            ..Assets (10): emoji/faker/events..
         }
     }
 
