@@ -42,8 +42,8 @@
 | 33 | NativeFunctionCall | class | class | class | fun interface BinaryOp/UnaryOp | ✅ | **SAM supplier** |
 | 34 | CallStack | class | class | class | class | ✅ | **Fixed Java bug** |
 | 35 | CallStack.Element | nested class | static inner | namespace prop | nested class | ✅ | LinkedHashMap temps |
-| 36 | CallStack.Thread | nested class | static inner | namespace prop | nested class | ✅ | |
-| 37 | Flow | class | class | class | class | ✅ | |
+| 36 | CallStack.InkThread | nested class | static inner | namespace prop | InkThread (nested) | ✅ | **Renamed** — avoids java.lang.Thread clash, = coroutine concept |
+| 37 | InkFlow | class | class | class | InkFlow : Flow\<InkObject\> | ✅ | **REACTIVE** MutableSharedFlow + EmittingList bridge |
 | 38 | StatePatch | class | class | class | class | ✅ | LinkedHashMap/Set |
 | 39 | VariablesState | IEnumerable | Iterable | class | Iterable + operator[] | ✅ | **fun interface** |
 | 40 | Json (stub) | — | — | — | internal object | ⚠️ | Stub for now |
