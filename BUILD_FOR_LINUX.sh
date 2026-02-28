@@ -6,15 +6,17 @@ cd "`dirname "$0"`"
 #     npm install electron-packager -g
 #
 
+INK_JS=ink-kmp-mcp/src/jsMain/ink/js/electron
+
 # Clean
 rm -rf Inky-linux-x64/
 rm -rf ReleaseUpload
 
 # Ensure it's correctly/fully installed first
-( cd ink-electron && npm install )
+( cd "$INK_JS" && npm install && npm test )
 
 # Linux
-electron-packager ink-electron Inky --platform=linux --arch=x64 --icon=resources/Icon.icns --extend-info=resources/info.plist --prune --asar.unpackDir="main-process/ink" --ignore="inklecate_mac"
+electron-packager "$INK_JS" Inky --platform=linux --arch=x64 --icon=resources/Icon.icns --extend-info=resources/info.plist --prune --asar.unpackDir="main-process/ink" --ignore="inklecate_mac"
 
 # Create a zip files ready for upload on Windows/Linux
 mkdir -p ReleaseUpload

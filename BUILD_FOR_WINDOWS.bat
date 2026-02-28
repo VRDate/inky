@@ -5,6 +5,7 @@ REM
 REM     npm install electron-packager -g
 REM
 
-cd ink-electron
+cd ink-kmp-mcp\src\jsMain\ink\js\electron
 call npm install
+call npm test
 call npm run build-package -- win64

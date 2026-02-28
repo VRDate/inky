@@ -48,8 +48,9 @@ public static class InkTestFixtures
         var candidates = new[]
         {
             IOPath.Combine(AppContext.BaseDirectory, "fixtures", "bidi_and_tdd.ink"),
+            IOPath.Combine(ProjectRoot, "ink-kmp-mcp", "src", "commonTest", "resources", "bidi_and_tdd.ink"),
             IOPath.Combine(ProjectRoot, "ink-kmp-mcp", "src", "test", "resources", "bidi_and_tdd.ink"),
-            IOPath.Combine(ProjectRoot, "ink-electron", "test", "fixtures", "bidi_and_tdd.ink"),
+            IOPath.Combine(ProjectRoot, "ink-kmp-mcp", "src", "jsTest", "ink", "js", "fixtures", "bidi_and_tdd.ink"),
         };
 
         foreach (var path in candidates)

@@ -924,4 +924,453 @@ N3 .. StoryState
 N4 .. Story
 N_INKKT .. VariablesState
 
+' ═══════════════════════════════════════════════════════════
+' INK/JS COMPONENT ARCHITECTURE (2026-02-28)
+' ═══════════════════════════════════════════════════════════
+
+package "ink/js/[component]" as InkJsComponents #E3F2FD {
+
+    package "ink/js/electron" as Electron #BBDEFB {
+        class "main.js" as ElMain <<(J,#1565C0) JS>> {
+            Electron entry point
+            App lifecycle + IPC
+            --
+            ipcMain.handle()
+            ipcMain.on()
+        }
+        class "inklecate.js" as ElInklecate <<(J,#1565C0) JS>> {
+            inklecate subprocess
+            --
+            child_process.spawn()
+            error regex parsing
+            bidifyJson() post-process
+            session management
+        }
+        class "playerView.js" as ElPlayer <<(J,#1565C0) JS>> {
+            Story playback (jQuery)
+            --
+            addTextSection(text)
+            addChoice(choice, cb)
+            addTerminatingMessage()
+            word-level spans (source map)
+            Alt-click → jump to source
+            double-buffer sessions
+            bidify() RTL support
+        }
+        class "bidify.js" as ElBidify <<(J,#1565C0) JS>> {
+            Unicode Bidi utility
+            --
+            bidify(text) → LRI/RLI/PDI
+            stripBidi(text)
+            bidifyJson(jsonStr)
+            bidifyLine(line)
+            isRTL(cp) / isLTR(cp)
+        }
+        class "liveCompiler.js" as ElLive <<(J,#1565C0) JS>> {
+            Debounced recompilation
+            --
+            ipc → inklecate.js
+            500ms edit debounce
+            replay choice sequence
+        }
+        class "inkProject.js" as ElProject <<(J,#1565C0) JS>> {
+            Project model + file tree
+            --
+            chokidar file watching
+            INCLUDE resolution
+            symbol scoping
+            export (JSON/JS/web)
+        }
+        class "ace-ink.js" as AceInk <<(J,#1565C0) JS>> {
+            Ace editor ink mode
+            --
+            syntax highlighting rules
+            folding (knot/stitch)
+            autocompletion (keywords)
+        }
+    }
+
+    package "ink/js/editor" as Editor #C8E6C9 {
+        note as N_EDITOR
+          **Web-based alternative editor (not used by electron or ai)**
+          electron/ and ai/ use **Ace** directly (ace-ink.js).
+          This package is an independent React-based editor
+          for web/MAUI/embedded contexts.
+          ```ink blocks in markdown use **Ace** by default.
+        end note
+        class "ink-js-language" as EdLang <<(T,#2E7D32) TS>> {
+            Shared ink grammar
+            --
+            classifyLine(line)
+            ~65+ regex patterns
+            INK_KEYWORDS (17)
+            INK_BUILTIN_FUNCTIONS (10)
+            InkTokenType / InkLineType
+        }
+        class "ink-js-codemirror" as EdCM <<(T,#2E7D32) TS>> {
+            CodeMirror 6 extension
+            --
+            inkStreamParser (tokenizer)
+            inkHighlightStyle (colors)
+            inkCompletionSource
+            inkFolding (knot/stitch)
+            inkYjsExtension (collab)
+        }
+        class "ink-js-remirror" as EdRM <<(T,#2E7D32) TS>> {
+            Remirror/ProseMirror ext
+            (markdown + embedded ink)
+            --
+            InkExtension (commands)
+            ink-node-view (```ink blocks)
+            ..Ace (default) or CM6..
+            ink-schema (knot/choice specs)
+            ink-yjs (collab Y.Doc)
+        }
+        class "ink-js-react-editor" as EdReact <<(T,#2E7D32) TS>> {
+            React components (web UI)
+            --
+            InkEditorProvider (context)
+            InkCodeEditor (CM6 standalone)
+            InkRemirrorEditor (MD+Ace)
+            InkPlayer / InkPlayPreview
+            InkRuntimeAdapter (3 backends)
+            AssetEventClient (msgpack)
+            ModeToggle (Edit/Play)
+            ..
+            InkAiProvider (AI context)
+            useInkAi() hook
+        }
+    }
+
+    package "ink/js/pwa" as Pwa #FFE0B2 {
+        class "background.js" as PwaBg <<(J,#E65100) JS>> {
+            Service worker
+            --
+            MCP JSON-RPC 2.0 client
+            chrome.runtime messaging
+            fetch → /message endpoint
+            callTool(name, args)
+        }
+        class "sidepanel.js" as PwaSide <<(J,#E65100) JS>> {
+            Editor + Player + Debug
+            --
+            handleStory(resp)
+            choice rendering loop
+            story history accumulation
+            tab switching (3 panels)
+        }
+        class "popup.js" as PwaPopup <<(J,#E65100) JS>> {
+            Quick play popup
+            --
+            handleStoryResponse(resp)
+            choice rendering loop
+            server connect UI
+        }
+        class "content.js" as PwaContent <<(J,#E65100) JS>> {
+            Content script
+            --
+            detect <script type=ink+json>
+            detect <pre class=ink>
+            detect <a href=*.ink>
+            inject Play buttons
+        }
+    }
+
+    package "ink/js/ai" as Ai #F3E5F5 {
+        class "compiler.js" as AiCompiler <<(J,#6A1B9A) JS>> {
+            inklecate wrapper
+            --
+            compile(inkFilePath)
+            validate(inkFilePath)
+            parseOutput(output)
+            isAvailable() / getVersion()
+        }
+        class "llmClient.js" as AiLlm <<(J,#6A1B9A) JS>> {
+            OpenAI-compatible LLM
+            --
+            chat() / chatStream()
+            generateInkCode(prompt)
+            fixErrors(code, errors, docs)
+            explain(query, code, docs)
+        }
+        class "vectorStore.js" as AiVec <<(J,#6A1B9A) JS>> {
+            Supabase RAG
+            --
+            generateEmbedding(text)
+            search(query, limit)
+            batchInsert(documents)
+            formatForContext(results)
+        }
+        class "fileWatcher.js" as AiWatch <<(J,#6A1B9A) JS>> {
+            chokidar file watch
+            --
+            watch(paths, callbacks)
+            auto-compile on change
+        }
+        class "errorParser.js" as AiErr <<(J,#6A1B9A) JS>> {
+            Error enhancement
+            --
+            enhanceErrors(errors)
+            suggestQuickFixes(error)
+            summarizeForAI(errors)
+        }
+        class "mcpLlmClient.js" as AiMcp <<(J,#6A1B9A) JS>> {
+            MCP-backed LLM client
+            (drop-in for llmClient.js)
+            --
+            chat() / chatStream()
+            generateInkCode() / fixErrors()
+            explain() / chatAboutInk()
+            reviewInk() / translateToHebrew()
+            generateCompilePlay()
+            listModels() / loadModel()
+            listServices() / connectService()
+            isAvailable() / getConfig()
+        }
+    }
+
+    package "ink/js/web-export" as WebExport #FFECB3 {
+        class "main.js" as WeMjs <<(J,#F57F17) JS>> {
+            Standalone story player
+            --
+            continueStory(firstTime)
+            restart() / save / load
+            setupTheme() / setupDirection()
+            tag dispatch (AUDIO, IMAGE, ...)
+            localStorage save/load
+            smooth scroll + fade-in
+        }
+    }
+
+    package "ink/js/common" as Common #E8F5E9 {
+        class "@inky/common" as CommonPkg <<(T,#1B5E20) TS>> {
+            Shared utilities (Phase 1)
+            ==
+            **mcp-client.ts**
+            parseMcpResponse<T>(resp)
+            parseMcpResponseSafe<T>(resp)
+            buildMcpRequest(tool, args)
+            callMcpTool<T>(url, tool, args)
+            checkMcpHealth(url)
+            --
+            **inklecate-runner.ts**
+            parseInklecateIssue(line)
+            parseInklecateOutput(output)
+            getInklecateBinaryName(platform?)
+            findInklecatePath(options?)
+            getTempCompileDir(namespace?)
+            stripBom(text)
+            --
+            **ai-mcp-client.ts**
+            AiMcpClient(serverUrl)
+            chat(message) / explain(query, code?)
+            generateInk(prompt) / reviewInk(source)
+            translateToHebrew(source)
+            generateCompilePlay(prompt)
+            fixErrors(code, errors)
+            listModels() / loadModel(id) / modelInfo()
+            listServices() / connectService(id, opts)
+            isAvailable()
+        }
+    }
+
+    ' ── Dependencies ──
+
+    ' Editor internal deps
+    EdCM --> EdLang : imports grammar
+    EdRM --> EdLang : imports grammar
+    EdRM ..> EdCM : CM6 option for ```ink blocks
+    EdRM --> AceInk : **Ace (default)** for ```ink blocks
+    EdReact --> EdCM : InkCodeEditor (standalone .ink)
+    EdReact --> EdRM : InkRemirrorEditor (MD+ink)
+    EdReact --> CommonPkg : callMcpTool
+
+    ' PWA uses shared MCP helpers
+    PwaPopup ..> CommonPkg : parseMcpResponseSafe
+    PwaSide ..> CommonPkg : parseMcpResponseSafe
+
+    ' Electron and AI use Ace directly (NOT the react editor)
+    ElMain --> AceInk : **primary editor**
+
+    ' AI MCP client dependencies
+    EdReact --> CommonPkg : AiMcpClient (InkAiAdapter)
+    AiMcp --> CommonPkg : AiMcpClient (wraps MCP tools)
+    ElMain --> AiMcp : MCP-first, fallback to LLMClient
+}
+
+
+' ═══════════════════════════════════════════════════════════
+' DUPLICATION ANALYSIS — MERGE CANDIDATES
+' ═══════════════════════════════════════════════════════════
+
+note as N_DUP1
+  **🔴 HIGH: Story Player — 3 implementations (~900 lines)**
+  ══════════════════════════════════════════════════════════
+  All three render story text + choices from inkjs Story API.
+
+  | File | Lines | Framework | Features |
+  |------|-------|-----------|----------|
+  | **web-export/main.js** | 456 | vanilla DOM | save/load, themes, tags, audio/image, scroll anim |
+  | **electron/playerView.js** | 335 | jQuery | multi-session buffers, word-level source map, Alt-click |
+  | **pwa/sidepanel.js** | 93 | vanilla DOM | MCP message-based, history tracking |
+
+  **Common logic to extract → ink/js/shared/storyPlayer.js:**
+  - Choice rendering loop (create button, wire click → chooseIndex)
+  - Story text paragraph splitting + append
+  - "— The End —" termination message
+  - Fade-in animation (shared timing, respects prefers-reduced-motion)
+  - RTL direction setup (dir="auto" / "rtl" class)
+  - Tag dispatching (AUDIO, IMAGE, CLEAR, CLASS, etc.)
+
+  **Unique per-component (keep separate):**
+  - electron: word-level spans, Alt-click source map, double-buffer sessions
+  - web-export: localStorage save/load, standalone HTML template
+  - pwa: chrome.runtime.sendMessage async, MCP response parsing
+end note
+
+note as N_DUP2
+  **🔴 HIGH: Compiler/inklecate — 2 implementations (~410 lines)**
+  ════════════════════════════════════════════════════════════════
+  Both spawn inklecate, parse stderr, manage temp files.
+
+  | File | Lines | Extras |
+  |------|-------|--------|
+  | **electron/inklecate.js** | ~350 | export JSON, bidifyJson, play mode, stats, multi-session |
+  | **ai/compiler.js** | ~205 | validate mode, isAvailable(), getVersion() |
+
+  **Merge → ink/js/shared/inklecate.js:**
+  - child_process.spawn() with platform-aware paths
+  - stderr regex parsing: /^(ERROR|WARNING|TODO|AUTHOR):\s+/
+  - Temp file creation (mkdirp + unique paths)
+  - Session tracking (sessionId → process map)
+
+  **Keep separate:**
+  - electron: bidifyJson() post-processing, play/choice IPC, export formats
+  - ai: validate-only mode (/dev/null output), version detection
+end note
+
+note as N_DUP3
+  **🟡 MEDIUM: MCP Response Parsing — 3 implementations (~60 lines)**
+  ═══════════════════════════════════════════════════════════════════
+  Identical JSON-RPC 2.0 response extraction logic duplicated.
+
+  | File | Pattern |
+  |------|---------|
+  | **pwa/popup.js** | resp.result?.content?.[0]?.text → JSON.parse |
+  | **pwa/sidepanel.js** | resp?.result?.content?.[0]?.text → JSON.parse |
+  | **editor/InkRuntimeAdapter.ts** | data.result?.content?.[0]?.text → JSON.parse |
+
+  **Merge → ink/js/shared/mcpClient.js:**
+  - parseMcpResponse(resp) → { text, choices, sessionId, canContinue }
+  - callTool(serverUrl, toolName, args) → JSON-RPC 2.0 POST
+  - checkHealth(serverUrl) → boolean
+end note
+
+note as N_DUP4
+  **🟡 MEDIUM: Choice Rendering — 4 implementations**
+  ═════════════════════════════════════════════════════
+  All create button/link elements with choice.text + click handler.
+
+  | File | Element | Click Handler |
+  |------|---------|---------------|
+  | **web-export/main.js** | <a class="choice"> | story.ChooseChoiceIndex(idx) |
+  | **electron/playerView.js** | <a class="choice"> | callback(choice) |
+  | **pwa/popup.js** | <button class="choice-btn"> | sendMessage({type:'choose'}) |
+  | **pwa/sidepanel.js** | <button class="choice"> | sendMessage({type:'choose'}) |
+
+  popup.js lines 76-89 ≡ sidepanel.js lines 71-85 (character-identical)
+
+  **Merge → ink/js/shared/renderChoices.js:**
+  - renderChoices(container, choices, onChoose, opts?)
+  - opts: { elementTag, className, animate }
+end note
+
+note as N_DUP5
+  **🟡 MEDIUM: Syntax Highlighting — Ace vs CodeMirror (~500 lines overlap)**
+  ═══════════════════════════════════════════════════════════════════════════
+  **ace-ink.js** is the canonical ink editor mode, used by:
+    - electron/ (primary .ink editor)
+    - ai/ (AI assistant editor)
+    - editor/ink-js-remirror (```ink blocks in markdown — **default**)
+  **ink-js-language** extracts shared regex patterns; CodeMirror uses them.
+
+  | Feature | ace-ink.js | ink-js-codemirror | Shared in ink-js-language |
+  |---------|-----------|-------------------|---------------------------|
+  | Regex patterns | inline | imported | ✅ source of truth |
+  | Folding | ~70 lines | ~40 lines | ⬜ extract foldRange() |
+  | Autocompletion | ~70 lines | ~20 lines | ⬜ extract completions |
+  | Color theme | CSS classes | HighlightStyle | (separate — different frameworks) |
+
+  **Merge opportunity:**
+  - ace-ink.js folding should import FOLD_START/KNOT_BOUNDARY from ink-js-language
+  - ace-ink.js keywords array should import INK_KEYWORDS from ink-js-language
+  - Extract foldRange(lines, startLine, isKnot) to ink-js-language
+end note
+
+note as N_DUP6
+  **🟡 MEDIUM: File Watching — 2 implementations**
+  ══════════════════════════════════════════════════
+  Both use chokidar with similar config.
+
+  | File | Pattern |
+  |------|---------|
+  | **electron/inkProject.js** | chokidar.watch() + auto-reload includes |
+  | **ai/fileWatcher.js** | chokidar.watch() + auto-compile |
+
+  **Merge → ink/js/shared/inkFileWatcher.js:**
+  - watch(paths, { onFileChange, onError })
+  - Shared chokidar config (ignoreInitial, awaitWriteFinish, dotfiles)
+end note
+
+note as N_DUP7
+  **🟢 LOW: Electron Boilerplate — 2 Electron apps**
+  ═════════════════════════════════════════════════════
+  electron/ and ai/ both have:
+  - BrowserWindow creation with contextIsolation
+  - preload.js exposing IPC via contextBridge
+  - ipcMain.handle() / ipcMain.on() patterns
+  - File dialog operations
+  - Dark theme CSS with similar variables
+
+  **Merge → ink/js/shared/electronSetup.js:**
+  - createSecureWindow(opts) (webPreferences, preload, devTools)
+  - Standard IPC channel helpers
+end note
+
+note as N_DUP8
+  **🟢 LOW: Config / Inklecate Path Detection**
+  ══════════════════════════════════════════════
+  ai/config.js has clean getInklecatePath() with
+  multi-path search (sibling install, home dir, env var).
+  electron/inklecate.js has inline path logic.
+
+  **Merge → ink/js/shared/config.js**
+end note
+
+note as N_DUP9
+  **🟢 LOW: Test Helper Duplication**
+  ════════════════════════════════════
+  jsTest/ink/js/test.js re-implements ~60% of
+  e2e-helpers.js inline (launchApp, setEditorContent,
+  waitForStoryText, waitForChoice, etc.).
+
+  **Fix: import from e2e-helpers.js instead.**
+end note
+
+N_DUP1 .. ElPlayer
+N_DUP1 .. WeMjs
+N_DUP1 .. PwaSide
+N_DUP2 .. ElInklecate
+N_DUP2 .. AiCompiler
+N_DUP3 .. PwaPopup
+N_DUP3 .. PwaSide
+N_DUP4 .. ElPlayer
+N_DUP4 .. PwaPopup
+N_DUP5 .. AceInk
+N_DUP5 .. EdCM
+N_DUP6 .. ElProject
+N_DUP6 .. AiWatch
+N_DUP7 .. ElMain
+N_DUP8 .. AiCompiler
+
 @enduml

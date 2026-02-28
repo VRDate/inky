@@ -169,12 +169,23 @@ class Profiler {
 
     companion object {
         fun formatMillisecs(num: Double): String = when {
-            num > 5000 -> "%.1f secs".format(num / 1000.0)
-            num > 1000 -> "%.2f secs".format(num / 1000.0)
-            num > 100 -> "%.0f ms".format(num)
-            num > 1 -> "%.1f ms".format(num)
-            num > 0.01 -> "%.3f ms".format(num)
-            else -> "%.0f ms".format(num)
+            num > 5000 -> "${roundTo(num / 1000.0, 1)} secs"
+            num > 1000 -> "${roundTo(num / 1000.0, 2)} secs"
+            num > 100 -> "${roundTo(num, 0)} ms"
+            num > 1 -> "${roundTo(num, 1)} ms"
+            num > 0.01 -> "${roundTo(num, 3)} ms"
+            else -> "${roundTo(num, 0)} ms"
+        }
+
+        private fun roundTo(value: Double, decimals: Int): String {
+            if (decimals == 0) return value.toLong().toString()
+            var factor = 1.0
+            repeat(decimals) { factor *= 10 }
+            val rounded = kotlin.math.round(value * factor) / factor
+            val str = rounded.toString()
+            val dot = str.indexOf('.')
+            return if (dot < 0) "$str.${"0".repeat(decimals)}"
+            else str.padEnd(dot + 1 + decimals, '0').substring(0, dot + 1 + decimals)
         }
     }
 }

@@ -33,7 +33,7 @@ class Expression(originalExpression: String) {
     private var rpn: List<String>? = null
     private val firstVarChars: String = "_"
     private val varChars: String = "_."
-    private val operators = sortedMapOf<String, Operator>(String.CASE_INSENSITIVE_ORDER)
+    private val operators = CaseInsensitiveMap<Operator>()
     private var expression: String = originalExpression.trim()
         private set
 

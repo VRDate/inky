@@ -176,7 +176,7 @@ class Story : VariablesState.VariableChanged {
     val text: MutableList<String> = mutableListOf()
     val choices = mutableListOf<Container>()
     internal val variables = mutableMapOf<String, Any>()
-    internal val functions = sortedMapOf<String, Function>(String.CASE_INSENSITIVE_ORDER)
+    internal val functions = CaseInsensitiveMap<Function>()
 
     /** Parser constructor: builds a story from parsed ink text. */
     constructor(
@@ -557,7 +557,13 @@ class Story : VariablesState.VariableChanged {
         if (!condition) {
             var msg = message ?: "Story assert"
             if (formatParams.isNotEmpty()) {
-                msg = msg.format(*formatParams)
+                // KMP-safe string interpolation (no String.format on JS/Native)
+                var result = msg
+                for (param in formatParams) {
+                    val idx = result.indexOf("%s")
+                    if (idx >= 0) result = result.substring(0, idx) + param.toString() + result.substring(idx + 2)
+                }
+                msg = result
             }
             throw Exception("$msg ${currentDebugMetadata()}")
         }

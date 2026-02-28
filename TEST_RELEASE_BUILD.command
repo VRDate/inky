@@ -1,3 +1,3 @@
 cd "`dirname "$0"`"
-cd ink-electron
+cd ink-kmp-mcp/src/jsMain/ink/js
 npm test

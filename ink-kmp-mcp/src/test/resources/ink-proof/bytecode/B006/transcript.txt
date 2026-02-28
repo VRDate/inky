@@ -1,2 +1,0 @@
-This is not printed:
-Neither is this:

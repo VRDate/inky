@@ -7,7 +7,21 @@
       "Bash(grep:*)",
       "WebSearch",
       "Bash(./gradlew :ink-kmp-mcp:compileKotlin:*)",
-      "Bash(./gradlew :ink-kmp-mcp:test:*)"
+      "Bash(./gradlew :ink-kmp-mcp:test:*)",
+      "Bash(./gradlew :ink-kmp-mcp:compileTestKotlin:*)",
+      "Bash(mkdir:*)",
+      "Bash(rm:*)",
+      "Bash(./gradlew :ink-kmp-mcp:compileKotlinJvm:*)",
+      "Bash(./gradlew :ink-kmp-mcp:compileKotlinJs:*)",
+      "Bash(cp:*)",
+      "Bash(./gradlew :ink-kmp-mcp:wasmJsTest:*)",
+      "Bash(./gradlew :ink-kmp-mcp:compileTestKotlinWasmJs:*)",
+      "Bash(dotnet restore:*)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet test:*)",
+      "Bash(./gradlew buildPwaChrome:*)",
+      "Bash(./gradlew buildPwaAll:*)",
+      "Bash(mv:*)"
     ]
   }
 }

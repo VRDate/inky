@@ -1,8 +1,8 @@
 plugins {
-    kotlin("jvm") version "2.3.0"
-    kotlin("plugin.serialization") version "2.3.0"
-    id("com.google.protobuf") version "0.9.6"
-    application
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.kotlin.serialization)
+    // Protobuf codegen: java plugin incompatible with KMP 2.3 — use pre-generated sources
+    // or move to ink-model-proto submodule with java-library plugin
 }
 
 group = "ink.mcp"
@@ -10,104 +10,6 @@ version = "0.3.0"
 
 repositories {
     mavenCentral()
-}
-
-val ktorVersion = "3.1.1"
-val graalVersion = "25.0.2"
-val camelVersion = "4.18.0"
-val langchain4jVersion = "1.11.0"
-val jlamaVersion = "0.8.4"
-val protobufVersion = "4.28.3"
-val fakerVersion = "2.0.0-rc.7"
-
-dependencies {
-    // Ktor 3.x server
-    implementation("io.ktor:ktor-server-core:$ktorVersion")
-    implementation("io.ktor:ktor-server-netty:$ktorVersion")
-    implementation("io.ktor:ktor-server-content-negotiation:$ktorVersion")
-    implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
-    implementation("io.ktor:ktor-server-cors:$ktorVersion")
-    implementation("io.ktor:ktor-server-status-pages:$ktorVersion")
-    implementation("io.ktor:ktor-server-sse:$ktorVersion")
-    implementation("io.ktor:ktor-server-websockets:$ktorVersion")
-    implementation("io.ktor:ktor-server-auth:$ktorVersion")
-    implementation("io.ktor:ktor-server-auth-jwt:$ktorVersion")
-
-    // Kotlinx serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
-
-    // Kotlinx datetime — KMP-compatible wall clock (Clock.System)
-    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.2")
-
-    // GraalJS engine (Oracle GraalVM)
-    implementation("org.graalvm.polyglot:polyglot:$graalVersion")
-    implementation("org.graalvm.polyglot:js:$graalVersion")
-
-    // Apache Camel
-    implementation("org.apache.camel:camel-core:$camelVersion")
-    implementation("org.apache.camel:camel-main:$camelVersion")
-    implementation("org.apache.camel:camel-direct:$camelVersion")
-    implementation("org.apache.camel:camel-langchain4j-chat:$camelVersion")
-    implementation("org.apache.camel:camel-langchain4j-tools:$camelVersion")
-    implementation("org.apache.camel:camel-jackson:$camelVersion")
-
-    // LangChain4j + JLama + OpenAI (for LM Studio)
-    implementation("dev.langchain4j:langchain4j:$langchain4jVersion")
-    implementation("dev.langchain4j:langchain4j-jlama:$langchain4jVersion-beta19")
-    implementation("dev.langchain4j:langchain4j-open-ai:$langchain4jVersion")
-
-    // JLama core + native
-    implementation("com.github.tjake:jlama-core:$jlamaVersion")
-    implementation("com.github.tjake:jlama-native:$jlamaVersion") {
-        artifact {
-            classifier = osClassifier()
-        }
-    }
-
-    // PlantUML (MIT license) for diagram rendering
-    implementation("net.sourceforge.plantuml:plantuml-mit:1.2024.8")
-
-    // iCal4j for calendar/event management
-    implementation("org.mnode.ical4j:ical4j:4.0.7")
-
-    // ez-vcard for vCard principal management
-    implementation("com.googlecode.ez-vcard:ez-vcard:0.12.1")
-
-    // Sardine WebDAV client
-    implementation("com.github.lookfirst:sardine:5.12")
-
-    // Protocol Buffers — unified ink.model contract (KT/TS/C#/Python codegen)
-    implementation("com.google.protobuf:protobuf-kotlin:$protobufVersion")
-    implementation("com.google.protobuf:protobuf-java-util:$protobufVersion")
-
-    // RSocket-Kotlin — event-driven transport (AsyncAPI contract)
-    implementation("io.rsocket.kotlin:rsocket-ktor-server:0.16.0")
-    implementation("io.rsocket.kotlin:rsocket-ktor-client:0.16.0")
-
-    // msgpack serialization for RSocket transport
-    implementation("org.msgpack:jackson-dataformat-msgpack:0.9.8")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.17.2")
-
-    // kotlin-faker 2.0 (modular) — emoji category → faker methods
-    implementation("io.github.serpro69:kotlin-faker:$fakerVersion")
-    implementation("io.github.serpro69:kotlin-faker-games:$fakerVersion")
-
-    // Apache POI — XLSX formula evaluation for MD table formulas
-    implementation("org.apache.poi:poi-ooxml:5.2.5")
-
-    // Logging
-    implementation("ch.qos.logback:logback-classic:1.5.15")
-
-    // Testing
-    testImplementation("io.ktor:ktor-server-test-host:$ktorVersion")
-    testImplementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
-    testImplementation("org.jetbrains.kotlin:kotlin-test:2.3.0")
-
-    // WireMock — HTTP/WebSocket mock server for HocusPocus Yjs event monitoring
-    testImplementation("org.wiremock:wiremock:3.10.0")
-
-    // Flexmark — CommonMark markdown parser for testing md+ink integration
-    testImplementation("com.vladsch.flexmark:flexmark-all:0.64.8")
 }
 
 fun osClassifier(): String {
@@ -126,21 +28,94 @@ fun osClassifier(): String {
     return "$osName-$archName"
 }
 
-sourceSets {
-    main {
-        kotlin.srcDirs("src")
-        kotlin.exclude("test/**")
-        kotlin.exclude("jvmMain/kotlin/ink/java/mica/test/**")
-        resources.exclude("test/**")
-        // blade-ink Java runtime + compiler (MIT, v1.3.3-SNAPSHOT from bladecoder/blade-ink)
-        java.srcDirs("src/jvmMain/java")
-        proto {
-            srcDirs("src/main/proto")
-        }
+kotlin {
+    jvmToolchain(libs.versions.jdk.get().toInt())
+
+    jvm()  // MCP server + blade-ink + mica (Java compiled by default in Kotlin 2.3+ KMP)
+    js(IR) {
+        nodejs()  // ink-electron (Electron/Node.js UI — JS actual)
     }
-    test {
-        kotlin.srcDirs("src/test/kotlin")
-        resources.srcDirs("src/test/resources")
+    wasmJs {
+        nodejs()  // ink.kt compiled to WASM — replaces legacy pure JS (inkjs)
+    }
+    // Future KMP targets:
+    // iosArm64()
+    // iosSimulatorArm64()
+
+    sourceSets {
+        // ── Common (ink.kt pure-Kotlin runtime — all targets) ────────
+        commonMain.dependencies {
+            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.kotlinx.datetime)
+            implementation(libs.kotlinx.coroutines.core)
+        }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+        }
+
+        // ── JVM (MCP server, mica, blade-ink, GraalJS, Ktor) ────────
+        jvmMain {
+            // mica test specs live in jvmMain/kotlin/ink/java/mica/test/ — exclude from main
+            kotlin.exclude("**/ink/java/mica/test/**")
+
+            dependencies {
+                // Ktor 3.x server
+                implementation(libs.bundles.ktor.server)
+
+                // GraalJS engine (Oracle GraalVM)
+                implementation(libs.bundles.graal)
+
+                // Apache Camel
+                implementation(libs.bundles.camel)
+
+                // LangChain4j + JLama + OpenAI
+                implementation(libs.bundles.langchain4j.all)
+
+                // JLama native
+                implementation(libs.jlama.core)
+                implementation("com.github.tjake:jlama-native:${libs.versions.jlama.get()}") {
+                    artifact { classifier = osClassifier() }
+                }
+
+                // PlantUML (MIT) for diagram rendering
+                implementation(libs.plantuml)
+
+                // Calendar + vCard + WebDAV
+                implementation(libs.ical4j)
+                implementation(libs.ezvcard)
+                implementation(libs.sardine)
+
+                // Protocol Buffers — pre-generated ink.model contract
+                implementation(libs.bundles.protobuf)
+
+                // RSocket-Kotlin — event-driven transport
+                implementation(libs.bundles.rsocket)
+
+                // msgpack + Jackson serialization
+                implementation(libs.bundles.jackson)
+
+                // kotlin-faker — emoji category mapping
+                implementation(libs.bundles.faker.all)
+
+                // Apache POI — XLSX formula evaluation
+                implementation(libs.poi.ooxml)
+
+                // Logging
+                implementation(libs.logback)
+            }
+        }
+        jvmTest.dependencies {
+            implementation(libs.ktor.server.test.host)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.wiremock)
+            implementation(libs.flexmark)
+        }
+
+        // ── JS (Electron UI — jsActual) ──────────────────────────────
+        // jsMain/jsTest — Electron UI is the JS actual implementation
+
+        // ── WASM (ink.kt compiled to WASM — replaces legacy inkjs) ───
+        // wasmJsMain/wasmJsTest — pure ink.kt runtime compiled to WASM
     }
 }
 
@@ -148,28 +123,21 @@ tasks.withType<Copy> {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
-application {
+// ── JVM run task (replaces application plugin) ───────────────────
+tasks.register<JavaExec>("runServer") {
+    group = "application"
+    description = "Run the ink MCP server"
     mainClass.set("ink.mcp.MainKt")
-    applicationDefaultJvmArgs = listOf(
-        "--add-modules", "jdk.incubator.vector",
-        "--enable-preview"
+    val jvmCompilation = kotlin.jvm().compilations["main"]
+    classpath = files(
+        jvmCompilation.output.allOutputs,
+        configurations.named("jvmRuntimeClasspath")
     )
+    jvmArgs("--add-modules", "jdk.incubator.vector", "--enable-preview")
 }
 
-tasks.test {
-    dependsOn(":npmInstallApp")  // BidiTddInkTest.kt needs ink-electron/node_modules/inkjs
-    useJUnitPlatform()
-    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
-    setForkEvery(50)
-    reports.junitXml.required.set(true)
-    reports.html.required.set(true)
-    testLogging {
-        events("passed", "skipped", "failed")
-        showStandardStreams = false
-    }
-}
-
-tasks.jar {
+// ── JVM JAR ──────────────────────────────────────────────────────
+tasks.named<Jar>("jvmJar") {
     manifest {
         attributes["Main-Class"] = "ink.mcp.MainKt"
     }
@@ -182,32 +150,49 @@ tasks.register<Jar>("fatJar") {
     manifest {
         attributes["Main-Class"] = "ink.mcp.MainKt"
     }
-    from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
-    with(tasks.jar.get())
+    from(configurations.named("jvmRuntimeClasspath").get().map { if (it.isDirectory) it else zipTree(it) })
+    with(tasks.named<Jar>("jvmJar").get())
 }
 
-kotlin {
-    jvmToolchain(21)
-}
-
-// ── Protobuf code generation ─────────────────────────────────────
-// Generates Java/Kotlin classes from .proto files in src/main/proto/ink/model/
-// Generated code: build/generated/source/proto/main/java/ink/model/
-protobuf {
-    protoc {
-        artifact = "com.google.protobuf:protoc:$protobufVersion"
+// ── JVM test configuration ───────────────────────────────────────
+tasks.named<Test>("jvmTest") {
+    dependsOn(":npmInstallApp")  // BidiTddInkTest.kt needs ink/js/electron/node_modules/inkjs
+    useJUnitPlatform()
+    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
+    setForkEvery(50)
+    reports.junitXml.required.set(true)
+    reports.html.required.set(true)
+    testLogging {
+        events("passed", "skipped", "failed")
+        showStandardStreams = false
     }
-    generateProtoTasks {
-        all().forEach { task ->
-            task.builtins {
-                named("java") {}
-            }
-        }
+    // GraalJS tests are slow (cold-start ~10s per context). ink.kt replaces GraalJS
+    // so these are legacy parity tests only. 120s class-level @Timeout on @Tag("graaljs").
+    // Run fast (no GraalJS): ./gradlew jvmTest -PexcludeGraalJs
+    systemProperty("junit.jupiter.execution.timeout.default", "60s")
+    systemProperty("junit.jupiter.execution.timeout.mode", "disabled_on_debug")
+    if (project.hasProperty("excludeGraalJs")) {
+        useJUnitPlatform { excludeTags("graaljs") }
     }
 }
 
-// ── PlantUML → SVG build task ──────────────────────────────────────
-// Converts all .puml files in docs/architecture/ to .svg
+// Fast test task — pure ink.kt + non-GraalJS engine tests only
+tasks.register<Test>("testFast") {
+    description = "Run tests excluding slow GraalJS engine tests"
+    group = "verification"
+    useJUnitPlatform { excludeTags("graaljs") }
+    val jvmTestTask = tasks.named<Test>("jvmTest").get()
+    classpath = jvmTestTask.classpath
+    testClassesDirs = jvmTestTask.testClassesDirs
+    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
+    setForkEvery(50)
+    testLogging {
+        events("passed", "skipped", "failed")
+        showStandardStreams = false
+    }
+}
+
+// ── PlantUML -> SVG build task ──────────────────────────────────────
 tasks.register("plantUml") {
     description = "Convert PlantUML diagrams to SVG"
     group = "documentation"
