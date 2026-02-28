@@ -5,7 +5,7 @@
 ' Package: ink.kt
 ' Source:  ink-kmp-mcp/src/commonMain/kotlin/ink/kt/
 '
-' Comprehensive class diagram generated from all 36 .kt source files.
+' Comprehensive class diagram generated from all 60 .kt source files.
 ' ==============================================================================
 
 ' ── Skin params ──────────────────────────────────────────────────────────────
@@ -102,7 +102,8 @@ note as N_OVERVIEW
     operator overloading (+/- on InkList, get/set on VariablesState),
     LinkedHashMap/LinkedHashSet (insertion-order + O(1) everywhere),
     kotlin.time.TimeSource.Monotonic (Stopwatch), kotlinx.datetime.Clock.System (InkClock),
-    by delegation (InkList : MutableMap by _map), lazy properties (ListDefinition.items)
+    by delegation (InkList : MutableMap by _map), lazy properties (ListDefinition.items),
+    kotlinx.serialization.json (SimpleJson Reader), interface dispatch (InkCallable)
 end note
 
 ' ══════════════════════════════════════════════════════════════════════════════
@@ -1495,10 +1496,15 @@ package "6. Runtime" #E3F2FD {
         .. companion ..
         {static} INK_VERSION_CURRENT : Int = 21
         {static} INK_VERSION_MINIMUM_COMPATIBLE : Int = 18
+        {static} IS_NULL : String = "isnull"
+        {static} NOT : String = "not"
+        {static} RAND : String = "random"
+        {static} FLOOR : String = "floor"
+        {static} IF : String = "if"
     }
 
     note right of Story
-      **ink.kt** : Story.kt:1-2100+
+      **ink.kt** : Story.kt:1-2124
         ExternalFunction fun interface  L:33-36
         VariableObserver fun interface  L:41-43
         ExternalFunctionDef class       L:45-48
@@ -1515,8 +1521,18 @@ package "6. Runtime" #E3F2FD {
         switchFlow()                    L:350
         bindExternalFunction()          L:470
         evaluateFunction()              L:550
+        IsNullFunction (private)        L:442
+        NotFunction                     L:449
+        RandomFunction (private)        L:459
+        FloorFunction (private)         L:472
+        IfFunction (private)            L:482
         toJson()                        L:1640
         resetState()                    L:1741
+      ----
+      **Added** (21bee33):
+      IfFunction — ternary IF(cond, then, else).
+      Truthiness: Double≠0.0, Boolean, else ≠0.
+      Constants: IS_NULL, NOT, RAND, FLOOR, IF.
       ----
       **C#** : Story.cs:1-3050
         delegates for externals
@@ -1601,48 +1617,39 @@ package "6. Runtime" #E3F2FD {
 package "7. Serialization" #F3E5F5 {
 
     object SimpleJson {
+        - json : Json
         + textToDictionary(text: String) : LinkedHashMap<String, Any?>
         + textToArray(text: String) : List<Any?>
+        - jsonElementToAny(element: JsonElement) : Any?
+        - jsonObjectToLinkedHashMap(obj: JsonObject) : LinkedHashMap<String, Any?>
+        - jsonArrayToList(arr: JsonArray) : MutableList<Any?>
+        - jsonPrimitiveToAny(primitive: JsonPrimitive) : Any?
     }
 
-    class "SimpleJson.Reader" as SJReader <<internal>> {
-        - text : String
-        - offset : Int
-        - rootObject : Any?
-        --
-        + Reader(text: String)
-        + toDictionary() : LinkedHashMap<String, Any?>
-        + toArray() : List<Any?>
-        - readObject() : Any?
-        - readDictionary() : LinkedHashMap<String, Any?>
-        - readArray() : MutableList<Any?>
-        - readString() : String
-        - readNumber() : Any
-        - tryRead(textToRead: String) : Boolean
-        - expect(expectedStr: String)
-        - skipWhitespace()
-    }
-
-    note right of SJReader
-      **ink.kt** : SimpleJson.kt:42-270
-        Reader(text)              L:42
-        offset/rootObject         L:44-45
-        toDictionary()            L:52
-        readObject()              L:70 (dispatch)
-        readDictionary()          L:93
-        readArray()               L:133
-        readString()              L:164
-        readNumber()              L:215
-        tryRead()                 L:244
-        skipWhitespace()          L:261
+    note as SJReader
+      **SimpleJson Reader — kotlinx.serialization.json**
+      **ink.kt** : SimpleJson.kt:19-99
+        json (Json instance)      L:21
+        textToDictionary()        L:23 (parseToJsonElement → LinkedHashMap)
+        textToArray()             L:34 (parseToJsonElement → MutableList)
+        jsonElementToAny()        L:47 (when dispatch)
+        jsonObjectToLinkedHashMap() L:54
+        jsonArrayToList()         L:62
+        jsonPrimitiveToAny()      L:79 (Bool/String/Int/Float)
       ----
-      **C#** : SimpleJson.cs (private nested)
-        ReadObject() recursive descent
-      **Java** : SimpleJson.java (static inner)
-        readObject() recursive descent
+      **Refactored** (83fcd01):
+      Replaced hand-written recursive-descent Reader
+      with kotlinx.serialization.json.Json.parseToJsonElement().
+      Converts JsonElement tree → untyped Any? maps/lists.
+      Number handling: Int (no '.','e','E') vs Float.
       ----
-      Kotlin: internal visibility.
-      **Status**: COMPLETE
+      **C#** : SimpleJson.cs (private nested Reader class)
+      **Java** : SimpleJson.java (static inner Reader class)
+      Both use hand-written recursive-descent parsers.
+      ----
+      Kotlin: kotlinx.serialization (KMP-compatible).
+      Dep: kotlinx-serialization-json.
+      **Status**: COMPLETE + KOTLINX_SERIALIZATION
     end note
 
     class "SimpleJson.Writer" as SJWriter {
@@ -1676,17 +1683,17 @@ package "7. Serialization" #F3E5F5 {
     }
 
     note right of SJWriter
-      **ink.kt** : SimpleJson.kt:289-558
-        sb (StringBuilder)        L:291
-        stateStack (ArrayDeque)   L:292
-        writeObject()             L:296
-        writeProperty() x5       L:316-344
-        writeArrayStart/End       L:397-407
-        write(Int/Float/String/Boolean) L:411-450
-        writeEscapedString()      L:491
-        startNewObject()          L:512
-        State enum                L:545
-        StateElement class        L:555
+      **ink.kt** : SimpleJson.kt:117-388
+        sb (StringBuilder)        L:119
+        stateStack (ArrayDeque)   L:120
+        writeObject()             L:124
+        writeProperty() x5       L:144-172
+        writeArrayStart/End       L:225-235
+        write(Int/Float/String/Boolean) L:239-278
+        writeEscapedString()      L:319
+        startNewObject()          L:340
+        State enum                L:373
+        StateElement class        L:383
       ----
       **C#** : SimpleJson.cs
         supports StringWriter + Stream
@@ -1720,7 +1727,7 @@ package "7. Serialization" #F3E5F5 {
     }
 
     note right of JsonSerialisation
-      **ink.kt** : JsonSerialisation.kt:1-669
+      **ink.kt** : JsonSerialisation.kt:1-667
         writeListRuntimeObjs()    L:45
         writeRuntimeObject()      L:77 (when dispatch)
         jArrayToRuntimeObjList()  L:193
@@ -1742,7 +1749,9 @@ package "7. Serialization" #F3E5F5 {
         writeChoice()
       ----
       Kotlin: object singleton, when smart casts.
-      Zero 3rd-party deps. Pure Kotlin stdlib.
+      Writer: SimpleJson.Writer (StringBuilder, zero deps).
+      Reader: delegates to kotlinx.serialization.json
+      (KMP-compatible, replaces hand-written parser).
       **Status**: COMPLETE
     end note
 
@@ -2146,24 +2155,48 @@ package "9. Parser" #FFF8E1 {
     }
 
     note right of Expression
-      **ink.kt** : Expression.kt:1-529
+      **ink.kt** : Expression.kt:1-528
         Expression(originalExpr) L:13
-        Tokenizer inner class    L:38-126
-        init (operator setup)    L:128-232
-        shuntingYard()           L:234
-        eval()                   L:327
-        LazyNumber interface     L:473
+        GameObjectResolver       L:20 (fun interface)
+        InkCallable              L:28 (interface)
+        Tokenizer inner class    L:47-135
+        init (operator setup)    L:137-241
+        shuntingYard()           L:243
+        eval()                   L:336
+        LazyNumber interface     L:482
+        defaultGameObjectResolver L:499 (InkCallable dispatch)
+      ----
+      **Refactored** (a429987):
+      Removed JVM reflection from defaultGameObjectResolver.
+      Added InkCallable interface for pure-Kotlin dispatch.
+      Game objects implement inkCall(method, params).
       ----
       **mica** : Expression evaluator
       Shunting-yard algorithm for math.
-      GameObjectResolver fun interface
-      replaces Java reflection.
-      **Status**: COMPLETE (mica)
+      GameObjectResolver fun interface + InkCallable.
+      KMP-compatible: no java.lang.reflect.
+      **Status**: COMPLETE (mica) + REFLECTION_FREE
     end note
 
     interface "Expression.GameObjectResolver" as GameObjResolver <<fun interface>> {
         + call(obj: Any, method: String, params: List<Any>) : Any
     }
+
+    interface "Expression.InkCallable" as InkCallable {
+        + inkCall(method: String, params: List<Any>) : Any
+    }
+
+    note right of InkCallable
+      **ink.kt** : Expression.kt:28-31
+        Pure Kotlin alternative to reflection.
+        Game objects implement this interface
+        to expose methods callable from ink.
+        defaultGameObjectResolver delegates to
+        inkCall() via is-check (L:499-508).
+      ----
+      **Added** (a429987): replaces JVM reflection.
+      **Status**: COMPLETE (mica)
+    end note
 
     class Knot <<mica>> {
         ~ isFunction : Boolean

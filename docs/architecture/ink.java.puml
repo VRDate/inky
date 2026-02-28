@@ -38,7 +38,7 @@ note as N1
   | Error.ErrorType enum | ErrorType top-level enum |
   | StringExt | replaced by Kotlin stdlib |
   | ProfileNode (separate file) | combined into Profiler.kt |
-  | SimpleJson.Reader / Writer | JsonParser / JsonWriter |
+  | SimpleJson.Reader / Writer | kotlinx.serialization.json reader / SimpleJson.Writer |
   ----
   C# ink-csharp is the canonical reference implementation.
   blade-ink is a faithful Java port by bladecoder (Rafael Garcia).

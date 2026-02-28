@@ -937,7 +937,7 @@ note as N_GAPS
   **C# is the canonical reference.**
   ink.kt ports all C# runtime classes 1:1.
 
-  **Fully ported (36 classes)**
+  **Fully ported (60 .kt source files)**
 
   | C# Class | ink.kt Class | Idiomatic Change |
   | Object (base) | InkObject | Avoids java.lang.Object clash |
@@ -950,7 +950,7 @@ note as N_GAPS
   | struct (SearchResult) | data class | Same semantics |
   | struct (Pointer) | class | JVM has no value types |
   | struct (InkListItem) | data class | Hashable + equals |
-  | SimpleJson (Stream) | SimpleJson (string) | KMP commonMain only |
+  | SimpleJson (Stream) | SimpleJson (kotlinx.serialization reader + StringBuilder writer) | KMP commonMain |
 
   **C#-only features (not ported — by design)**
 
