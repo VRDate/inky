@@ -1,0 +1,35 @@
+syntax = "proto3";
+package ink.model;
+
+option java_package = "ink.java.model";
+option java_multiple_files = true;
+option csharp_namespace = "Ink.Cs.Model";
+
+// Unified story runtime types.
+// Replaces: KT ContinueResult/ChoiceInfo, C# StoryStateDto/ChoiceDto, TS InkStoryState/InkChoice.
+
+message Choice {
+  int32 index = 1;
+  string text = 2;
+  repeated string tags = 3;
+}
+
+message StoryState {
+  string text = 1;
+  bool can_continue = 2;
+  repeated Choice choices = 3;
+  repeated string tags = 4;
+}
+
+message CompileResult {
+  bool success = 1;
+  string json = 2;
+  repeated string errors = 3;
+  repeated string warnings = 4;
+}
+
+message StorySession {
+  string id = 1;
+  string source = 2;
+  string state_json = 3;
+}

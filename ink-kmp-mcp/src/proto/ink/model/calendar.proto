@@ -1,0 +1,20 @@
+syntax = "proto3";
+package ink.model;
+
+option java_package = "ink.java.model";
+option java_multiple_files = true;
+option csharp_namespace = "Ink.Cs.Model";
+
+// Calendar event types.
+// Replaces: KT InkEvent.
+
+message InkEvent {
+  string uid = 1;
+  string summary = 2;
+  string description = 3;
+  string dt_start = 4;
+  string dt_end = 5;
+  string category = 6;
+  string location = 7;
+  string status = 8;
+}

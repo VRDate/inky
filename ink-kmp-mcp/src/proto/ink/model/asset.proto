@@ -1,0 +1,41 @@
+syntax = "proto3";
+package ink.model;
+
+option java_package = "ink.java.model";
+option java_multiple_files = true;
+option csharp_namespace = "Ink.Cs.Model";
+
+// Asset pipeline types — bridges 2D emoji text tags → 3D asset references.
+// Used by: EmojiAssetManifest, InkAssetEventEngine, all renderers.
+
+message AssetCategory {
+  string emoji = 1;            // "🗡️"
+  string name = 2;             // "sword"
+  string type = 3;             // weapon, armor, character, consumable, quest, currency
+  string anim_set = 4;         // "sword_1h", "staff_2h", "cast"
+  string grip_type = 5;        // main_hand, off_hand, two_hand, none
+  string mesh_prefix = 6;      // "weapon_sword", "char_wizard"
+  string audio_category = 7;   // "sfx_metal", "sfx_wood", "voice"
+  // Unicode metadata (from UnicodeDataLoader)
+  string unicode_group = 8;    // "Food & Drink", "Activities"
+  string unicode_subgroup = 9; // "food-prepared", "sport"
+  repeated int32 code_points = 10; // UTF-32 codepoints [0x1F5E1]
+  string unicode_version = 11; // "7.0"
+  string general_category = 12;// "So" (Symbol, other)
+  bool is_game_asset = 13;     // true if maps to 3D asset pipeline
+}
+
+message VoiceRef {
+  string character_id = 1;     // "gandalf"
+  string language = 2;         // "en", "he", "ar"
+  string flac_path = 3;        // "voices/gandalf_en.flac"
+}
+
+message AssetRef {
+  string emoji = 1;
+  AssetCategory category = 2;
+  string mesh_path = 3;        // "weapon_sword_01.glb"
+  string anim_set_id = 4;      // "sword_1h"
+  VoiceRef voice_ref = 5;
+  map<string, string> metadata = 6;
+}

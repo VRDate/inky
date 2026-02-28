@@ -1,0 +1,21 @@
+syntax = "proto3";
+package ink.model;
+
+option java_package = "ink.java.model";
+option java_multiple_files = true;
+option csharp_namespace = "Ink.Cs.Model";
+
+// SillyTavern character card types.
+// Replaces: KT StCharacterCard.
+
+message StCharacterCard {
+  string name = 1;
+  string description = 2;
+  string personality = 3;
+  string scenario = 4;
+  string first_message = 5;
+  string mes_example = 6;
+  string system_prompt = 7;
+  string creator_notes = 8;
+  repeated string tags = 9;
+}

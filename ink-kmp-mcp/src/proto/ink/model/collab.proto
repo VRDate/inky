@@ -1,0 +1,29 @@
+syntax = "proto3";
+package ink.model;
+
+option java_package = "ink.java.model";
+option java_multiple_files = true;
+option csharp_namespace = "Ink.Cs.Model";
+
+// Collaboration types for Yjs document sync.
+// Replaces: KT ColabDocument, ColabClient concepts.
+
+message ColabClient {
+  string client_id = 1;
+  string doc_id = 2;
+}
+
+message ColabDocumentInfo {
+  string doc_id = 1;
+  int64 created_at = 2;
+  int64 update_count = 3;
+  int32 client_count = 4;
+}
+
+message EditorContext {
+  string mode = 1;             // "edit" or "play"
+  string session_id = 2;
+  string doc_id = 3;
+  bool is_compiling = 4;
+  repeated string errors = 5;
+}
