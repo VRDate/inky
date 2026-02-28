@@ -826,4 +826,334 @@ class StoryState(
         return if (container != null) Pointer(container, if (result.approximate) 0 else -1)
         else Pointer.Null
     }
+
+    // --- JSON serialization ---
+
+    /**
+     * Exports the current state to JSON format, in order to save the game.
+     * @return The save state in JSON format.
+     */
+    fun toJson(): String {
+        val writer = SimpleJson.Writer()
+        writeJson(writer)
+        return writer.toString()
+    }
+
+    /**
+     * Loads a previously saved state in JSON format.
+     * @param json The JSON string to load.
+     */
+    fun loadJson(json: String) {
+        val jObject = SimpleJson.textToDictionary(json)
+        loadJsonObj(jObject)
+    }
+
+    /**
+     * Gets the visit/read count of a particular Container at the given path.
+     * For a knot or stitch, that path string will be in the form:
+     * knot or knot.stitch
+     *
+     * @param pathString The dot-separated path string of the specific knot or stitch.
+     * @return The number of times the specific knot or stitch has been encountered.
+     */
+    fun visitCountAtPathString(pathString: String): Int {
+        if (patch != null) {
+            val container = rootContentContainer.contentAtPath(Path(pathString)).container
+                ?: throw StoryException("Content at path not found: $pathString")
+
+            val patchCount = patch!!.getVisitCount(container)
+            if (patchCount != null) return patchCount
+        }
+
+        return _visitCounts[pathString] ?: 0
+    }
+
+    internal fun writeJson(writer: SimpleJson.Writer) {
+        writer.writeObjectStart()
+
+        // Flows
+        writer.writePropertyStart("flows")
+        writer.writeObjectStart()
+
+        if (namedFlows != null) {
+            for ((name, flow) in namedFlows!!) {
+                writer.writeProperty(name) { w -> flow.writeJson(w) }
+            }
+        } else {
+            writer.writeProperty(currentFlow.name) { w -> currentFlow.writeJson(w) }
+        }
+
+        writer.writeObjectEnd()
+        writer.writePropertyEnd()
+
+        writer.writeProperty("currentFlowName", currentFlow.name)
+
+        writer.writeProperty("variablesState") { w -> variablesState.writeJson(w) }
+
+        writer.writeProperty("evalStack") { w ->
+            JsonSerialisation.writeListRuntimeObjs(w, evaluationStack)
+        }
+
+        if (!divertedPointer.isNull) {
+            writer.writeProperty("currentDivertTarget", divertedPointer.path!!.componentsString)
+        }
+
+        writer.writeProperty("visitCounts") { w ->
+            JsonSerialisation.writeIntDictionary(w, _visitCounts)
+        }
+
+        writer.writeProperty("turnIndices") { w ->
+            JsonSerialisation.writeIntDictionary(w, _turnIndices)
+        }
+
+        writer.writeProperty("turnIdx", currentTurnIndex)
+        writer.writeProperty("storySeed", storySeed)
+        writer.writeProperty("previousRandom", previousRandom)
+
+        writer.writeProperty("inkSaveVersion", INK_SAVE_STATE_VERSION)
+
+        // Not using this right now, but could do in future.
+        writer.writeProperty("inkFormatVersion", Story.INK_VERSION_CURRENT)
+
+        writer.writeObjectEnd()
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    internal fun loadJsonObj(jObject: Map<String, Any?>) {
+        val jSaveVersion = jObject["inkSaveVersion"]
+            ?: throw StoryException("ink save format incorrect, can't load.")
+
+        if ((jSaveVersion as Number).toInt() < MIN_COMPATIBLE_LOAD_VERSION) {
+            throw StoryException(
+                "Ink save format isn't compatible with the current version (saw '$jSaveVersion', " +
+                "but minimum is $MIN_COMPATIBLE_LOAD_VERSION), so can't load."
+            )
+        }
+
+        // Flows: Always exists in latest format (even if there's just one default)
+        // but this dictionary doesn't exist in prev format
+        val flowsObj = jObject["flows"]
+        if (flowsObj != null) {
+            val flowsObjDict = flowsObj as Map<String, Any?>
+
+            // Single default flow
+            if (flowsObjDict.size == 1) {
+                namedFlows = null
+            }
+            // Multi-flow, need to create flows dict
+            else if (namedFlows == null) {
+                namedFlows = LinkedHashMap()
+            }
+            // Multi-flow, already have a flows dict
+            else {
+                namedFlows!!.clear()
+            }
+
+            // Load up each flow (there may only be one)
+            for ((name, flowObj) in flowsObjDict) {
+                val flowData = flowObj as Map<String, Any?>
+                val flow = flowFromJson(name, flowData)
+
+                if (flowsObjDict.size == 1) {
+                    currentFlow = flowFromJson(name, flowData)
+                } else {
+                    namedFlows!![name] = flow
+                }
+            }
+
+            if (namedFlows != null && namedFlows!!.size > 1) {
+                val currFlowName = jObject["currentFlowName"] as String
+                currentFlow = namedFlows!![currFlowName]!!
+            }
+        }
+        // Old format: individually load up callstack, output stream, choices in current/default flow
+        else {
+            namedFlows = null
+            currentFlow.name = DEFAULT_FLOW_NAME
+
+            val jCallstackThreads = jObject["callstackThreads"] as Map<String, Any?>
+            val (threads, threadCounter) = jArrayToThreads(jCallstackThreads)
+            currentFlow.callStack.setJsonToken(threads, threadCounter, rootContentContainer)
+
+            currentFlow.outputStream.clear()
+            currentFlow.outputStream.addAll(
+                JsonSerialisation.jArrayToRuntimeObjList(jObject["outputStream"] as List<Any?>)
+            )
+
+            currentFlow.currentChoices.clear()
+            val jChoices = JsonSerialisation.jArrayToRuntimeObjList(jObject["currentChoices"] as List<Any?>)
+            for (obj in jChoices) {
+                currentFlow.currentChoices.add(obj as Choice)
+            }
+
+            val jChoiceThreadsObj = jObject["choiceThreads"]
+            if (jChoiceThreadsObj != null) {
+                val choiceThreads = parseChoiceThreads(jChoiceThreadsObj as Map<String, Any?>)
+                currentFlow.loadFlowChoiceThreads(choiceThreads, currentFlow.callStack)
+            }
+        }
+
+        outputStreamDirty()
+        _aliveFlowNamesDirty = true
+
+        variablesState.setJsonToken(jObject["variablesState"] as Map<String, Any?>)
+        variablesState.callStack = currentFlow.callStack
+
+        evaluationStack.clear()
+        evaluationStack.addAll(
+            JsonSerialisation.jArrayToRuntimeObjList(jObject["evalStack"] as List<Any?>)
+        )
+
+        val currentDivertTargetPath = jObject["currentDivertTarget"]
+        if (currentDivertTargetPath != null) {
+            val divertPath = Path(currentDivertTargetPath.toString())
+            divertedPointer = pointerAtPath(divertPath)
+        }
+
+        _visitCounts = JsonSerialisation.jObjectToIntDictionary(jObject["visitCounts"] as Map<String, Any?>)
+        _turnIndices = JsonSerialisation.jObjectToIntDictionary(jObject["turnIndices"] as Map<String, Any?>)
+
+        currentTurnIndex = (jObject["turnIdx"] as Number).toInt()
+        storySeed = (jObject["storySeed"] as Number).toInt()
+
+        // Not optional, but bug in inkjs means it's actually missing in inkjs saves
+        val previousRandomObj = jObject["previousRandom"]
+        previousRandom = if (previousRandomObj != null) (previousRandomObj as Number).toInt() else 0
+
+        onDidLoadState?.onLoaded()
+    }
+
+    // --- JSON deserialization helpers ---
+
+    private fun pointerAtPath(path: Path): Pointer {
+        if (path.length == 0) return Pointer.Null
+
+        val p = Pointer()
+
+        if (path.lastComponent!!.isIndex) {
+            val pathLengthToUse = path.length - 1
+            val result = SearchResult(rootContentContainer.contentAtPath(path, 0, pathLengthToUse))
+            p.container = result.container
+            p.index = path.lastComponent!!.index
+        } else {
+            val result = SearchResult(rootContentContainer.contentAtPath(path))
+            p.container = result.container
+            p.index = -1
+        }
+
+        return p
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun threadFromJson(jThreadObj: Map<String, Any?>): CallStack.InkThread {
+        val thread = CallStack.InkThread()
+        thread.threadIndex = (jThreadObj["threadIndex"] as Number).toInt()
+
+        val jThreadCallstack = jThreadObj["callstack"] as List<Any?>
+
+        for (jElTok in jThreadCallstack) {
+            val jElementObj = jElTok as Map<String, Any?>
+
+            val pushPopType = PushPopType.entries[(jElementObj["type"] as Number).toInt()]
+
+            val pointer = Pointer(Pointer.Null)
+
+            val currentContainerPathStrToken = jElementObj["cPath"]
+            if (currentContainerPathStrToken != null) {
+                val currentContainerPathStr = currentContainerPathStrToken.toString()
+                val threadPointerResult = rootContentContainer.contentAtPath(Path(currentContainerPathStr))
+                pointer.container = threadPointerResult.container
+                pointer.index = (jElementObj["idx"] as Number).toInt()
+
+                if (threadPointerResult.obj == null) {
+                    throw StoryException(
+                        "When loading state, internal story location couldn't be found: " +
+                        "$currentContainerPathStr. Has the story changed since this save data was created?"
+                    )
+                } else if (threadPointerResult.approximate) {
+                    errorHandler?.onError(
+                        "When loading state, exact internal story location couldn't be found: " +
+                        "'$currentContainerPathStr', so it was approximated to " +
+                        "'${pointer.container?.path}'. Has the story changed since this save data was created?",
+                        true
+                    )
+                }
+            }
+
+            val inExpressionEvaluation = jElementObj["exp"] as Boolean
+            val el = CallStack.Element(pushPopType, pointer, inExpressionEvaluation)
+
+            val temps = jElementObj["temp"]
+            if (temps != null) {
+                el.temporaryVariables = JsonSerialisation.jObjectToDictionaryRuntimeObjs(
+                    temps as Map<String, Any?>
+                )
+            } else {
+                el.temporaryVariables = LinkedHashMap()
+            }
+
+            thread.callstack.add(el)
+        }
+
+        val prevContentObjPath = jThreadObj["previousContentObject"]
+        if (prevContentObjPath != null) {
+            val prevPath = Path(prevContentObjPath.toString())
+            thread.previousPointer = pointerAtPath(prevPath)
+        }
+
+        return thread
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun jArrayToThreads(jObj: Map<String, Any?>): Pair<List<CallStack.InkThread>, Int> {
+        val jThreads = jObj["threads"] as List<Any?>
+        val threads = mutableListOf<CallStack.InkThread>()
+
+        for (jThreadTok in jThreads) {
+            val jThreadObj = jThreadTok as Map<String, Any?>
+            threads.add(threadFromJson(jThreadObj))
+        }
+
+        val threadCounter = (jObj["threadCounter"] as Number).toInt()
+        return Pair(threads, threadCounter)
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseChoiceThreads(jChoiceThreads: Map<String, Any?>): Map<String, CallStack.InkThread> {
+        val result = LinkedHashMap<String, CallStack.InkThread>()
+        for ((key, value) in jChoiceThreads) {
+            val jThreadObj = value as Map<String, Any?>
+            result[key] = threadFromJson(jThreadObj)
+        }
+        return result
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun flowFromJson(name: String, jObject: Map<String, Any?>): InkFlow {
+        val flow = InkFlow(name, rootContentContainer)
+
+        val jCallstackObj = jObject["callstack"] as Map<String, Any?>
+        val (threads, threadCounter) = jArrayToThreads(jCallstackObj)
+        flow.callStack.setJsonToken(threads, threadCounter, rootContentContainer)
+
+        flow.outputStream.clear()
+        flow.outputStream.addAll(
+            JsonSerialisation.jArrayToRuntimeObjList(jObject["outputStream"] as List<Any?>)
+        )
+
+        flow.currentChoices.clear()
+        val jChoices = JsonSerialisation.jArrayToRuntimeObjList(jObject["currentChoices"] as List<Any?>)
+        for (obj in jChoices) {
+            flow.currentChoices.add(obj as Choice)
+        }
+
+        // choiceThreads is optional
+        val jChoiceThreadsObj = jObject["choiceThreads"]
+        if (jChoiceThreadsObj != null) {
+            val choiceThreads = parseChoiceThreads(jChoiceThreadsObj as Map<String, Any?>)
+            flow.loadFlowChoiceThreads(choiceThreads, flow.callStack)
+        }
+
+        return flow
+    }
 }

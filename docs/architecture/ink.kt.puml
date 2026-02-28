@@ -1037,7 +1037,7 @@ package "5. State" #E3F2FD {
     }
 
     note right of StoryState
-      **ink.kt** : StoryState.kt:1-1169
+      **ink.kt** : StoryState.kt:1-1154
         ErrorHandler fun interface L:39-41
         OnDidLoadState fun interface L:48-50
         OutputOp enum              L:61-70
@@ -1047,12 +1047,12 @@ package "5. State" #E3F2FD {
         copyAndStartPatching      L:660-716
         toJson()                  L:836-840
         loadJson(json)            L:846-849
-        visitCountAtPathString()  L:856-863
-        writeJson(writer)         L:869-915
-        loadJsonObj(jObject)      L:922-1020
-        pointerAtPath()           L:1028-1045
-        threadFromJson()          L:1052-1113
-        flowFromJson()            L:1145-1168
+        visitCountAtPathString()  L:859-869
+        writeJson(writer)         L:871-919
+        loadJsonObj(jObject)      L:922-1019
+        pointerAtPath()           L:1023-1040
+        threadFromJson()          L:1043-1100
+        flowFromJson()            L:1127-1153
       ----
       **C#** : StoryState.cs
         ToJson()/LoadJson()       ✅ Ported
