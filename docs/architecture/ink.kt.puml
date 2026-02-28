@@ -825,6 +825,7 @@ package "4. Lists" #E3F2FD {
         - _originNames : MutableList<String>?
         + originOfMaxItem : ListDefinition? <<get>>
         + originNames : MutableList<String>? <<get>>
+        + singleOriginListName : String? <<get>>
         + maxItem : Map.Entry<InkListItem, Int> <<get>>
         + minItem : Map.Entry<InkListItem, Int> <<get>>
         + orderedItems : List<Map.Entry<...>> <<get>>
@@ -835,12 +836,14 @@ package "4. Lists" #E3F2FD {
         + InkList()
         + InkList(otherList: InkList)
         + InkList(singleElement: Map.Entry<...>)
+        + InkList(singleOriginListName: String, originStory: Story)
         + union(otherList: InkList) : InkList
         + without(listToRemove: InkList) : InkList
         + intersect(otherList: InkList) : InkList
         + hasIntersection(otherList: InkList) : Boolean
         + containsList(otherList: InkList) : Boolean
         + containsItemNamed(itemName: String) : Boolean
+        + contains(listItemName: String) : Boolean
         + greaterThan(otherList: InkList) : Boolean
         + greaterThanOrEquals(otherList: InkList) : Boolean
         + lessThan(otherList: InkList) : Boolean
@@ -849,7 +852,7 @@ package "4. Lists" #E3F2FD {
         + minAsList() : InkList
         + listWithSubRange(minBound: Any?, maxBound: Any?) : InkList
         + addItem(item: InkListItem)
-        + addItem(itemName: String)
+        + addItem(itemName: String, storyObject: Story? = null)
         + setInitialOriginName(name: String)
         + setInitialOriginNames(names: List<String>?)
         + operator plus(other: InkList) : InkList
@@ -861,28 +864,27 @@ package "4. Lists" #E3F2FD {
     }
 
     note right of InkList
-      **ink.kt** : InkList.kt:1-289
+      **ink.kt** : InkList.kt:1-317
         _map (LinkedHashMap)      L:20
-        union()                   L:85
-        operator plus/minus       L:110-111
-        addItem(InkListItem)      L:222
-        addItem(String)           L:242
+        union()                   L:104
+        operator plus/minus       L:129-130
+        singleOriginListName      L:63
+        addItem(InkListItem)      L:244
+        addItem(String, Story?)   L:264
+        contains(String)          L:142
+        InkList(String, Story)    L:35
       ----
       **C#** : InkList.cs:117-649
         Dictionary<InkListItem,int>
         Union()                   L:379
-        AddItem(string,Story)     L:213 (MISSING in KT)
-        Contains(string)          L:447 (MISSING in KT)
+        AddItem(string,Story)     L:213
+        Contains(string)          L:447
       **Java** : InkList.java:1-621
         HashMap<InkListItem,Integer>
-        InkList(String,Story)     L:44 (MISSING in KT)
-        getSingleOriginListName() L:343 (MISSING in KT)
+        InkList(String,Story)     L:44
+        getSingleOriginListName() L:343
       ----
-      **Status**: GAP [4 missing members]
-      - InkList(singleOriginListName, Story)
-      - singleOriginListName property
-      - addItem(itemName, storyObject)
-      - contains(String) alias
+      **Status**: COMPLETE
     end note
 
     class InkListItem <<data class>> {
@@ -2468,7 +2470,7 @@ note as PROGRESS
   | VariableReference | VariableReference | VariableReference | VariableReference | — | ✅ Complete |
   | VariablesState | VariablesState | VariablesState | VariablesState | VariableMap | ✅ Complete |
   | StatePatch | StatePatch | StatePatch | StatePatch | — | ✅ Complete |
-  | InkList | InkList | InkList | InkList | — | ⚠️ GAP [4 members] |
+  | InkList | InkList | InkList | InkList | — | ✅ Complete |
   | InkListItem | InkListItem | InkListItem | InkListItem | — | ✅ Complete |
   | ListDefinition | ListDefinition | ListDefinition | ListDefinition | — | ✅ Complete |
   | ListDefinitionsOrigin | ListDefinitionsOrigin | ListDefinitionsOrigin | ListDefinitionsOrigin | — | ✅ Complete |
@@ -2532,7 +2534,7 @@ note as GAPS
   | StoryState | toJson(), loadJson(), toJsonObject(), fromJsonObject(), visitCountAtPathString() | ~192 | P2 |
   | JsonSerialisation | encodeFlow(), encodeCallStackThread(), decodeFlow() | ~80 | P2 |
 
-  | InkList | InkList(name,Story), singleOriginListName, addItem(name,story), contains(String) | ~30 | P3 |
+  | InkList | ~~InkList(name,Story), singleOriginListName, addItem(name,story), contains(String)~~ | ~30 | ✅ Done |
   | Story | toJson(Appendable) stream overload | ~5 | P4 |
 
   **2. mica → ink.kt merge status**
