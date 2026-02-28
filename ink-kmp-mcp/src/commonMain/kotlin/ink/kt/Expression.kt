@@ -15,10 +15,19 @@ class Expression(originalExpression: String) {
 
     /**
      * Pluggable interface for game object method dispatch.
-     * Replaces Java reflection for KMP compatibility.
+     * Pure Kotlin, no reflection — KMP compatible (JVM + JS + Native).
      */
     fun interface GameObjectResolver {
         fun call(obj: Any, method: String, params: List<Any>): Any
+    }
+
+    /**
+     * Game objects implement this to expose methods callable from ink expressions.
+     * Pure Kotlin alternative to reflection-based dispatch.
+     */
+    interface InkCallable {
+        /** Dispatch a method call by name. Return result or throw if method not found. */
+        fun inkCall(method: String, params: List<Any>): Any
     }
 
     private var rpn: List<String>? = null
@@ -483,28 +492,19 @@ class Expression(originalExpression: String) {
             override fun eval(): Double = 0.0
         }
 
-        /** Default JVM reflection-based resolver for game object method calls. */
+        /**
+         * Default game object resolver — delegates to [InkCallable.inkCall].
+         * Pure Kotlin, no reflection. Game objects implement [InkCallable] to expose methods.
+         */
         val defaultGameObjectResolver = GameObjectResolver { obj, method, params ->
-            val cls = obj::class.java
-            val methods = cls.methods.filter { it.name == method && it.parameterCount == params.size }
-            if (methods.isEmpty()) {
-                throw InkRunTimeException("Method $method not found on ${cls.simpleName}")
+            if (obj is InkCallable) {
+                obj.inkCall(method, params)
+            } else {
+                throw InkRunTimeException(
+                    "Object ${obj::class.simpleName} does not implement InkCallable. " +
+                    "Set gameObjectResolver for custom dispatch."
+                )
             }
-            val m = methods[0]
-            val args = params.mapIndexed { i, p ->
-                val paramType = m.parameterTypes[i]
-                when {
-                    paramType == Double::class.java || paramType == java.lang.Double::class.java -> {
-                        when (p) {
-                            is Double -> p
-                            is Number -> p.toDouble()
-                            else -> p
-                        }
-                    }
-                    else -> p
-                }
-            }.toTypedArray()
-            m.invoke(obj, *args)
         }
 
         fun isNumber(st: String): Boolean {

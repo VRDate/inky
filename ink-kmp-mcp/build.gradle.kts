@@ -156,6 +156,18 @@ application {
     )
 }
 
+tasks.test {
+    useJUnitPlatform()
+    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
+    setForkEvery(100)
+    reports.junitXml.required.set(true)
+    reports.html.required.set(true)
+    testLogging {
+        events("passed", "skipped", "failed")
+        showStandardStreams = false
+    }
+}
+
 tasks.jar {
     manifest {
         attributes["Main-Class"] = "ink.mcp.MainKt"
