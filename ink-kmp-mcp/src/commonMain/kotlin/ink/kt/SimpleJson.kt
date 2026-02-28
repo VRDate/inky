@@ -1,272 +1,100 @@
 package ink.kt
 
+import kotlinx.serialization.json.*
+
 /**
- * Simple custom JSON serialisation — best of C# (inkle/ink), Java (blade-ink), JS (inkjs).
+ * JSON serialisation — kotlinx.serialization reader + streaming writer.
  *
- * Three-way comparison notes:
- * - C# (659 lines): static class, Reader private, Writer public, Stream support
- * - Java (565 lines): static class, Reader package-private, Writer public, OutputStream support
- * - JS (403 lines): delegates to native JSON.parse with float workaround (Safari "123.0f")
+ * Reader: delegates to kotlinx.serialization.json (KMP-compatible, well-tested).
+ * Writer: streaming StringBuilder state machine (unchanged from original).
  *
- * Kotlin design decisions:
- * - `object` singleton instead of static class (idiomatic Kotlin)
- * - `fun interface InnerWriter` — SAM conversion, lambdas auto-convert (like NativeFunctionCall ops)
- * - `LinkedHashMap` for dictionary results — insertion-order + O(1) (per project directive)
- * - Reader is internal (nested class) — matches C# private, Java package-private
- * - Writer is public (nested class) — matches both C# and Java
- * - No Stream/OutputStream support — StringBuilder only (zero deps, commonMain compatible)
- * - Float formatting: handles Infinity/-Infinity/NaN like C# (Java has == bug, Kotlin uses string comparison)
- * - Unicode escape \uXXXX: Int.toString(16) instead of platform-specific hex parsing
- * - No checked exceptions (Kotlin has none) — throws StoryException on parse errors
+ * The Reader converts JsonElement trees to the untyped Any? maps/lists that the
+ * ink runtime expects (LinkedHashMap<String, Any?> and MutableList<Any?>).
  *
- * Zero 3rd party dependencies. Pure Kotlin stdlib.
+ * Number handling preserves ink runtime semantics:
+ * - Integer literals (no '.', 'e', 'E') → Int
+ * - Float literals (with '.', 'e', 'E') → Float
+ * - Critical: "0.0" must parse as Float, not Int (ink runtime depends on this)
  */
 object SimpleJson {
 
+    private val json = Json { isLenient = false }
+
     fun textToDictionary(text: String): LinkedHashMap<String, Any?> {
-        return Reader(text).toDictionary()
+        val element = try {
+            json.parseToJsonElement(text)
+        } catch (e: Exception) {
+            throw StoryException("Failed to parse JSON: ${e.message}")
+        }
+        val obj = element as? JsonObject
+            ?: throw StoryException("Expected JSON object but got: ${element::class.simpleName}")
+        return jsonObjectToLinkedHashMap(obj)
     }
 
     fun textToArray(text: String): List<Any?> {
-        return Reader(text).toArray()
+        val element = try {
+            json.parseToJsonElement(text)
+        } catch (e: Exception) {
+            throw StoryException("Failed to parse JSON: ${e.message}")
+        }
+        val arr = element as? JsonArray
+            ?: throw StoryException("Expected JSON array but got: ${element::class.simpleName}")
+        return jsonArrayToList(arr)
     }
 
-    // ── Reader ────────────────────────────────────────────────────
+    // ── kotlinx JsonElement → untyped Any? conversion ─────────────
+
+    private fun jsonElementToAny(element: JsonElement): Any? = when (element) {
+        is JsonNull -> null
+        is JsonObject -> jsonObjectToLinkedHashMap(element)
+        is JsonArray -> jsonArrayToList(element)
+        is JsonPrimitive -> jsonPrimitiveToAny(element)
+    }
+
+    private fun jsonObjectToLinkedHashMap(obj: JsonObject): LinkedHashMap<String, Any?> {
+        val map = LinkedHashMap<String, Any?>(obj.size)
+        for ((key, value) in obj) {
+            map[key] = jsonElementToAny(value)
+        }
+        return map
+    }
+
+    private fun jsonArrayToList(arr: JsonArray): MutableList<Any?> {
+        val list = ArrayList<Any?>(arr.size)
+        for (element in arr) {
+            list.add(jsonElementToAny(element))
+        }
+        return list
+    }
 
     /**
-     * Recursive descent JSON reader.
-     * C#: private class Reader { string _text, int _offset }
-     * Java: static class Reader { String text, int offset }
-     * Kotlin: internal class — matches C# private scope intent
+     * Convert a JSON primitive to the appropriate Kotlin type.
+     *
+     * Preserves ink runtime number semantics:
+     * - Booleans → Boolean
+     * - Strings → String
+     * - Numbers with '.', 'e', 'E' → Float (ink runtime expects Float, not Double)
+     * - Numbers without decimal/exponent → Int
      */
-    internal class Reader(private val text: String) {
+    private fun jsonPrimitiveToAny(primitive: JsonPrimitive): Any? {
+        if (primitive is JsonNull) return null
 
-        private var offset: Int = 0
-        private val rootObject: Any?
+        // Boolean
+        if (primitive.booleanOrNull != null) return primitive.boolean
 
-        init {
-            skipWhitespace()
-            rootObject = readObject()
-        }
+        // String (quoted)
+        if (primitive.isString) return primitive.content
 
-        @Suppress("UNCHECKED_CAST")
-        fun toDictionary(): LinkedHashMap<String, Any?> =
-            rootObject as LinkedHashMap<String, Any?>
+        // Number — determine Int vs Float from the raw content
+        val content = primitive.content
+        val isFloat = '.' in content || 'e' in content || 'E' in content
 
-        @Suppress("UNCHECKED_CAST")
-        fun toArray(): List<Any?> =
-            rootObject as List<Any?>
-
-        private fun isNumberChar(c: Char): Boolean =
-            c in '0'..'9' || c == '.' || c == '-' || c == '+' || c == 'E' || c == 'e'
-
-        private fun isFirstNumberChar(c: Char): Boolean =
-            c in '0'..'9' || c == '-' || c == '+'
-
-        /**
-         * Dispatch on first character → typed JSON value.
-         * All three implementations share this exact dispatch table.
-         */
-        private fun readObject(): Any? {
-            val currentChar = text[offset]
-
-            return when {
-                currentChar == '{' -> readDictionary()
-                currentChar == '[' -> readArray()
-                currentChar == '"' -> readString()
-                isFirstNumberChar(currentChar) -> readNumber()
-                tryRead("true") -> true
-                tryRead("false") -> false
-                tryRead("null") -> null
-                else -> {
-                    val snippet = text.substring(offset, minOf(offset + 30, text.length))
-                    throw StoryException("Unhandled object type in JSON: $snippet")
-                }
-            }
-        }
-
-        /**
-         * Read JSON object → LinkedHashMap (insertion-order + O(1)).
-         * C#: Dictionary<string,object>, Java: HashMap<String,Object>
-         * Kotlin: LinkedHashMap per project directive
-         */
-        private fun readDictionary(): LinkedHashMap<String, Any?> {
-            val dict = LinkedHashMap<String, Any?>()
-
-            expect("{")
-            skipWhitespace()
-
-            // Empty dictionary?
-            if (tryRead("}")) return dict
-
-            do {
-                skipWhitespace()
-
-                // Key
-                val key = readString()
-
-                skipWhitespace()
-
-                // :
-                expect(":")
-
-                skipWhitespace()
-
-                // Value
-                val value = readObject()
-
-                // Add to dictionary
-                dict[key] = value
-
-                skipWhitespace()
-            } while (tryRead(","))
-
-            expect("}")
-
-            return dict
-        }
-
-        /**
-         * Read JSON array → MutableList.
-         * All three implementations: List<object> / ArrayList<Object> / Array
-         */
-        private fun readArray(): MutableList<Any?> {
-            val list = mutableListOf<Any?>()
-
-            expect("[")
-            skipWhitespace()
-
-            // Empty list?
-            if (tryRead("]")) return list
-
-            do {
-                skipWhitespace()
-
-                // Value
-                val value = readObject()
-
-                // Add to array
-                list.add(value)
-
-                skipWhitespace()
-            } while (tryRead(","))
-
-            expect("]")
-
-            return list
-        }
-
-        /**
-         * Read JSON string with escape sequences.
-         * All three handle: \", \\, \/, \n, \t, \r, \b, \f, \uXXXX
-         * C#/Java silently ignore \r, \b, \f — Kotlin follows same behavior.
-         */
-        private fun readString(): String {
-            expect("\"")
-
-            val sb = StringBuilder()
-
-            while (offset < text.length) {
-                val c = text[offset]
-
-                if (c == '\\') {
-                    // Escaped character
-                    offset++
-                    if (offset >= text.length) {
-                        throw StoryException("Unexpected EOF while reading string")
-                    }
-                    when (val escaped = text[offset]) {
-                        '"', '\\', '/' -> sb.append(escaped)
-                        'n' -> sb.append('\n')
-                        't' -> sb.append('\t')
-                        'r', 'b', 'f' -> { /* Ignore other control characters — matches C#/Java */ }
-                        'u' -> {
-                            // 4-digit Unicode
-                            if (offset + 4 >= text.length) {
-                                throw StoryException("Unexpected EOF while reading unicode escape")
-                            }
-                            val digits = text.substring(offset + 1, offset + 5)
-                            val uchar = digits.toIntOrNull(16)
-                                ?: throw StoryException("Invalid Unicode escape character at offset ${offset - 1}")
-                            sb.append(uchar.toChar())
-                            offset += 4
-                        }
-                        else -> throw StoryException("Invalid escape character at offset ${offset - 1}")
-                    }
-                } else if (c == '"') {
-                    break
-                } else {
-                    sb.append(c)
-                }
-
-                offset++
-            }
-
-            expect("\"")
-            return sb.toString()
-        }
-
-        /**
-         * Read JSON number → Int or Float.
-         * C#: int.TryParse / float.TryParse with InvariantCulture
-         * Java: Integer.parseInt / Float.parseFloat
-         * Kotlin: toIntOrNull() / toFloatOrNull() — null-safe, no exceptions
-         */
-        private fun readNumber(): Any {
-            val startOffset = offset
-            var isFloat = false
-
-            while (offset < text.length) {
-                val c = text[offset]
-                if (c == '.' || c == 'e' || c == 'E') isFloat = true
-                if (isNumberChar(c)) {
-                    offset++
-                } else {
-                    break
-                }
-            }
-
-            val numStr = text.substring(startOffset, offset)
-
-            if (isFloat) {
-                numStr.toFloatOrNull()?.let { return it }
-            } else {
-                numStr.toIntOrNull()?.let { return it }
-            }
-
-            throw StoryException("Failed to parse number value: $numStr")
-        }
-
-        /**
-         * Try to match exact string at current offset. Advances offset if matched.
-         * All three implementations share this exact pattern.
-         */
-        private fun tryRead(textToRead: String): Boolean {
-            if (offset + textToRead.length > text.length) return false
-
-            for (i in textToRead.indices) {
-                if (textToRead[i] != text[offset + i]) return false
-            }
-
-            offset += textToRead.length
-            return true
-        }
-
-        private fun expect(expectedStr: String) {
-            if (!tryRead(expectedStr)) {
-                throw StoryException("Expected $expectedStr at offset $offset")
-            }
-        }
-
-        private fun skipWhitespace() {
-            while (offset < text.length) {
-                val c = text[offset]
-                if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
-                    offset++
-                } else {
-                    break
-                }
-            }
+        if (isFloat) {
+            return content.toFloatOrNull()
+                ?: throw StoryException("Failed to parse float value: $content")
+        } else {
+            return content.toIntOrNull()
+                ?: throw StoryException("Failed to parse integer value: $content")
         }
     }
 

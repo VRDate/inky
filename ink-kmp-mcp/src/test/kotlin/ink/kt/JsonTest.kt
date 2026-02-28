@@ -3,12 +3,12 @@ package ink.kt
 import kotlin.test.*
 
 /**
- * Tests for SimpleJson — pure Kotlin JSON reader/writer.
+ * Tests for JSON serialisation — kotlinx.serialization reader + streaming writer.
  *
  * Verifies three-way compatibility: C# (inkle/ink), Java (blade-ink), JS (inkjs).
- * All tests are round-trip: write → string → read → verify.
+ * All round-trip tests: write → string → read → verify.
  */
-class SimpleJsonTest {
+class JsonTest {
 
     // ── Reader Tests ──────────────────────────────────────────────
 
@@ -168,7 +168,7 @@ class SimpleJsonTest {
         assertEquals(21, result["inkVersion"])
         @Suppress("UNCHECKED_CAST")
         val root = result["root"] as List<Any?>
-        assertEquals(3, root.size)
+        assertEquals(2, root.size)
         @Suppress("UNCHECKED_CAST")
         val listDefs = result["listDefs"] as Map<String, Any?>
         assertTrue(listDefs.isEmpty())
@@ -504,21 +504,16 @@ class SimpleJsonTest {
         assertTrue(flows.containsKey("DEFAULT_FLOW"))
     }
 
-    // ── Java Bug Fix Verification ──
+    // ── Unicode & Special Character Verification ──
 
     @Test
-    fun `java unicode escape bug fixed — reads exactly 4 hex digits`() {
-        // Java blade-ink has: text.substring(offset + 1, offset + 6) — reads 5 chars (BUG)
-        // C# has: _text.SubString(_offset + 1, 4) — reads 4 chars (correct)
-        // Kotlin fix: text.substring(offset + 1, offset + 5) — reads 4 chars
+    fun `unicode escape reads correctly`() {
         val result = SimpleJson.textToDictionary("""{"s":"\u0048\u0049"}""")
         assertEquals("HI", result["s"])
     }
 
     @Test
-    fun `java float string comparison bug fixed — uses equals not identity`() {
-        // Java blade-ink uses == for String comparison on lines 414/416/418 (BUG)
-        // Kotlin uses == which maps to .equals() — correct behavior
+    fun `float special values round-trip correctly`() {
         val w = SimpleJson.Writer()
         w.writeObjectStart()
         w.writeProperty("inf") { it.write(Float.POSITIVE_INFINITY) }

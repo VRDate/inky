@@ -12,11 +12,10 @@ package ink.kt
  * - `object` singleton (idiomatic Kotlin, replaces static class)
  * - `when (obj)` with smart casts (replaces if-instanceof chains)
  * - LinkedHashMap for all dictionaries (insertion-order + O(1))
- * - Uses SimpleJson.Writer from the KMP-native SimpleJson port
+ * - Uses SimpleJson.Writer (streaming StringBuilder writer)
+ * - Reader delegates to kotlinx.serialization.json for KMP compatibility
  * - Replaces the Json stub in VariablesState.kt
  * - Control command names: Array indexed by ordinal (same as C#/Java)
- *
- * Zero 3rd party dependencies. Pure Kotlin stdlib.
  */
 object JsonSerialisation {
 
