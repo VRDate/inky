@@ -132,4 +132,8 @@ open class InkObject {
     open fun copy(): InkObject {
         throw UnsupportedOperationException("${this::class.simpleName} doesn't support copying")
     }
+
+    // ── mica Content.getText() — parser text evaluation ────
+    fun getText(story: VariableMap): String =
+        StoryText.getText(text, count, story)
 }

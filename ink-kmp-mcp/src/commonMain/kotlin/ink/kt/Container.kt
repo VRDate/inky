@@ -13,7 +13,7 @@ package ink.kt
  * - **`content: MutableList<InkObject>`** typed list vs raw Object list
  * - **Property syntax** for countersAtStartOnly, visitsShouldBeCounted, etc.
  */
-class Container : InkObject(), INamedContent {
+open class Container : InkObject(), INamedContent {
     private var _name: String? = null
 
     val content: MutableList<InkObject> = mutableListOf()

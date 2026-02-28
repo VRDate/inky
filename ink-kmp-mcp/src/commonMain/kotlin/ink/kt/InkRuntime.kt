@@ -4,7 +4,7 @@ package ink.kt
  * Common ink runtime interface — the contract that any ink runtime must fulfill.
  *
  * Both [ink.kt.Story] (compiled JSON runtime, blade-ink port) and
- * [ink.kt.mica.Story] (parser-based runtime) can implement this interface,
+ * parser-based runtime (mica, now merged into ink.kt) can implement this interface,
  * enabling conformance testing via ink-proof and runtime-agnostic consumers.
  *
  * This interface mirrors the core API surface shared across all ink ports:
@@ -82,7 +82,7 @@ interface InkRuntime {
 
 /**
  * A single choice presented to the player.
- * Abstracts over [ink.kt.Choice] and [ink.kt.mica.Choice].
+ * Abstracts over [ink.kt.Choice] (compiled + parser fields merged from mica).
  */
 interface InkChoice {
     /** The display text for this choice. */
