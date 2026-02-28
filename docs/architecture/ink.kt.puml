@@ -1229,6 +1229,102 @@ package "5. State" #E3F2FD {
       **Status**: COMPLETE + REACTIVE + MMO
     end note
 
+    note as N_THREADS_FLOWS
+      **Threads, Flows, and Reactive Streams — Four-Way Comparison**
+      ═══════════════════════════════════════════════════════════════
+
+      **1. Ink Concepts vs Runtime Concepts**
+
+      | Ink Language | C# impl | Java (blade-ink) | JS (inkjs) | Kotlin (ink.kt) |
+      | ""flow"" (named execution) | Flow class | Flow class | Flow class | InkFlow : Flow<InkObject> |
+      | ""<-"" thread fork | Thread (nested class) | Thread (static inner) | Thread (namespace) | InkThread (nested class) |
+      | ""->>"" tunnel | CallStack.push/pop(Tunnel) | CallStack.push/pop(Tunnel) | same | same + suspend model |
+      | output stream | List<Object> | ArrayList<RTObject> | Array | EmittingList (→ SharedFlow) |
+      | choices | List<Choice> | List<Choice> | Array<Choice> | MutableList<Choice> |
+
+      **2. Java blade-ink Flow (non-reactive)**
+
+      ""Flow.java"" (blade-ink):
+        • Constructor: ""Flow(name, Story)"" — takes Story reference.
+        • ""callStack"": CallStack — owns call stack.
+        • ""outputStream"": ""ArrayList<RTObject>"" — **plain list, no observers**.
+        • ""currentChoices"": ""ArrayList<Choice>"" — plain list.
+        • ""writeJson()"": manual SimpleJson.Writer serialization.
+        • ""loadFlowChoiceThreads()"": restores thread snapshots from saved state.
+        • **Thread**: ""CallStack.Thread"" (static inner class).
+          — ""callstack"": ""ArrayList<Element>"", ""threadIndex"": int.
+          — Mutable, copied by constructor ""Thread(other)"".
+          — BUG: CallStack.setTemporaryVariable 3-arg infinite recursion.
+        • **No reactivity**: consumers must poll outputStream after continueStory().
+
+      **3. Kotlin ink.kt InkFlow (reactive stream)**
+
+      ""InkFlow.kt"" (ink.kt):
+        • Constructor: ""InkFlow(name, Container)"" — decoupled from Story.
+        • Implements **kotlinx.coroutines.flow.Flow<InkObject>**.
+        • ""_sharedFlow"": MutableSharedFlow(extraBufferCapacity=MAX) — hot stream.
+        • ""outputStream"": **EmittingList** — bridges sync mutations to reactive flow.
+        • ""collect()"": suspend, delegates to _sharedFlow.collect().
+        • **InkThread**: ""CallStack.InkThread"" (nested class).
+          — Renamed from ""Thread"" (avoids java.lang.Thread clash).
+          — ""callstack"": MutableList<Element>, ""threadIndex"": Int.
+          — Clean copy() via constructor.
+          — **Conceptually = coroutine** of InkFlow:
+            Ink ""<-"" → launch (cooperative, non-blocking).
+            Ink ""->>"" → suspend/resume (structured concurrency).
+            On JS: single-threaded cooperative scheduling.
+            On JVM: Dispatchers.Default for real parallelism.
+
+      **4. Kotlin Flow vs Project Reactor**
+
+      | Pattern | Kotlin Flow (ink.kt uses this) | Project Reactor |
+      | Cold stream | ""flow { emit(x) }"" | ""Flux.create { sink -> }"" |
+      | Hot stream | ""MutableSharedFlow"" (**ink.kt uses this**) | ""Sinks.many().multicast()"" |
+      | Collect | ""flow.collect { }"" (suspend) | ""flux.subscribe { }"" (callback) |
+      | Back pressure: unbounded | ""buffer(UNLIMITED)"" / ""extraBufferCapacity=MAX"" | ""onBackpressureBuffer()"" |
+      | Back pressure: drop oldest | ""buffer(n, DROP_OLDEST)"" / ""conflate()"" | ""onBackpressureDrop()"" |
+      | Back pressure: latest only | ""collectLatest { }"" | ""onBackpressureLatest()"" |
+      | Split (one → many) | ""SharedFlow"" + ""filter { }"" / ""filterIsInstance<T>()"" | ""Flux.share()"" + ""filter()"" |
+      | Join / merge (many → one) | ""merge(flow1, flow2)"" | ""Flux.merge(f1, f2)"" |
+      | Concat (sequential) | ""flowOf(f1, f2).flattenConcat()"" | ""Flux.concat(f1, f2)"" |
+      | Zip | ""f1.zip(f2) { a, b -> }"" | ""Flux.zip(f1, f2)"" |
+      | Combine latest | ""combine(f1, f2) { a, b -> }"" | ""Flux.combineLatest(f1, f2)"" |
+      | FlatMap | ""flow.flatMapMerge { }"" | ""Flux.flatMap { }"" |
+      | List → Flow | ""list.asFlow()"" | ""Flux.fromIterable(list)"" |
+      | Flow → List | ""flow.toList()"" (suspend, terminal) | ""flux.collectList().block()"" |
+
+      **5. Why Kotlin Flow (not Reactor) for ink.kt**
+
+      • **KMP**: Flow works on JVM + JS + Native. Reactor is JVM-only.
+      • **Coroutines**: Ktor is suspend-based; Flow integrates natively.
+      • **No Spring**: Server uses Ktor, not Spring WebFlux.
+      • **Lightweight**: No separate reactive scheduler; coroutine dispatchers suffice.
+      • **RSocket-Kotlin**: rsocket-kotlin uses Flow, not Publisher.
+      • **Camel bridge**: CamelRoutes uses direct: endpoints (sync);
+        Flow consumed in WebSocket handlers and MCP tool processors.
+
+      **6. InkFlow back pressure design choice**
+
+      ""extraBufferCapacity = Int.MAX_VALUE"" means:
+        • ""tryEmit()"" **always succeeds** — no backpressure on the ink engine.
+        • Items buffered when collectors are slow; dropped when none subscribed.
+        • **Trade-off**: unbounded memory if collector stalls indefinitely.
+        • **Rationale**: ink engine is synchronous (single continueStory call
+          produces a burst of InkObjects). Backpressure would deadlock the engine.
+        • **For asset streaming (RSocket/WS)**: the WebSocket handler in
+          McpRouter uses ""launch { send(...) }"" — Ktor WS provides TCP
+          backpressure at the transport layer.
+
+      **7. Threading model per platform**
+
+      | Platform | InkThread execution | Dispatcher | Parallelism |
+      | JVM | Coroutine via Dispatchers.Default | Thread pool | Real parallelism |
+      | JS | Coroutine via event loop | Single-threaded | Cooperative only |
+      | Native | Coroutine via Dispatchers.Default | Worker pool | Real parallelism |
+    end note
+
+    N_THREADS_FLOWS .. InkFlow
+
     class StatePatch {
         + globals : LinkedHashMap<String, InkObject>
         + changedVariables : LinkedHashSet<String>
@@ -2667,6 +2763,135 @@ end note
 
 PROGRESS .. Story
 GAPS .. InkRuntime
+
+' ══════════════════════════════════════════════════════════════════════════════
+' SECTION: CAMEL ROUTES + RSOCKET + MCP INTEGRATION
+' ══════════════════════════════════════════════════════════════════════════════
+
+note as N_CAMEL_RSOCKET_MCP
+  **Camel Routes ↔ RSocket ↔ MCP Tools ↔ Ink API — Integration Architecture**
+  ═══════════════════════════════════════════════════════════════════════════════
+
+  **1. Three Protocol Layers**
+
+  | Layer | Transport | Encoding | Pattern | Kotlin concurrency |
+  | MCP | SSE + POST (Ktor) | JSON-RPC | request-response | Channel<ServerSentEvent> |
+  | Yjs | WebSocket /collab/:docId | Y.Doc binary | CRDT sync | launch { send(frame) } |
+  | RSocket | WebSocket /rsocket | msgpack | stream / fire-and-forget | launch { send(frame) } |
+
+  **2. Camel Routes (10 routes, direct: only)**
+
+  CamelRoutes.kt uses Apache Camel 4.18 with ""direct:"" endpoints.
+  No network transport, no message brokers — all in-process.
+
+  | Route | Endpoint | Engine | Purpose |
+  | llm-chat | direct:llm-chat | LlmEngine.chat() | Chat with loaded LLM |
+  | llm-langchain4j | direct:llm-langchain4j | langchain4j-chat:inky | Camel LangChain4j component |
+  | llm-generate-ink | direct:llm-generate-ink | LlmEngine.generateInk() | NL → ink code |
+  | llm-review-ink | direct:llm-review-ink | LlmEngine.reviewInk() | Code review |
+  | llm-translate-he | direct:llm-translate-he | LlmEngine.translateToHebrew() | DictaLM Hebrew |
+  | ink-compile | direct:ink-compile | InkEngine.compile() | Compile .ink source |
+  | ink-play | direct:ink-play | InkEngine.startSession() | Start story session |
+  | ink-choose | direct:ink-choose | InkEngine.choose() | Make choice (headers) |
+  | llm-compile-chain | direct:llm-compile-chain | Pipeline | generate → compile → play |
+  | ink-asset-event | direct:ink-asset-event | AssetEventEngine | Tags → asset events |
+  | voice-synthesize | direct:voice-synthesize | AssetEventEngine | Voice synthesis request |
+
+  **3. Camel ↔ MCP Tools dispatch**
+
+  ""McpTools"" invokes Camel via:
+    ""camelRoutes.sendToRoute(routeName, body, headers)""
+    → ProducerTemplate.requestBodyAndHeaders(""direct:$routeName"", body, headers)
+
+  LLM tool priority: external service → Camel route → LlmEngine direct.
+
+  **4. Camel ↔ Ink API ↔ RSocket event flow**
+
+  ""direct:llm-compile-chain"" (full pipeline):
+    prompt → ""direct:llm-generate-ink"" (LlmEngine)
+           → ""direct:ink-compile"" (InkEngine.compile)
+           → choice(success?) → ""direct:ink-play"" (InkEngine.startSession)
+                               → ContinueResult { text, tags, choices }
+
+  ""direct:ink-asset-event"" (tags → asset pipeline):
+    tags[] → AssetEventEngine.processStoryState(sessionId, tags, knot)
+           → EmojiAssetManifest.parseInkTags(tags)
+           → AssetEventBus.publish(""ink/story/tags"", InkTagEvent)
+           → AssetEventBus.publish(""ink/asset/load"", AssetLoadRequest) [per asset]
+           ← WebSocket /rsocket subscribers receive msgpack frames
+
+  **5. RSocket WebSocket protocol (/rsocket)**
+
+  Client → Server (msgpack binary frames):
+    | type | fields | handler |
+    | ""subscribe"" | session_id, channels[] | bus.subscribe() + replay |
+    | ""fire_and_forget"" | channel, data | bus.publish() |
+    | ""request"" | channel, limit | bus.recentEvents() |
+
+  Server → Client (msgpack binary frames):
+    ""{ channel, event, timestamp [, replay: true] }""
+
+  6 channels (AsyncAPI ink-asset-events.yaml):
+    ""ink/story/tags""        → InkTagEvent (server → client)
+    ""ink/asset/load""        → AssetLoadRequest (server → client)
+    ""ink/asset/loaded""      → AssetLoadedEvent (client → server)
+    ""ink/inventory/change""  → InventoryChangeEvent (server → client)
+    ""ink/voice/synthesize""  → VoiceSynthRequest (server → client)
+    ""ink/voice/ready""       → VoiceReadyEvent (client → server)
+
+  **6. Flow of data through all three protocols**
+
+  LLM Agent (Claude/GPT)
+    ↓ MCP JSON-RPC: tools/call generate_compile_play
+  McpTools
+    ↓ camelRoutes.sendToRoute(""llm-compile-chain"", prompt)
+  Camel direct:llm-generate-ink → direct:ink-compile → direct:ink-play
+    ↓ ContinueResult { text, tags: [""# anim:slash"", ""# mesh:sword""] }
+  McpTools (or Camel direct:ink-asset-event)
+    ↓ assetEventEngine.processStoryState(sessionId, tags, knot)
+  AssetEventBus.publish(""ink/story/tags"", InkTagEvent)
+  AssetEventBus.publish(""ink/asset/load"", AssetLoadRequest)
+    ↓ bus subscriber callbacks
+  /rsocket WebSocket handler
+    ↓ launch { send(Frame.Binary(msgpack)) }
+  Browser (BabylonJS) / Electron / Unity (OneJS)
+    ↓ SceneLoader.ImportMesh(glTF) / AnimationGroup.start()
+  Client confirms: fire_and_forget → ""ink/asset/loaded""
+
+  **7. Camel EIP patterns in use**
+
+  | Pattern | Where | Example |
+  | Content-Based Router | llm-langchain4j | choice().when(bean:isLoaded) |
+  | Pipeline | llm-compile-chain | generate → compile → play |
+  | Wire Tap | ink-asset-event | Tags → side-channel to asset bus |
+  | Processor | All routes | process { exchange → engine.call() } |
+  | Registry Binding | start() | ctx.registry.bind(""inkEngine"", engine) |
+
+  **8. Kotlin Flow ↔ Camel bridge points**
+
+  InkFlow (reactive) and Camel (imperative) meet at these boundaries:
+    • **InkFlow → Camel**: Not direct. InkEngine.continueStory() is synchronous;
+      results passed to Camel processors as exchange body.
+    • **Camel → AssetEventBus → RSocket WS**: Camel route calls
+      assetEventEngine → bus.publish() → subscriber callback → launch { send() }.
+    • **Potential**: ""camel-reactive-streams"" could bridge Flow<InkObject>
+      to Camel routes via ReactiveStreamsHelper.toPublisher().
+      Not currently used — Camel routes are all synchronous direct: hops.
+
+  **9. Build dependencies (Camel + RSocket)**
+
+  Apache Camel 4.18:
+    camel-core, camel-main, camel-direct
+    camel-langchain4j-chat, camel-langchain4j-tools
+    camel-jackson
+  RSocket-Kotlin 0.16.0:
+    rsocket-ktor-server, rsocket-ktor-client
+  msgpack: jackson-dataformat-msgpack 0.9.8
+  Note: /rsocket endpoint is hand-rolled msgpack-over-WS,
+  not the actual RSocket wire protocol (despite dependency).
+end note
+
+N_CAMEL_RSOCKET_MCP .. GAPS
 
 ' ══════════════════════════════════════════════════════════════════════════════
 ' LEGEND
