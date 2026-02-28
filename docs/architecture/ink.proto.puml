@@ -1,15 +1,21 @@
 @startuml ink.proto – Protobuf Message Diagram (ink.model)
 
 ' ==============================================================================
-' ink.model — Unified Protobuf Contract
+' ink.model — Code-First Three-Layer Architecture
 ' Package: ink.model
-' Source:  ink-kmp-mcp/src/main/proto/ink/model/
+' Source:  ink-kmp-mcp/src/commonMain/kotlin/ink/model/
 '
-' 14 .proto files defining 44 messages + 5 enums.
-' Single source of truth for KT, C#, TS/JS, Python code generation.
-' Drives MCP (JSON-RPC), RSocket (msgpack), WSS, SSE, WebDAV, Yjs protocols.
+' Code-first: Kotlin data classes with annotations → generates:
+'   @Proto → .proto files (gRPC, msgpack, RSocket)
+'   @OpenApi → REST API spec
+'   @Mcp → MCP tool schemas
+'   @AsyncApi → event streaming spec (WSS, SSE, RSocket)
+'   @KmpExport → JS/Native/WASM exports
 '
-' Last updated: 2026-02-27
+' Three layers: ink.model (data) → ink.kt (runtime) → ink.kt.services (logic)
+' C# + Java compilers unchanged (test oracles, same JSON output)
+'
+' Last updated: 2026-02-28
 ' ==============================================================================
 
 skinparam backgroundColor #FAFAFA
@@ -610,54 +616,54 @@ StepResult ..> Choice : imports
 ' ═══════════════════════════════════════════════════════════
 
 note as N1
-  **ink.model Proto Contract (2026-02-27)**
-  ═══════════════════════════════════════════
+  **ink.model Code-First Architecture (2026-02-28)**
+  ═══════════════════════════════════════════════════
 
-  **14 .proto files | 44 messages | 5 enums**
+  **Code-first**: Kotlin data classes + annotations
+  → generates proto, OpenAPI, MCP, AsyncAPI schemas
 
-  | .proto file | Messages | Enums | Imports |
-  | story.proto | 4 | 0 | — |
-  | structure.proto | 5 | 3 | — |
-  | table.proto | 3 | 1 | — |
-  | document.proto | 2 | 1 | table.proto |
-  | asset.proto | 3 | 0 | — |
-  | faker.proto | 2 | 0 | — |
-  | event.proto | 5 | 0 | asset.proto |
-  | debug.proto | 6 | 0 | story.proto |
-  | mcp.proto | 11 | 0 | — |
-  | llm.proto | 2 | 0 | — |
-  | principal.proto | 2 | 0 | — |
-  | calendar.proto | 1 | 0 | — |
-  | collab.proto | 3 | 0 | — |
-  | sillytavern.proto | 1 | 0 | — |
+  **Three layers:**
+  1. **ink.model** — data classes + @Proto/@Mcp/@OpenApi/@AsyncApi
+  2. **ink.kt** — runtime classes (extend model data classes)
+  3. **ink.kt.services** — companion objects (ink language logic)
 
-  **Codegen targets:**
+  **14 data class groups | 44 messages | 5 enums**
 
-  | Target | Generated Output |
-  | KT/JVM | java/ink/model/ (direct use) |
-  | KT gRPC | grpckt/ink/model/ (stubs) |
-  | TypeScript | ts/ink/model/ (→ ink-js) |
-  | C# | csharp/Ink.Model/ (→ ink-unity) |
-  | Python | python/ink_model/ (→ tools) |
-  | JS | js/ink/model/ (→ ink-js) |
+  | Data class group | Messages | Enums | Annotations |
+  | story | 4 | 0 | @Proto @Mcp |
+  | structure | 5 | 3 | @Proto @Mcp |
+  | table | 3 | 1 | @Proto @Mcp |
+  | document | 2 | 1 | @Proto @Mcp @OpenApi |
+  | asset | 3 | 0 | @Proto @AsyncApi |
+  | faker | 2 | 0 | @Proto @Mcp |
+  | event | 5 | 0 | @Proto @AsyncApi |
+  | debug | 6 | 0 | @Proto @Mcp |
+  | mcp | 11 | 0 | @Proto @Mcp |
+  | llm | 2 | 0 | @Proto @Mcp |
+  | principal | 2 | 0 | @Proto @OpenApi |
+  | calendar | 1 | 0 | @Proto @Mcp |
+  | collab | 3 | 0 | @Proto @AsyncApi |
+  | sillytavern | 1 | 0 | @Proto @Mcp |
 
-  **Wire formats driven by proto:**
+  **Annotation-driven schema generation:**
 
-  | Protocol | Format | Usage |
-  | MCP | JSON-RPC | JsonFormat.printer() |
-  | RSocket | msgpack | jackson-dataformat-msgpack |
-  | WSS | JSON or binary | proto → JSON or bytes |
-  | SSE | JSON stream | proto → JSON events |
-  | WebDAV | JSON props | proto → JSON metadata |
-  | Yjs | CRDT + proto | proto field names = Y.Map keys |
-  | ink VARs | ink source | MdTable → generateVarDeclarations |
+  | Annotation | Output | Wire Format |
+  | @Proto | .proto → gRPC stubs | protobuf/msgpack |
+  | @OpenApi | REST API spec (3.1) | JSON |
+  | @Mcp | MCP tool inputSchema | JSON-RPC |
+  | @AsyncApi | Event spec (3.0) | WSS/SSE/RSocket |
+  | @KmpExport | JS/Native/WASM | platform-specific |
+
+  **Compiler**: KT/KMP new compiler → native + JVM + JS
+  C# inklecate + Java blade-ink unchanged (test oracles)
+  All 3 compilers → identical JSON output
 end note
 
 note as N2
-  **Cross-Framework Consolidation**
-  ═════════════════════════════════
+  **Cross-Framework Consolidation (code-first)**
+  ═══════════════════════════════════════════════
 
-  **Before proto (duplicated):**
+  **Before (duplicated per framework):**
 
   | Concept | KT | C# | TS |
   | Choice | ChoiceInfo | ChoiceDto | InkChoice |
@@ -667,17 +673,18 @@ note as N2
   | Structure | InkSection | Container | (adapter) |
   | Table data | MdTable | — | — |
 
-  **After proto (unified):**
+  **After (ink.model data classes → generated schemas):**
 
-  | Proto Message | Replaces All |
-  | ink.model.Choice | KT/C#/TS Choice types |
-  | ink.model.StoryState | KT/C#/TS state types |
-  | ink.model.CompileResult | KT/C#/TS compile types |
-  | ink.model.Variable | KT/C#/TS variable types |
-  | ink.model.Section | KT/C#/TS section types |
-  | ink.model.MdTable | KT table + flexible columns |
+  | ink.model class | Annotations | Generates |
+  | Choice | @Proto @Mcp | proto + MCP schema |
+  | StoryState | @Proto @Mcp @AsyncApi | proto + events |
+  | CompileResult | @Proto @Mcp | proto + MCP schema |
+  | Variable | @Proto @Mcp | proto + MCP schema |
+  | Section | @Proto @OpenApi | proto + REST API |
+  | MdTable | @Proto @Mcp | proto + MCP schema |
 
-  **Zero code duplication across frameworks.**
+  **Single source of truth in Kotlin.**
+  **All API contracts derived from annotations.**
 end note
 
 N1 .. StoryState

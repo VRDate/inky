@@ -1427,19 +1427,19 @@ Story ..|> InkRuntime : <<pending>>
 ' ══════════════════════════════════════════════════════════════════════════════
 
 note as PROGRESS
-  **ink.kt KMP Progress Tracker (2026-02-27)**
+  **ink.kt KMP Progress Tracker (2026-02-28)**
   ══════════════════════════════════════════════
 
   |= ink.kt class |= C# |= Java |= JS |= mica |= Status |
-  | InkObject | RTObject | RTObject | InkObject | Content | ✅ Complete |
-  | Container | Container | Container | Container | Container | ✅ Complete |
-  | Story | Story | Story | Story | Story | ✅ Complete |
+  | InkObject | RTObject | RTObject | InkObject | Content | ✅ +mica fields |
+  | Container | Container | Container | Container | Container | ✅ +mica fields |
+  | Story | Story | Story | Story | Story | ✅ +parser mode |
   | StoryState | StoryState | StoryState | StoryState | — | ✅ Complete |
   | CallStack | CallStack | CallStack | CallStack | — | ✅ Complete |
   | Path | Path | Path | Path | — | ✅ Complete |
   | Pointer | Pointer | Pointer | Pointer | — | ✅ Complete |
   | Value<T> | Value<T> | AbstractValue | Value | Double | ✅ Complete |
-  | Choice | Choice | Choice | Choice | Choice | ✅ Complete |
+  | Choice | Choice | Choice | Choice | Choice | ✅ +mica fields |
   | ChoicePoint | ChoicePoint | ChoicePoint | ChoicePoint | — | ✅ Complete |
   | Divert | Divert | Divert | Divert | Divert | ✅ Complete |
   | ControlCommand | ControlCommand | ControlCommand | ControlCommand | — | ✅ Complete |
@@ -1453,16 +1453,28 @@ note as PROGRESS
   | SimpleJson | SimpleJson | SimpleJson | SimpleJson | — | ✅ Complete |
   | InkList | InkList | InkList | InkList | — | ✅ Complete |
   | Profiler | Profiler | Profiler | — | — | ✅ Complete |
+  | Tag | — | — | Tag | Tag | ✅ Compatible |
   | InkRuntime | — | — | — | — | ⬜ NEW |
   | InkParser | — | — | — | InkParser | ⬜ From mica |
   | Expression | — | — | — | Expression | ⬜ From mica |
 
+  **mica KMP port**: ✅ All 6 JVM deps replaced (BigDecimal/Jackson/IO/reflection)
+  **Parser fields**: ✅ Merged into InkObject, Container, Choice, Story
   **ink-proof e2e**: 7 bytecode + 135 ink tests
-  **Next**: Implement InkRuntime on Story, run ink-proof
+  **Next**: Move 22 non-colliding mica classes to ink.kt package
+
+  **Architecture: code-first three layers**
+  ink.model (data classes + annotations) → generates proto/OpenAPI/MCP/AsyncAPI
+  ink.kt (runtime classes — extend ink.model)
+  ink.kt.services (companion objects — ink language logic)
+
+  **Compiler**: KT/KMP new compiler → native + JVM + JS targets
+  C# inklecate + Java blade-ink unchanged (test oracles)
+  All 3 compilers produce identical JSON output
 end note
 
 note as GAPS
-  **Cross-Implementation Gap Analysis (2026-02-27)**
+  **Cross-Implementation Gap Analysis (2026-02-28)**
   ════════════════════════════════════════════════════
 
   **1. JS → ink.kt gaps (inkjs has, ink.kt missing)**
@@ -1476,19 +1488,24 @@ note as GAPS
   | ContinueSingleStep() | ✅ | ✅ public | ✅ Ported |
   | $() / $$() var shorthand | ✅ | ✅ operator[] | ✅ Done |
 
-  **2. mica → ink.kt gaps (mica has, ink.kt missing)**
+  **2. mica → ink.kt merge status**
 
-  | Feature | mica | ink.kt | Priority |
-  | InkParser (parse .ink at runtime) | ✅ KMP | ⬜ | HIGH — KMP |
-  | Expression evaluator | ✅ KMP | ⬜ | HIGH — KMP |
-  | Symbol (syntax constants) | ✅ KMP | ⬜ | MED — parser |
-  | StoryInterrupt (flow override) | ✅ KMP | ⬜ | MED — game |
-  | StoryText (dynamic text) | ✅ KMP | ⬜ | LOW — compiled |
+  | Feature | mica | ink.kt | Status |
+  | Parser fields (InkObject) | ✅ Content | ✅ +id/text/lineNumber/count | ✅ Merged |
+  | Parser fields (Container) | ✅ children | ✅ +index/children/add/get | ✅ Merged |
+  | Parser fields (Choice) | ✅ level/cond | ✅ +level/conditions/repeatable | ✅ Merged |
+  | Parser fields (Story) | ✅ wrapper | ✅ +parserMode fields | ✅ Merged |
+  | Tag | ✅ Content | ✅ compatible (text override) | ✅ Compatible |
+  | InkParser (parse .ink) | ✅ KMP | ⬜ move to ink.kt | NEXT |
+  | Expression evaluator | ✅ KMP | ⬜ move to ink.kt | NEXT |
+  | Symbol (syntax constants) | ✅ KMP | ⬜ move to ink.kt | NEXT |
+  | StoryInterrupt (flow override) | ✅ KMP | ⬜ move to ink.kt | NEXT |
+  | StoryText (dynamic text) | ✅ KMP | ⬜ move to ink.kt | NEXT |
   | Function interface | ✅ | ✅ ExternalFunc | ✅ Done |
   | VariableMap interface | ✅ | ✅ VariablesState | ✅ Done |
   | StorySaver/Loader | ✅ KMP | ✅ JsonSerialisation | ✅ Done |
 
-  **2b. mica KMP porting status (JVM → KMP)**
+  **2b. mica KMP porting status (JVM → KMP) — ✅ ALL COMPLETE**
 
   | JVM Dependency | KMP Replacement | Files Changed | Status |
   | BigDecimal | Double | 7 files | ✅ Ported |
@@ -1518,16 +1535,20 @@ note as GAPS
   | fun interface SAM conversion | ✅ | Lambda-friendly API |
   | InkRuntime common interface | ✅ | Both runtimes |
 
-  **5. Porting priority (what to do next)**
+  **5. Merge priority (what to do next)**
 
-  | Priority | Task | Source | Target |
+  | Priority | Task | Source | Status |
   | 1 | ~~Event callbacks (5 hooks)~~ | inkjs Story | ✅ Done |
-  | 2 | ~~mica KMP port (BigDecimal/Jackson/IO)~~ | mica JVM | ✅ Done |
-  | 3 | InkParser (.ink at runtime) | mica KMP | ink.kt |
-  | 4 | Expression evaluator | mica KMP | ink.kt |
-  | 5 | StoryInterrupt flow override | mica KMP | ink.kt |
-  | 6 | ~~ContinueSingleStep()~~ | inkjs Story | ✅ Done |
-  | 7 | Symbol syntax constants | mica KMP | ink.kt |
+  | 2 | ~~mica KMP port (6 JVM deps)~~ | mica JVM | ✅ Done |
+  | 3 | ~~Parser fields merge (4 classes)~~ | mica → ink.kt | ✅ Done |
+  | 4 | ~~ContinueSingleStep()~~ | inkjs Story | ✅ Done |
+  | 5 | Move 22 non-colliding classes | mica → ink.kt | NEXT |
+  | 6 | Delete mica/ directory | cleanup | NEXT |
+  | 7 | KT/KMP compiler (from C#/Java/JS) | all impls | FUTURE |
+
+  **Compiler strategy**: C# + Java compilers unchanged (test oracles)
+  New KT/KMP compiler → native + JVM + JS targets
+  All 3 compilers produce identical JSON output
 end note
 
 PROGRESS .. Story

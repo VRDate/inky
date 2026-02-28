@@ -366,28 +366,29 @@ Expression --> VariableMap : evaluates against
 ' ═══════════════════════════════════════════════════════════
 
 note as N1
-  **ink.kt.mica vs ink.kt Architecture Comparison**
-  ════════════════════════════════════════════════
+  **ink.kt.mica vs ink.kt Architecture Comparison (2026-02-28)**
+  ══════════════════════════════════════════════════════════════
 
-  **mica** (parser-based):
+  **mica** (parser-based) — ✅ fully KMP-ported:
   - Parses .ink source files at runtime
   - Tree traversal with container.index pointer
-  - BigDecimal-only values
-  - Expression evaluator (EvalEx-based)
-  - 28 classes, ~2100 LOC
+  - Double values (was BigDecimal → ✅ KMP-ported)
+  - Expression evaluator (kotlinx.serialization → ✅ KMP-ported)
+  - 28 classes, ~2100 LOC, zero JVM dependencies
 
-  **ink.kt** (compiled runtime):
+  **ink.kt** (compiled runtime) — ✅ parser fields merged:
   - Loads pre-compiled JSON bytecode
   - CallStack + evaluation stack (VM-style)
   - Sealed Value hierarchy (Bool/Int/Float/String/List)
   - NativeFunctionCall operator dispatch
   - 36 classes, ~8000+ LOC
+  - +mica fields on InkObject, Container, Choice, Story
 
-  **Unique to mica (candidates for ink.kt)**:
-  ✅ InkParser — parse .ink at runtime
-  ✅ Expression — standalone expression evaluator
-  ✅ Symbol — ink syntax constants
-  ✅ StoryInterrupt — conditional flow override
+  **Unique to mica (ready to move to ink.kt)**:
+  ✅ InkParser — parse .ink at runtime (KMP-ready)
+  ✅ Expression — standalone expression evaluator (KMP-ready)
+  ✅ Symbol — ink syntax constants (KMP-ready)
+  ✅ StoryInterrupt — conditional flow override (KMP-ready)
 
   **Unique to ink.kt (mature runtime)**:
   ✅ CallStack + Thread — proper scope management
@@ -395,6 +396,11 @@ note as N1
   ✅ Flow — named execution contexts
   ✅ Profiler — instruction-level profiling
   ✅ SimpleJson — zero-dep JSON parser
+
+  **Three-layer target (code-first)**:
+  ink.model → ink.kt → ink.kt.services
+  KT/KMP compiler → native + JVM + JS
+  C# + Java compilers unchanged (test oracles, same JSON)
 end note
 
 note as N2
@@ -410,21 +416,31 @@ note as N2
 end note
 
 note as N3
-  **mica → ink.kt Gap Analysis (2026-02-27)**
+  **mica → ink.kt Merge Status (2026-02-28)**
   ═════════════════════════════════════════════
 
-  **mica-unique features: candidates for ink.kt**
+  **Phase 1: ✅ COMPLETE — KMP port + parser fields**
 
-  | mica Class | ink.kt Equivalent | Port Status |
-  | InkParser | — | ⬜ Port (parse .ink at runtime) |
-  | Expression | — | ⬜ Port (standalone evaluator) |
-  | Symbol | — | ⬜ Port (syntax constants) |
-  | StoryInterrupt | — | ⬜ Port (flow override) |
-  | StoryText | — | ⬜ Port (dynamic text) |
+  | Step | What | Status |
+  | KMP port | All 6 JVM deps removed | ✅ Done |
+  | InkObject | +id, +text, +lineNumber, +count from Content | ✅ Merged |
+  | Container | +index, +children, +add/get/indexOf/size | ✅ Merged |
+  | Choice | +level, +conditions, +repeatable | ✅ Merged |
+  | Story | +parserMode fields (wrapper, container, etc.) | ✅ Merged |
+  | Tag | text override compatible | ✅ Compatible |
+
+  **Phase 2: NEXT — Move 22 non-colliding classes**
+
+  | mica Class | ink.kt Equivalent | Move Status |
+  | InkParser | — | ⬜ Move to ink.kt |
+  | Expression | — | ⬜ Move to ink.kt |
+  | Symbol | — | ⬜ Move to ink.kt |
+  | StoryInterrupt | — | ⬜ Move to ink.kt |
+  | StoryText | — | ⬜ Move to ink.kt |
+  | StoryWrapper | — | ⬜ Move to ink.kt |
   | Operator | NativeFunctionCall | ✅ Different approach |
   | VariableMap | VariablesState | ✅ Different approach |
   | Function | ExternalFunction | ✅ fun interface |
-  | StoryWrapper | — | ⬜ Port (DI for file/object) |
   | StorySaver | JsonSerialisation | ✅ Different format |
   | StoryLoader | JsonSerialisation | ✅ Different format |
   | StoryJson | JsonSerialisation | ✅ Constants merged |
@@ -432,26 +448,26 @@ note as N3
   **mica features covered differently in ink.kt**
 
   | mica Feature | ink.kt Equivalent | Note |
-  | Content base | InkObject | Same role, diff name |
-  | Container traversal | Path + Pointer | VM-style navigation |
-  | BigDecimal values | sealed Value<T> | Bool/Int/Float/String |
+  | Content base | InkObject | ✅ Fields merged |
+  | Container traversal | Path + Pointer | ✅ +mica aliases |
+  | BigDecimal values | sealed Value<T> | ✅ Double in mica KMP |
   | Knot (parameterized) | Container + ChoicePoint | Compiled away |
   | Stitch (parameterized) | Container | Compiled away |
-  | Choice (with conditions) | ChoicePoint + Choice | Split in compiled |
+  | Choice (with conditions) | ChoicePoint + Choice | ✅ Fields merged |
   | Gather (merge point) | Container | Compiled away |
   | Conditional sequences | ControlCommand dispatch | VM instructions |
   | ConditionalOption | ControlCommand dispatch | VM instructions |
   | Declaration | VariableAssignment | Compiled to bytecode |
   | Divert | Divert | Same concept |
-  | Tag | Tag | Same concept |
+  | Tag | Tag | ✅ Compatible |
 
-  **Architecture: Parser vs VM**
+  **Architecture: Parser vs VM (both in ink.kt after merge)**
 
   | Aspect | mica (parser) | ink.kt (compiled) |
   | Input | .ink source text | compiled JSON bytecode |
   | Navigation | container.index pointer | CallStack + Path |
-  | Values | BigDecimal only | sealed Bool/Int/Float/String |
-  | Expressions | EvalEx shunting-yard | NativeFunctionCall dispatch |
+  | Values | Double (KMP-ported) | sealed Bool/Int/Float/String |
+  | Expressions | shunting-yard | NativeFunctionCall dispatch |
   | Variables | VariableMap interface | VariablesState + StatePatch |
   | Save/Load | StoryLoader/Saver JSON | JsonSerialisation |
   | Size | 28 files ~2100 LOC | 36 files ~8000+ LOC |
@@ -459,15 +475,10 @@ note as N3
   | Flows | — | Flow (named contexts) |
   | Profiling | — | Profiler + ProfileNode |
 
-  **Porting priority from mica to ink.kt**
-
-  | # | Feature | Value | Effort |
-  | 1 | InkParser | Parse .ink without compiler | HIGH |
-  | 2 | Expression | Standalone eval for MCP | MED |
-  | 3 | StoryInterrupt | Game flow override | MED |
-  | 4 | Symbol | Parser infrastructure | LOW |
-  | 5 | StoryText | Dynamic text (compiled handles) | LOW |
-  | 6 | StoryWrapper | DI pattern for file loading | LOW |
+  **Phase 3: FUTURE — KT/KMP compiler**
+  Port compiler from C#/Java/JS → KT/KMP
+  All 3 compilers (C#, Java, KT) → same JSON output
+  C# + Java unchanged (test oracles)
 end note
 
 N1 .. Story

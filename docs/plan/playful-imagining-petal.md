@@ -191,14 +191,41 @@ Remove "Prose" prefix since ProseMirror is not used. Rename class, file, and CSS
 
 ---
 
-## Step 0: Unified `ink.model` Proto Contract (Multi-Language Code Generation)
+## Step 0: KT Code-First Three-Layer Architecture
 
-**Single source of truth.** All data classes across KT, C#, TS/JS, Python become `.proto` message definitions in the `ink.model` package. Gradle protobuf plugin generates typed code for every framework. No more hand-maintained duplicates.
+**Single source of truth in Kotlin.** All API contracts derived from annotated Kotlin data classes — no hand-maintained .proto files, no schema drift.
 
-**Eliminates cross-framework duplication:**
+### Three Layers
 
-| Concept | KT (today) | C# (today) | TS (today) | Proto (unified) |
-|---------|-----------|-----------|-----------|----------------|
+| Layer | Package | Purpose | Example |
+|-------|---------|---------|---------|
+| **1. ink.model** | `ink.model` | Kotlin data classes + annotations | `@Proto @OpenApi @Mcp data class Choice(...)` |
+| **2. ink.kt** | `ink.kt` | Runtime classes (extend model) | `class Story : InkObject(), VariablesState.VariableChanged` |
+| **3. ink.kt.services** | `ink.kt.services` | Companion objects per data class (ink language logic) | `Choice.Companion.evaluateConditions()` |
+
+### Annotation-Driven Schema Generation
+
+Annotations on `ink.model` data classes drive ALL public APIs:
+
+| Annotation | Output | Wire Format |
+|------------|--------|-------------|
+| `@Proto` | .proto files → gRPC stubs | protobuf / msgpack / RSocket |
+| `@OpenApi` | REST API spec (OpenAPI 3.1) | JSON |
+| `@Mcp` | MCP tool schemas (`inputSchema`) | JSON-RPC |
+| `@AsyncApi` | Event streaming spec (AsyncAPI 3.0) | WSS / SSE / RSocket |
+| `@KmpExport` | JS/Native/WASM exports | platform-specific |
+
+### How mica merge feeds into this
+
+The mica merge unifies all ink runtime logic into `ink.kt.services`:
+- **ink.model** — extracted data class fields from ink.kt (proto-compatible shapes)
+- **ink.kt** — runtime classes with parser fields merged from mica
+- **ink.kt.services** — companion objects with ink language logic (Expression eval, parser, text resolution)
+
+### Cross-framework consolidation (same as before, code-first)
+
+| Concept | KT (today) | C# (today) | TS (today) | ink.model (code-first) |
+|---------|-----------|-----------|-----------|----------------------|
 | Choice | `ChoiceInfo` | `ChoiceDto` | `InkChoice` | `ink.model.Choice` |
 | Story output | `ContinueResult` | `StoryStateDto` | `InkStoryState` | `ink.model.StoryState` |
 | Compilation | `CompileResult` | `CompileResult` | (via adapter) | `ink.model.CompileResult` |
@@ -206,17 +233,17 @@ Remove "Prose" prefix since ProseMirror is not used. Rename class, file, and CSS
 | Structure | `InkSection` | `Container` | (via adapter) | `ink.model.Section` |
 | Table data | `MdTable` | — | — | `ink.model.MdTable` (flexible columns) |
 
-**Drives every protocol — zero code duplication:**
+### Drives every protocol — code-first, zero duplication
 
-| Protocol | Wire Format | How Proto Drives It |
-|----------|------------|-------------------|
-| **MCP** | JSON-RPC | `JsonFormat.printer()` → JSON, proto descriptor → `inputSchema` |
-| **RSocket** | msgpack binary | `jackson-dataformat-msgpack` → `ByteArray` |
-| **WSS** | JSON or binary | proto → JSON or `toByteArray()` |
-| **SSE** | JSON stream | proto → JSON events |
-| **WebDAV** | JSON properties | proto → JSON metadata |
-| **Yjs** | CRDT + proto fields | proto field names = Y.Map keys |
-| **ink VARs** | ink source text | proto `MdTable` → `generateVarDeclarations()` |
+| Protocol | Wire Format | How Code-First Drives It |
+|----------|------------|--------------------------|
+| **MCP** | JSON-RPC | `@Mcp` → `inputSchema` from KClass reflection |
+| **RSocket** | msgpack binary | `@Proto` → msgpack via annotation processor |
+| **WSS** | JSON or binary | `@AsyncApi` → JSON or binary events |
+| **SSE** | JSON stream | `@AsyncApi` → JSON events |
+| **WebDAV** | JSON properties | `@OpenApi` → JSON metadata |
+| **Yjs** | CRDT + data class fields | data class property names = Y.Map keys |
+| **ink VARs** | ink source text | `ink.model.MdTable` → `generateVarDeclarations()` |
 
 ### 0.1 Proto Directory Structure
 
@@ -1109,7 +1136,12 @@ dotnet test InkBidiTdd.Tests --filter "InkAssetEventReceiverTest"
 - [x] **Step 1** — EmojiAssetManifest.kt, InkFakerEngine.kt, InkMdEngine extensions, 6 MCP tools, tests (committed + pushed)
 - [x] **Step 1b** — Rewrite EmojiAssetManifest as Unicode parser + Camel route fixes (committed + pushed)
 - [x] **Step 2** — RSocket + msgpack + AsyncAPI event layer (committed + pushed)
-- [ ] **Step 6** — Merge ink.kt.mica → ink.kt package (Mica namespace) ← **NEXT**
+- [x] **Step 6a** — Add parser fields to ink.kt data classes (InkObject, Container, Choice, Story) ✅
+- [x] **Step 6b** — KMP-port mica (BigDecimal→Double, Jackson→kotlinx, reflection→fun interface) ✅
+- [ ] **Step 6c** — Update ink.[lang].puml merge status + code-first architecture ← **NEXT**
+- [ ] **Step 6d** — Copy plan to docs/plan/, commit + push
+- [ ] **Step 6e** — Move 22 non-colliding mica classes to ink.kt package
+- [ ] **Step 6f** — Delete ink/kt/mica/ directory, update references
 - [ ] **Step 3** — Chatterbox TTS
 - [ ] **Step 4** — BabylonJS loader
 
@@ -1326,37 +1358,56 @@ No new Gradle dependencies. No changes needed to InkFakerEngine (works via manif
 
 ### Context
 
-**Architecture**: Proto data classes are extracted FROM ink.kt. Logic is identical across all
-implementations (C#, Java, JS, Kotlin) because ink is the same language. Each framework adds
-logic differently: **KT uses extension methods**, C# uses partial classes + static methods.
+**Architecture**: Code-first three-layer (ink.model → ink.kt → ink.kt.services). Logic is identical
+across all implementations (C#, Java, JS, Kotlin) because ink is the same language. Annotations on
+ink.model data classes generate all API contracts. ink.kt.services companion objects hold the logic.
 
 **Grand vision**: All ink impls (JS/TS/C#/Java/mica) → ink.kt (KMP source of truth) → then:
-- **KT/KMP**: JVM + JS + Native + WASM from one codebase
-- **KT Ktor Native**: MCP multi-tenant OIDC server
-- **KT/JS**: one JS bridge → 2D web + BabylonJS 3D (all web is KT/JS)
+- **KT/KMP compiler**: New compiler, validated against C# + Java JSON output (all 3 produce same JSON)
+- **C# inklecate + Java blade-ink**: Unchanged reference compilers (test oracles)
+- **KT/Native**: CLI compiler, embedded in native apps
+- **KT/JVM**: MCP multi-tenant OIDC server (Ktor Native)
+- **KT/JS**: Browser compiler + runtime (alongside inkjs), inkey web editor
 - **ink.cs**: port from ink.kt using existing C# as guide → MAUI + Unity only
-- **Proto data classes**: shared contract codegen (KT, CS, TS, JS, Python)
+- **ink.model**: annotated data classes → generates proto, OpenAPI, MCP, AsyncAPI schemas
 
 **Goal**: Merge 28 mica parser files into the `ink.kt` package. Same class names for KMP
 JS/Native compatibility. No `Mica.kt` namespace — merge each class directly by comparing
 ink.[lang].puml class diagrams and actual code.
 
+**Post-port vision**: After mica merge, a new ink **compiler** will be in Kotlin (KMP), ported from
+the existing C#/TS/JS/Java implementations. KMP compiles to **native + JVM + JS** targets:
+- **KT/Native** — CLI compiler, embedded in native apps
+- **KT/JVM** — MCP server, Gradle plugin, IDE integrations
+- **KT/JS** — Browser compiler (alongside inkjs), inkey web editor
+
+**All 3 compilers produce JSON output** (same format):
+- **C# inklecate** — unchanged, reference compiler for conformance testing
+- **Java blade-ink** — unchanged, reference compiler for conformance testing
+- **KT/KMP** — new compiler, validated against C# and Java JSON output
+
+C# and Java compilers remain as test oracles — the KT compiler must produce identical JSON.
+
 **Packages**:
 - **`ink.kt`** — compiled JSON bytecode runtime (36 classes, ~8000 LOC), from blade-ink Java/C#/JS
 - **`ink.kt.mica`** — parser-based runtime (28 files, ~2100 LOC), from mica-ink Java
+- **`ink.kt.services`** — companion objects with ink language logic (post-merge target)
 
-### Design Pattern: Data Classes + Extension Methods
+### Design Pattern: Three-Layer Code-First Architecture
 
 ```
-ink.kt class (data)  ←→  proto message (codegen)  ←→  ink.[lang] class (data)
-      ↑                                                        ↑
-  extension methods (KT)                         partial class / static (C#)
-      ↑                                                        ↑
-  same ink language logic everywhere
+ink.model (data classes + annotations)
+    ↓ generates proto, OpenAPI, MCP, AsyncAPI schemas
+ink.kt (runtime classes — extend ink.model)
+    ↓ adds runtime state + parser fields from mica
+ink.kt.services (companion objects — ink language logic)
+    ↓ same logic across all impls
+ink.[lang] (C# partial class, TS interface, etc.)
 ```
 
-- **Data classes**: hold fields (properties), extractable to proto
-- **Extension methods**: add ink language logic (same across all impls)
+- **ink.model**: annotated data classes → single source of truth for all API contracts
+- **ink.kt**: runtime classes extend model data classes, add compiled + parser fields
+- **ink.kt.services**: companion objects per data class with ink language logic (Expression, parser, text)
 - **AST node data classes** (Knot, Stitch, Gather, Conditional, ConditionalOption, Declaration):
   "compiled away" — exist only during parsing, become Container/ControlCommand/VariableAssignment
 
@@ -1677,6 +1728,33 @@ Change: `mica.Container(...)` → `Container()` and set parser fields in init bl
 3. `Content(...)` superclass → `InkObject()` + init block sets `id`, `text`, `lineNumber`
 4. `mica.Container(...)` superclass → `Container()` + init block sets parser fields
 5. `Story` type refs now resolve to ink.kt Story (with parser fields added)
+
+### Phase 2b: Update PUML Diagrams with Merge Status
+
+**Files to update:**
+
+#### `docs/architecture/ink.kt.puml` — PROGRESS note (line ~1429)
+- Update date: `2026-02-27` → `2026-02-28`
+- Add status for parser fields merge: InkObject/Container/Choice/Story now have mica fields
+- Update GAPS note: mica KMP porting all ✅, parser fields added (partial InkParser progress)
+- Update porting priority: mark Step 6a (parser fields) and 6b (KMP port) as ✅ Done
+- Add three-layer architecture note (ink.model → ink.kt → ink.kt.services)
+
+#### `docs/architecture/ink.kt.mica.puml` — Gap analysis (line ~412)
+- Update gap table: note mica is fully KMP-ported (all 6 JVM deps replaced)
+- Update N1 note to reflect parser fields now merged into ink.kt data classes
+- Add note about code-first architecture replacing proto-first
+
+#### `docs/architecture/ink.proto.puml`
+- Add note about code-first approach: annotations on ink.model generate .proto, not hand-written
+
+#### Copy plan to docs/plan/
+```bash
+cp /root/.claude/plans/playful-imagining-petal.md docs/plan/playful-imagining-petal.md
+git add docs/plan/ docs/architecture/*.puml
+git commit -m "docs: update puml merge status + code-first three-layer architecture"
+git push -u origin claude/sub-agents-code-review-7KAZW
+```
 
 ### Phase 3: Delete `ink/kt/mica/` Directory
 
