@@ -223,7 +223,19 @@ Three KMP ink engines coexist — `legacy` boolean selects between ink.kt and th
       assertEquals(official.continueMaximally(), kt.continueMaximally())
   }
   ```
-- [ ] **Files**: `commonMain/kotlin/ink/kt/engine/InkEngineProvider.kt`, `jvmMain/kotlin/ink/kt/engine/`, `jsMain/kotlin/ink/kt/engine/`
+- [ ] **Electron settings UI**: ink-electron app exposes engine selector in settings (ink.kt/JS vs inkjs)
+- [ ] **Playwright/Spectron E2E tests**: drive ink-electron app, toggle engine setting, run same story, verify identical output
+  ```typescript
+  test('engine parity via electron settings', async ({ page }) => {
+      await page.goto('settings');
+      await page.selectOption('#ink-engine', 'ink-kt');   // ink.kt/JS
+      const ktOutput = await runStory(page, storyJson);
+      await page.selectOption('#ink-engine', 'inkjs');     // legacy
+      const jsOutput = await runStory(page, storyJson);
+      expect(ktOutput).toEqual(jsOutput);
+  });
+  ```
+- [ ] **Files**: `commonMain/kotlin/ink/kt/engine/InkEngineProvider.kt`, `jvmMain/kotlin/ink/kt/engine/`, `jsMain/kotlin/ink/kt/engine/`, `ink-electron/test/engine-parity.spec.ts`
 
 ---
 
