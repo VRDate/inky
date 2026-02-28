@@ -1,28 +1,30 @@
 package ink.mcp
 
+import ink.kt.TestResources
 import kotlin.test.*
-import java.io.File
 
 /**
  * Tests for InkWebDavEngine — local filesystem operations, access control,
  * backup/restore, and working copy creation.
  *
  * These tests use a temporary directory and don't require GraalJS or Sardine.
+ * Note: InkWebDavEngine is inherently filesystem-based (JVM server), but test
+ * setup uses [TestResources.tempDir] for KMP-ready abstraction.
  */
 class InkWebDavEngineTest {
 
-    private lateinit var tempDir: File
+    private lateinit var tempPath: String
     private lateinit var dav: InkWebDavEngine
 
     @BeforeTest
     fun setup() {
-        tempDir = kotlin.io.path.createTempDirectory("inky-webdav-test").toFile()
-        dav = InkWebDavEngine(vcardEngine = null, basePath = tempDir.absolutePath)
+        tempPath = TestResources.tempDir("inky-webdav-test")
+        dav = InkWebDavEngine(vcardEngine = null, basePath = tempPath)
     }
 
     @AfterTest
     fun teardown() {
-        tempDir.deleteRecursively()
+        java.io.File(tempPath).deleteRecursively()
     }
 
     // ═══════════════════════════════════════════════════════════════

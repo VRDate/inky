@@ -47,15 +47,7 @@ class Story : VariablesState.VariableChanged {
         val lookaheadSafe: Boolean
     )
 
-    // ── Version constants ──────────────────────────────────────────────
-
-    companion object {
-        /** The current version of the ink story file format. */
-        const val INK_VERSION_CURRENT = 21
-
-        /** The minimum legacy version of ink that can be loaded. */
-        const val INK_VERSION_MINIMUM_COMPATIBLE = 18
-    }
+    // ── Version constants (moved to companion object below) ────────────
 
     // ── Fields ─────────────────────────────────────────────────────────
 
@@ -80,17 +72,6 @@ class Story : VariablesState.VariableChanged {
 
     /** Error handler callback. Assign to handle errors/warnings during evaluation. */
     var onError: ErrorHandler? = null
-
-    // ── mica Story fields (parser-based runtime, mirrors ink.mica.Story) ──
-    var wrapper: StoryWrapper? = null
-    internal var container: Container? = null
-    internal val content: MutableMap<String, InkObject> = mutableMapOf()
-    internal val fileNames: MutableList<String> = mutableListOf()
-    internal val variables: MutableMap<String, Any> = mutableMapOf()
-    internal val functions: MutableMap<String, Any> = mutableMapOf()
-    internal val interrupts: MutableList<Any> = mutableListOf()
-    internal val text: MutableList<String> = mutableListOf()
-    internal val choices: MutableList<Container> = mutableListOf()
 
     // ── Event callbacks (ported from inkjs) ──────────────────────────────
     // JS: this.onDidContinue = null;  etc.
@@ -179,6 +160,343 @@ class Story : VariablesState.VariableChanged {
             listDefinitions ?: ListDefinitionsOrigin(emptyList())
         )
     }
+
+    // ── Parser engine ──────────────────────────────────────────────────
+    // Fields and methods for text-parsing mode (mica port).
+    // Coexist with compiled-runtime fields above.
+
+    internal var wrapper: StoryWrapper? = null
+    internal var container: Container? = null
+    internal val content: MutableMap<String, InkObject> = mutableMapOf()
+    internal val fileNames: MutableList<String> = mutableListOf()
+    private val interrupts = mutableListOf<StoryInterrupt>()
+    private val storyEnd = Knot("== END ==", 0)
+    private var endProcessing = false
+    private var parserLine = Symbol.GLUE
+    val text: MutableList<String> = mutableListOf()
+    val choices = mutableListOf<Container>()
+    internal val variables = mutableMapOf<String, Any>()
+    internal val functions = sortedMapOf<String, Function>(String.CASE_INSENSITIVE_ORDER)
+
+    /** Parser constructor: builds a story from parsed ink text. */
+    constructor(
+        wrapper: StoryWrapper,
+        fileName: String,
+        parserContainer: Container,
+        parserContent: MutableMap<String, InkObject>
+    ) : this(parserContainer) {
+        this.wrapper = wrapper
+        this.container = parserContainer
+        this.content.putAll(parserContent)
+        fileNames.add(fileName)
+        this.content[storyEnd.id] = storyEnd
+        for (cnt in this.content) {
+            if (cnt.value is Knot && (cnt.value as Knot).isFunction)
+                functions[cnt.value.id.lowercase()] = cnt.value as Knot
+        }
+        putVariable(Symbol.TRUE, 1.0)
+        putVariable(Symbol.FALSE, 0.0)
+        putVariable(Symbol.PI, Expression.PI)
+        putVariable(Symbol.e, Expression.e)
+        functions[IS_NULL] = IsNullFunction()
+        functions[NOT] = NotFunction()
+        functions[RAND] = RandomFunction()
+        functions[FLOOR] = FloorFunction()
+    }
+
+    fun add(story: Story) {
+        content.putAll(story.content)
+        functions.putAll(story.functions)
+        variables.putAll(story.variables)
+        story.fileNames
+            .filterNot { fileNames.contains(it) }
+            .forEach { fileNames.add(it) }
+    }
+
+    fun next(): List<String> {
+        container ?: throw InkRunTimeException("Story not initialized via parser")
+        choices.clear()
+        parserLine = Symbol.GLUE
+        endProcessing = false
+        while (container!!.index >= container!!.size)
+            increment()
+        while (!endProcessing) {
+            val mc = container!!
+            val current = mc[mc.index]
+            when (current) {
+                is Stitch -> {
+                    if (mc.index == 0) {
+                        mc.index = mc.size
+                        container = current
+                        container!!.index = 0
+                        current.count++
+                    } else {
+                        mc.index = mc.size
+                        increment()
+                    }
+                }
+                is Choice -> {
+                    if (current.isFallBack()) {
+                        if (choices.isEmpty()) {
+                            mc.index++
+                            container = current
+                            container!!.index = 0
+                            current.count++
+                        } else {
+                            increment()
+                        }
+                    } else {
+                        if (current.evaluateConditions(variableMap()))
+                            choices.add(current)
+                        increment()
+                    }
+                }
+                is Gather -> {
+                    if (choices.isNotEmpty()) {
+                        endProcessing = true
+                    } else {
+                        mc.index++
+                        container = current
+                        container!!.index = 0
+                        current.count++
+                    }
+                }
+                is Conditional -> {
+                    mc.index++
+                    container = current.resolveConditional(this)
+                    current.count++
+                    container!!.index = 0
+                    if (container!!.index >= container!!.size)
+                        increment()
+                }
+                is Declaration -> {
+                    current.evaluate(this)
+                    increment()
+                }
+                is Divert -> {
+                    mc.index++
+                    container = current.resolveDivert(this)
+                    container!!.count++
+                    container!!.index = 0
+                }
+                is Tag -> {
+                    wrapper?.resolveTag(current.text)
+                    increment()
+                }
+                else -> {
+                    addText(current)
+                    current.count++
+                    increment()
+                }
+            }
+            if (container!!.id == storyEnd.id)
+                endProcessing = true
+        }
+        if (parserLine.isNotEmpty()) {
+            val txt = cleanUpText(parserLine)
+            if (txt.isNotEmpty())
+                text.add(txt)
+        }
+        return text
+    }
+
+    private fun increment() {
+        var mc = container!!
+        mc.index++
+        while (mc.index >= mc.size && !endProcessing) {
+            when (mc) {
+                is Choice -> { container = mc.parent!!; mc = container!! }
+                is Gather -> { container = mc.parent!!; mc = container!! }
+                is Conditional -> { container = mc.parent!!; mc = container!! }
+                is ConditionalOption -> { container = mc.parent!!; mc = container!! }
+                else -> endProcessing = true
+            }
+        }
+    }
+
+    private fun addText(current: InkObject) {
+        val nextText = current.getText(variableMap())
+        if (parserLine.endsWith(Symbol.GLUE) || nextText.startsWith(Symbol.GLUE))
+            parserLine += nextText
+        else {
+            text.add(cleanUpText(parserLine))
+            parserLine = nextText
+        }
+    }
+
+    fun choose(idx: Int) {
+        val i = if (idx == -1) choices.size - 1 else idx
+        if (i < choices.size && i >= 0) {
+            container = choices[i]
+            container!!.count++
+            container!!.index = 0
+            choices.clear()
+        } else {
+            val cId = container?.id ?: "null"
+            throw InkRunTimeException(
+                "Trying to select choice $i that does not exist in story: ${fileNames.firstOrNull()} container: $cId cIndex: ${container?.index}"
+            )
+        }
+    }
+
+    val choiceSize: Int get() = choices.size
+
+    fun choiceText(i: Int): String {
+        if (i >= choices.size || i < 0)
+            throw InkRunTimeException(
+                "Trying to retrieve choice $i that does not exist in story: ${fileNames.firstOrNull()} container: ${container?.id} cIndex: ${container?.index}"
+            )
+        return (choices[i] as Choice).getText(variableMap())
+    }
+
+    fun putVariable(key: String, value: Any) {
+        var c: Container? = container
+        while (c != null) {
+            if (c is Knot || c is Function || c is Stitch) {
+                if ((c as ParameterizedContainer).hasValue(key)) {
+                    when (value) {
+                        is Boolean -> c.setValue(key, if (value) 1.0 else 0.0)
+                        is Int -> c.setValue(key, value.toDouble())
+                        else -> c.setValue(key, value)
+                    }
+                    return
+                }
+            }
+            c = c.parent
+        }
+        variables[key] = value
+    }
+
+    val isEnded: Boolean get() = container?.id == storyEnd.id
+
+    fun getDivert(d: String): Container {
+        if (content.containsKey(d))
+            return content[d] as Container
+        if (content.containsKey(getValueId(d)))
+            return content[getValueId(d)] as Container
+        if (content.containsKey(getKnotId(d)))
+            return content[getKnotId(d)] as Container
+        if (variables.containsKey(d)) {
+            val t = variables[d]
+            if (t is Container) return t
+            else throw InkRunTimeException("Attempt to divert to a variable $d which is not a Container")
+        }
+        throw InkRunTimeException("Attempt to divert to non-defined node $d")
+    }
+
+    fun resolveInterrupt(divert: String): String {
+        for (interrupt in interrupts) {
+            if (interrupt.isActive && interrupt.isDivert) {
+                try {
+                    val res = Declaration.evaluate(interrupt.condition, variableMap())
+                    if (checkResult(res)) {
+                        val text = interrupt.text.substring(2)
+                        val from = text.substring(0, text.indexOf(Symbol.DIVERT)).trim()
+                        if (from == divert) {
+                            if (!containsFile(interrupt.file))
+                                add(InkParser.parse(wrapper!!, interrupt.file))
+                            val to = text.substring(text.indexOf(Symbol.DIVERT) + 2).trim()
+                            interrupt.isActive = false
+                            putVariable(Symbol.EVENT, interrupt)
+                            return to
+                        }
+                    }
+                } catch (e: InkRunTimeException) {
+                    wrapper?.logException(e)
+                    return divert
+                }
+            }
+        }
+        return divert
+    }
+
+    fun addInterrupt(i: StoryInterrupt) = interrupts.add(i)
+    fun clearInterrupts() = interrupts.clear()
+    fun containsFile(s: String): Boolean = fileNames.any { it.equals(s, ignoreCase = true) }
+
+    /** VariableMap-compatible adapter for parser. */
+    internal fun variableMap(): VariableMap = VariableMapAdapter(this)
+
+    private fun getValueId(id: String): String {
+        if (id.contains(Symbol.DOT.toString())) return id
+        return "${container!!.id}${Symbol.DOT}$id"
+    }
+
+    private fun getKnotId(id: String): String {
+        if (id.contains(Symbol.DOT.toString())) return id
+        var knot: Container? = container
+        while (knot != null) {
+            if (knot is Knot) return "${knot.id}${Symbol.DOT}$id"
+            knot = knot.parent
+        }
+        return id
+    }
+
+    private fun checkResult(res: Any): Boolean {
+        if (res is Boolean) return res
+        if (res is Double) return res > 0.0
+        return false
+    }
+
+    private class IsNullFunction : Function {
+        override val numParams: Int = 1
+        override val isFixedNumParams: Boolean = true
+        override fun eval(params: List<Any>, vMap: VariableMap): Any =
+            if (params[0] == 0.0) 1.0 else 0.0
+    }
+
+    class NotFunction : Function {
+        override val numParams: Int = 1
+        override val isFixedNumParams: Boolean = true
+        override fun eval(params: List<Any>, vMap: VariableMap): Any = when (val param = params[0]) {
+            is Boolean -> !param
+            is Double -> if (param == 0.0) 1.0 else 0.0
+            else -> 0.0
+        }
+    }
+
+    private class RandomFunction : Function {
+        override val numParams: Int = 1
+        override val isFixedNumParams: Boolean = true
+        override fun eval(params: List<Any>, vMap: VariableMap): Any {
+            val param = params[0]
+            if (param is Double) {
+                val v = param.toInt()
+                return if (v > 0) Random.nextInt(v).toDouble() else 0.0
+            }
+            return 0.0
+        }
+    }
+
+    private class FloorFunction : Function {
+        override val numParams: Int = 1
+        override val isFixedNumParams: Boolean = true
+        override fun eval(params: List<Any>, vMap: VariableMap): Any {
+            val param = params[0]
+            if (param is Double) return param.toInt().toDouble()
+            return 0.0
+        }
+    }
+
+    companion object {
+        /** The current version of the ink story file format. */
+        const val INK_VERSION_CURRENT = 21
+
+        /** The minimum legacy version of ink that can be loaded. */
+        const val INK_VERSION_MINIMUM_COMPATIBLE = 18
+
+        private const val IS_NULL = "isnull"
+        private const val NOT = "not"
+        private const val RAND = "random"
+        private const val FLOOR = "floor"
+
+        private fun cleanUpText(str: String): String =
+            str.replace(Symbol.GLUE.toRegex(), " ")
+                .replace("\\s+".toRegex(), " ")
+                .trim()
+    }
+
+    // ── End parser engine ───────────────────────────────────────────────
 
     // ── Error handling ─────────────────────────────────────────────────
 

@@ -1,5 +1,6 @@
 package ink.mcp
 
+import ink.kt.TestResources
 import kotlin.test.*
 
 class UnicodeSymbolParserTest {
@@ -221,9 +222,6 @@ class UnicodeSymbolParserTest {
 
     // ── helpers ───────────────────────────────────────────────
 
-    private fun loadSnippet(resourcePath: String): List<String> {
-        val stream = javaClass.classLoader.getResourceAsStream(resourcePath)
-            ?: error("Test resource not found: $resourcePath")
-        return stream.bufferedReader().readLines()
-    }
+    private fun loadSnippet(resourcePath: String): List<String> =
+        TestResources.loadLines(resourcePath)
 }

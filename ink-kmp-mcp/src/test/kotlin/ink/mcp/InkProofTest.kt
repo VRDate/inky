@@ -1,7 +1,7 @@
 package ink.mcp
 
 import ink.kt.Story
-import java.io.File
+import ink.kt.TestResources
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -29,11 +29,6 @@ import kotlin.test.assertEquals
  */
 class InkProofTest {
 
-    private val bytecodeDir = File(
-        System.getProperty("user.dir"),
-        "src/test/resources/ink-proof/bytecode"
-    )
-
     @Test
     fun `B001 hello world`() = runBytecodeTest("B001")
 
@@ -55,16 +50,11 @@ class InkProofTest {
     fun `B007 coercive operations on types`() = runBytecodeTest("B007")
 
     private fun runBytecodeTest(testId: String) {
-        val testDir = File(bytecodeDir, testId)
-        if (!testDir.exists()) return
-
-        val bytecodeJson = File(testDir, "bytecode.json").readText()
-        val expectedTranscript = File(testDir, "transcript.txt").readText().trimEnd()
-        val inputFile = File(testDir, "input.txt")
-        val inputs = if (inputFile.exists())
-            inputFile.readText().trim().lines().filter { it.isNotEmpty() }
-        else
-            emptyList()
+        val base = "ink-proof/bytecode/$testId"
+        val bytecodeJson = TestResources.loadTextOrNull("$base/bytecode.json") ?: return
+        val expectedTranscript = TestResources.loadText("$base/transcript.txt").trimEnd()
+        val inputText = TestResources.loadTextOrNull("$base/input.txt")
+        val inputs = inputText?.trim()?.lines()?.filter { it.isNotEmpty() } ?: emptyList()
 
         val story = Story(bytecodeJson)
         val actualOutput = StringBuilder()

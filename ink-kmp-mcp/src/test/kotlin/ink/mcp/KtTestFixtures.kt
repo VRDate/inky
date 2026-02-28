@@ -1,6 +1,6 @@
 package ink.mcp
 
-import java.io.File
+import ink.kt.TestResources
 
 /**
  * Shared test fixtures — companion object pattern (mirrors C# InkTestFixtures).
@@ -11,6 +11,9 @@ import java.io.File
  *
  * C# equivalent: `InkTestFixtures` static class
  * KT pattern:    `object` with `by lazy` vals (same as companion object)
+ *
+ * Resource loading uses [TestResources] (KMP-ready, text-first, URI-based).
+ * GraalJS engine paths remain JVM-specific (server-only, not KMP-portable).
  */
 object KtTestFixtures {
 
@@ -19,30 +22,28 @@ object KtTestFixtures {
         .let { if (it.endsWith("ink-kmp-mcp")) it else "$it/ink-kmp-mcp" }
         .removeSuffix("/ink-kmp-mcp")
 
-    /** Path to inkjs full distribution. */
+    /** Path to inkjs full distribution (JVM/GraalJS only). */
     val inkjsPath: String = "$projectRoot/ink-electron/node_modules/inkjs/dist/ink-full.js"
 
-    /** Path to bidify.js (null if file not present on disk). */
+    /** Path to bidify.js — null if file not present on disk (JVM/GraalJS only). */
     val bidifyPath: String? = "$projectRoot/ink-electron/renderer/bidify.js"
-        .let { if (File(it).exists()) it else null }
+        .let { if (java.io.File(it).exists()) it else null }
 
-    /** Shared InkEngine — GraalJS + inkjs (lazy, created once). */
+    /** Shared InkEngine — GraalJS + inkjs (lazy, created once). JVM-only. */
     val engine: InkEngine by lazy {
         InkEngine(inkjsPath, bidifyPath)
     }
 
-    /** bidi_and_tdd.ink source — loaded once, shared across all tests. */
+    /** bidi_and_tdd.ink source — loaded once from classpath resource. */
     val bidiTddSource: String by lazy {
-        val resource = KtTestFixtures::class.java.getResource("/bidi_and_tdd.ink")
-        resource?.readText()
-            ?: File("$projectRoot/ink-electron/test/fixtures/bidi_and_tdd.ink").readText()
+        TestResources.loadText("bidi_and_tdd.ink")
     }
 
-    /** BIDI_TDD_ISSUES.md source — loaded once, shared across all tests. */
+    /** BIDI_TDD_ISSUES.md source — loaded once from classpath resource. */
     val mdSource: String by lazy {
-        File("$projectRoot/docs/BIDI_TDD_ISSUES.md").readText(Charsets.UTF_8)
+        TestResources.loadText("BIDI_TDD_ISSUES.md")
     }
 
-    /** Path to docs/BIDI_TDD_ISSUES.md. */
+    /** Path to docs/BIDI_TDD_ISSUES.md (for tests that need the filesystem path). */
     val bidiTddIssuesMdPath: String = "$projectRoot/docs/BIDI_TDD_ISSUES.md"
 }

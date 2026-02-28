@@ -29,7 +29,7 @@ class Expression(originalExpression: String) {
         private set
 
     /** Optional resolver for game object method calls (e.g. `object.method(args)`). */
-    var gameObjectResolver: GameObjectResolver? = null
+    var gameObjectResolver: GameObjectResolver? = defaultGameObjectResolver
 
     /**
      * Expression tokenizer that allows iterating over a [String] expression token by token.
@@ -481,6 +481,30 @@ class Expression(originalExpression: String) {
         private const val minusSign = '-'
         private val PARAMS_START = object : LazyNumber {
             override fun eval(): Double = 0.0
+        }
+
+        /** Default JVM reflection-based resolver for game object method calls. */
+        val defaultGameObjectResolver = GameObjectResolver { obj, method, params ->
+            val cls = obj::class.java
+            val methods = cls.methods.filter { it.name == method && it.parameterCount == params.size }
+            if (methods.isEmpty()) {
+                throw InkRunTimeException("Method $method not found on ${cls.simpleName}")
+            }
+            val m = methods[0]
+            val args = params.mapIndexed { i, p ->
+                val paramType = m.parameterTypes[i]
+                when {
+                    paramType == Double::class.java || paramType == java.lang.Double::class.java -> {
+                        when (p) {
+                            is Double -> p
+                            is Number -> p.toDouble()
+                            else -> p
+                        }
+                    }
+                    else -> p
+                }
+            }.toTypedArray()
+            m.invoke(obj, *args)
         }
 
         fun isNumber(st: String): Boolean {

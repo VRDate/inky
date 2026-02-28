@@ -22,6 +22,24 @@ class Divert(var stackPushType: PushPopType = PushPopType.Function) : InkObject(
     var isConditional: Boolean = false
     var variableDivertName: String? = null
 
+    // ── Parser constructor ────────────────────────────────────────────
+
+    internal constructor(lineNumber: Int, text: String, parent: Container)
+        : this(PushPopType.Function) {
+        this.id = contentId(parent)
+        this.text = text
+        this.parent = parent
+        this.lineNumber = lineNumber
+    }
+
+    fun resolveDivert(story: Story): Container {
+        var d = text.trim()
+        if (d.contains(Symbol.BRACE_LEFT))
+            d = d.substring(0, d.indexOf(Symbol.BRACE_LEFT))
+        d = story.resolveInterrupt(d)
+        return story.getDivert(d)
+    }
+
     val hasVariableTarget: Boolean
         get() = variableDivertName != null
 

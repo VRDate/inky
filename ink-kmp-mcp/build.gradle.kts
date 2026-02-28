@@ -130,6 +130,7 @@ sourceSets {
     main {
         kotlin.srcDirs("src")
         kotlin.exclude("test/**")
+        kotlin.exclude("jvmMain/kotlin/ink/java/mica/test/**")
         resources.exclude("test/**")
         // blade-ink Java runtime + compiler (MIT, v1.3.3-SNAPSHOT from bladecoder/blade-ink)
         java.srcDirs("src/jvmMain/java")

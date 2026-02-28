@@ -25,6 +25,7 @@ class Declaration internal constructor(
     }
 
     private fun declareVariable(story: Story) {
+        val vMap = story.variableMap()
         val tokens = EQ_REGEX.split(text)
         if (tokens.size != 2)
             throw InkRunTimeException(
@@ -33,7 +34,7 @@ class Declaration internal constructor(
         val variable = tokens[0].trim()
         val value = tokens[1].trim()
         if (value.startsWith(Symbol.DIVERT)) {
-            val directTo = story.getValue(value)
+            val directTo = vMap.getValue(value)
             if (directTo is Container) {
                 story.variables[variable] = directTo
                 return
@@ -43,13 +44,14 @@ class Declaration internal constructor(
                 )
             }
         }
-        story.variables[variable] = evaluate(value, story)
+        story.variables[variable] = evaluate(value, vMap)
     }
 
     private fun calculate(story: Story) {
+        val vMap = story.variableMap()
         val tokens = EQ_REGEX.split(text)
         if (tokens.size == 1) {
-            evaluate(tokens[0], story)
+            evaluate(tokens[0], vMap)
             return
         }
         if (tokens.size > 2)
@@ -58,11 +60,11 @@ class Declaration internal constructor(
             )
         val variable = tokens[0].trim()
         val value = tokens[1].trim()
-        if (!story.hasValue(variable))
+        if (!vMap.hasValue(variable))
             throw InkRunTimeException(
                 "CalculateVariable $variable is not defined in variable expression on line $lineNumber"
             )
-        story.variables[variable] = evaluate(value, story)
+        story.variables[variable] = evaluate(value, vMap)
     }
 
     companion object {

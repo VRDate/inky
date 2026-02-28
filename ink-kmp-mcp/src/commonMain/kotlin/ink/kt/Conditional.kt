@@ -43,7 +43,7 @@ internal class Conditional(
         when (seqType) {
             SequenceType.SEQUENCE_NONE -> {
                 for (opt in children) {
-                    if ((opt as ConditionalOption).evaluate(story)) {
+                    if ((opt as ConditionalOption).evaluate(story.variableMap())) {
                         return opt
                     }
                 }

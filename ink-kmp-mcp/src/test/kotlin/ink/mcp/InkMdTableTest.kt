@@ -2,7 +2,6 @@ package ink.mcp
 
 import ink.mcp.KtTestFixtures.mdSource
 import kotlin.test.*
-import java.io.File
 import com.vladsch.flexmark.parser.Parser
 import com.vladsch.flexmark.ast.*
 import com.vladsch.flexmark.ext.tables.*

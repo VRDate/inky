@@ -16,7 +16,7 @@ internal class Knot(
     override val numParams get() = parameters.size
 
     override fun eval(params: List<Any>, vMap: VariableMap): Any {
-        val story = vMap as Story
+        val story = if (vMap is VariableMapAdapter) vMap.story else vMap as Story
         if (params.size != parameters.size)
             throw InkRunTimeException(
                 "Parameters passed to function $id do not match. " +

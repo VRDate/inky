@@ -23,7 +23,8 @@ open class Container : InkObject(), INamedContent {
     internal var index: Int = 0
     val children: MutableList<InkObject> get() = content
     val size: Int get() = content.size
-    fun add(item: InkObject) { addContent(item) }
+    /** Mica parser add — bypasses parent-check (parent set in constructors). */
+    fun add(item: InkObject) { content.add(item) }
     operator fun get(i: Int): InkObject = content[i]
     fun indexOf(c: InkObject): Int = content.indexOf(c)
 

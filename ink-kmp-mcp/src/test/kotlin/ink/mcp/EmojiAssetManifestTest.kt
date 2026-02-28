@@ -1,6 +1,6 @@
 package ink.mcp
 
-import java.io.File
+import ink.kt.TestResources
 import kotlin.test.*
 
 class EmojiAssetManifestTest {
@@ -270,18 +270,12 @@ class EmojiAssetManifestTest {
     }
 
     private class TestResourceLoader : UnicodeDataLoader(
-        cacheDir = File(System.getProperty("java.io.tmpdir"), "inky-test-unicode-cache")
+        cacheDir = java.io.File(TestResources.tempDir("inky-test-unicode-cache"))
     ) {
-        override fun loadEmojiTest(): List<String> {
-            val stream = javaClass.classLoader.getResourceAsStream("unicode/emoji-test-snippet.txt")
-                ?: return emptyList()
-            return stream.bufferedReader().readLines()
-        }
+        override fun loadEmojiTest(): List<String> =
+            TestResources.loadTextOrNull("unicode/emoji-test-snippet.txt")?.lines() ?: emptyList()
 
-        override fun loadUnicodeData(): List<String> {
-            val stream = javaClass.classLoader.getResourceAsStream("unicode/UnicodeData-snippet.txt")
-                ?: return emptyList()
-            return stream.bufferedReader().readLines()
-        }
+        override fun loadUnicodeData(): List<String> =
+            TestResources.loadTextOrNull("unicode/UnicodeData-snippet.txt")?.lines() ?: emptyList()
     }
 }
