@@ -605,6 +605,15 @@ package "State" <<Rectangle>> {
     + loadFlowChoiceThreads(HashMap, Story) : void
   }
 
+  note bottom of Flow
+    **→ ink.kt** : InkFlow implements **Flow<InkObject>**
+    Java Flow is a data holder; Kotlin adds reactive stream.
+    Java VariableObserver/ErrorHandler callbacks →
+    Kotlin **Flow collectors** on MutableSharedFlow.
+    Java Thread → Kotlin **InkThread** (coroutine model).
+    Multi-tenant: each session gets own InkFlow stream.
+  end note
+
   class StatePatch {
     - globals : HashMap<String, RTObject>
     - changedVariables : HashSet<String>

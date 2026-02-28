@@ -543,6 +543,16 @@ package "State" #E8EAF6 {
         +loadFlowChoiceThreads(jChoiceThreads: Map, cs?: CallStack): void
     }
 
+    note bottom of Flow
+      **→ ink.kt** : InkFlow implements **Flow<InkObject>**
+      JS Flow is a data holder; Kotlin adds reactive stream.
+      JS is single-threaded (event loop); KT coroutines
+      map to cooperative scheduling on JS target.
+      JS PRNG (custom RNG) → KT kotlin.random.Random (seedable).
+      JS Thread → Kotlin **InkThread** (coroutine model).
+      Multi-tenant: each session gets own InkFlow stream.
+    end note
+
     class StatePatch <<(T,#009688) TS>> {
         +globals: Map<string, InkObject>
         +changedVariables: Set<string>

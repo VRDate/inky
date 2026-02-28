@@ -1132,7 +1132,13 @@ package "5. State" #E3F2FD {
       Kotlin decouples from Story (takes Container).
       Fixed C# typo: functionStartInOuputStream.
       InkThread renamed from Thread (avoids java.lang.Thread clash).
-      **Status**: COMPLETE
+      **InkThread = coroutine of InkFlow<T>:**
+        Ink ""<-"" thread syntax → coroutine launch (cooperative).
+        Ink ""->>"" tunnel syntax → suspend/resume.
+        Each InkThread = lightweight narrative coroutine.
+        On JS: single-threaded cooperative scheduling.
+        On JVM: real parallelism via Dispatchers.Default.
+      **Status**: COMPLETE + COROUTINE_MODEL
     end note
 
     class "CallStack.Element" as CSElement {
@@ -1158,33 +1164,69 @@ package "5. State" #E3F2FD {
         + writeJson(writer: SimpleJson.Writer)
     }
 
-    class InkFlow {
+    class "InkFlow\n: Flow<InkObject>" as InkFlow <<reactive>> {
         + name : String
         + callStack : CallStack
-        + outputStream : MutableList<InkObject>
+        + outputStream : MutableList<InkObject>  <<EmittingList>>
         + currentChoices : MutableList<Choice>
+        - _sharedFlow : MutableSharedFlow<InkObject>
         --
         + InkFlow(name: String, rootContentContainer: Container)
+        + {abstract} collect(collector: FlowCollector<InkObject>)  <<suspend>>
         + writeJson(writer: SimpleJson.Writer)
         + loadFlowChoiceThreads(jChoiceThreads, activeCallStack)
     }
 
+    class "EmittingList\n(internal)" as EmittingList <<bridge>> {
+        - flow : MutableSharedFlow<InkObject>
+        - delegate : MutableList<InkObject>
+        --
+        + add(element: InkObject) : Boolean  <<emits>>
+        + addAll(elements: Collection<InkObject>) : Boolean  <<emits>>
+        + set(index: Int, element: InkObject) : InkObject  <<emits>>
+    }
+
     note right of InkFlow
-      **ink.kt** : InkFlow.kt:1-98 (renamed from Flow)
-        InkFlow(name, rootContentContainer) L:19
-        writeJson()               L:27-68
-        loadFlowChoiceThreads     L:81-97
+      **ink.kt** : InkFlow.kt:1-170 (reactive stream)
+        **Implements Flow<InkObject>** — reactive story output stream.
+        InkFlow(name, rootContentContainer)  L:45
+        collect(FlowCollector)               L:83 (suspend, delegates to SharedFlow)
+        writeJson()                          L:88-130
+        loadFlowChoiceThreads                L:137-155
+        _sharedFlow (MutableSharedFlow)      L:57 (extraBufferCapacity=MAX)
       ----
-      **C#** : Flow.cs
-        Flow(name, Story)         (takes Story ref)
+      **Architecture: InkThread = coroutine of InkFlow**
+        Each InkThread is a narrative coroutine within this flow.
+        Ink ""<-"" syntax = launch coroutine (cooperative, non-blocking).
+        Ink ""->>"" tunnel = suspend/resume (structured concurrency).
+        On JS: single-threaded event loop (cooperative scheduling).
+        On JVM: Dispatchers.Default for real parallelism.
+      ----
+      **Multi-tenant MMO support:**
+        Each player session creates its own Story instance.
+        Story → StoryState → InkFlow(s) — all per-session.
+        Compiled Container is **shared** (read-only, thread-safe).
+        InkFlow(s) emit to independent Flow<InkObject> streams.
+        Collectors per session: UI, AI, logging, asset pipeline.
+      ----
+      **EmittingList** bridges sync engine → reactive Flow:
+        outputStream.add() → tryEmit() to SharedFlow (lock-free).
+        Zero overhead when no collectors subscribed.
+        Int.MAX_VALUE buffer — tryEmit never fails.
+      ----
+      **C#** : Flow.cs (events: onDidContinue, onMakeChoice)
+        Flow(name, Story)         → KT: InkFlow(name, Container)
         WriteJson()               ✅ Ported
-      **Java** : Flow.java
-        Flow(name, Story)         (takes Story ref)
+        C# events → KT SharedFlow (reactive, multiplatform)
+      **Java** : Flow.java (callbacks: VariableObserver, ErrorHandler)
+        Flow(name, Story)         → KT: InkFlow(name, Container)
         writeJson()               ✅ Ported
+        Java callbacks → KT Flow collectors
+      **JS** : Flow (single-threaded, no real parallelism)
+        Flow(name, story)         → KT: InkFlow(name, Container)
+        JS event loop → KT coroutines (cooperative on all targets)
       ----
-      Renamed to InkFlow to avoid kotlinx.coroutines.flow.Flow clash.
-      Kotlin decouples from Story (takes Container).
-      **Status**: COMPLETE
+      **Status**: COMPLETE + REACTIVE + MMO
     end note
 
     class StatePatch {
@@ -1905,6 +1947,7 @@ StoryState --> "*" InkFlow : namedFlows
 InkFlow --> CallStack : callStack
 InkFlow --> "*" Choice : currentChoices
 InkFlow --> "*" InkObject : outputStream
+InkFlow *-- EmittingList : outputStream (bridge)
 CallStack --> "*" CSThread : _threads
 CSThread --> "*" CSElement : callstack
 CSElement --> Pointer : currentPointer
@@ -2477,7 +2520,7 @@ note as PROGRESS
   | Story | Story | Story | Story | Story | ✅ +parser mode |
   | StoryState | StoryState | StoryState | StoryState | — | ✅ Complete |
   | CallStack | CallStack | CallStack | CallStack | — | ✅ +writeJson +InkThread |
-  | InkFlow | Flow | Flow | Flow | — | ✅ +writeJson (renamed) |
+  | InkFlow : Flow<InkObject> | Flow | Flow | Flow | — | ✅ **REACTIVE** (Flow<T> + EmittingList) |
   | Path | Path | Path | Path | — | ✅ Complete |
   | Pointer | Pointer | Pointer | Pointer | — | ✅ Complete |
   | SearchResult | SearchResult | SearchResult | SearchResult | — | ✅ Complete |
@@ -2544,11 +2587,18 @@ note as PROGRESS
   **Parser fields**: ✅ Merged into InkObject, Container, Choice, Story
   **Ink prefix renames**: Flow→InkFlow, Void→InkVoid, Thread→InkThread
   **State serialization**: ✅ All gaps resolved (~555 LOC added)
+  **Reactive streams**: ✅ InkFlow implements Flow<InkObject> (MutableSharedFlow)
   **ink-proof e2e**: 7 bytecode + 135 ink tests
   **Next**: Move 22 non-colliding mica classes to ink.kt package
 
   **Architecture: code-first three layers**
   ink.model → ink.kt → ink.kt.services
+
+  **Multi-tenant MMO architecture:**
+  Compiled Container (shared) → N × Story (per session)
+  Each Story → StoryState → InkFlow(s) → Flow<InkObject>
+  InkThread = coroutine (cooperative on JS, parallel on JVM)
+  EmittingList bridges sync engine → reactive stream
 end note
 
 note as GAPS

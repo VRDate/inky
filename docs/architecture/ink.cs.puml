@@ -559,6 +559,13 @@ package "State" #F3E5F5 {
         + Copy() : Thread
     }
 
+    note bottom of Thread
+      **→ ink.kt** : CallStack.**InkThread** (coroutine model)
+      Each Thread = narrative coroutine within InkFlow<T>.
+      Ink ""<-"" syntax → launch coroutine.
+      Ink ""->>"" tunnel → suspend/resume.
+    end note
+
     class Flow {
         + name : string
         + callStack : CallStack
@@ -568,6 +575,15 @@ package "State" #F3E5F5 {
         + Flow(name: string, rootContentContainer: Container)
         + LoadFlowChoiceThreads(jChoiceThreads: Dictionary, ...)
     }
+
+    note bottom of Flow
+      **→ ink.kt** : InkFlow implements **Flow<InkObject>**
+      C# Flow is a data holder; Kotlin adds reactive stream.
+      C# events (onDidContinue, onMakeChoice, onError) →
+      Kotlin **MutableSharedFlow** per InkFlow instance.
+      C# Thread → Kotlin **InkThread** (coroutine model).
+      Multi-tenant: each session gets own InkFlow stream.
+    end note
 
     class StatePatch {
         + globals : Dictionary<string, Object>
@@ -673,10 +689,28 @@ package "Runtime" #F3E5F5 {
         ..profiling..
         + StartProfiling() : Profiler
         + EndProfiling()
+        __events (→ ink.kt SharedFlow)__
+        + <<event>> onError : ErrorHandler
+        + <<event>> onDidContinue : Action
+        + <<event>> onMakeChoice : Action<Choice>
+        + <<event>> onEvaluateFunction : Action<string, object[]>
+        + <<event>> onCompleteEvaluateFunction : Action<string, object[], string, object>
+        + <<event>> onChoosePathString : Action<string, object[]>
         __delegates__
         + <<delegate>> ExternalFunction(args: object[]) : object
         + <<delegate>> VariableObserver(variableName: string, newValue: object)
     }
+
+    note right of Story
+      **→ ink.kt event mapping:**
+      C# event onDidContinue → KT SharedFlow emission
+      C# event onMakeChoice → KT Flow<Choice>
+      C# event onError → KT fun interface ErrorHandler
+      C# delegate VariableObserver → KT fun interface
+      C# delegate ExternalFunction → KT fun interface
+      C# ContinueAsync → KT coroutine suspend
+      **Multi-tenant**: Each session = own Story + Flow<T>
+    end note
 
     class Profiler {
         + rootNode : ProfileNode

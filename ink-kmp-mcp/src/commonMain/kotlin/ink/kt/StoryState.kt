@@ -840,6 +840,15 @@ class StoryState(
     }
 
     /**
+     * Exports the current state to JSON, writing to the given Appendable (KMP stream equivalent).
+     * C#: ToJson(Stream stream), Java: toJson(OutputStream stream)
+     * Kotlin: Appendable is KMP-compatible (no java.io dependency).
+     */
+    fun toJson(appendable: Appendable) {
+        appendable.append(toJson())
+    }
+
+    /**
      * Loads a previously saved state in JSON format.
      * @param json The JSON string to load.
      */
