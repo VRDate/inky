@@ -87,6 +87,9 @@ note as N_OVERVIEW
 
   **Class naming differences:**
     Kotlin ""InkObject"" = Java ""RTObject"" = C# ""Object""
+    Kotlin ""InkFlow"" = Java/C#/JS ""Flow"" (avoids kotlinx.coroutines clash)
+    Kotlin ""InkVoid"" = Java/C#/JS ""Void"" (avoids java.lang.Void clash)
+    Kotlin ""CallStack.InkThread"" = Java/C#/JS ""Thread"" (avoids java.lang.Thread clash)
     Kotlin ""StoryException"" = Java ""StoryException"" = C# ""StoryException""
     Kotlin ""ErrorHandler"" (fun interface) = Java ""ErrorHandler"" (interface) = C# delegate
 
@@ -537,12 +540,14 @@ package "2. Content" #E3F2FD {
       **Status**: COMPLETE + MICA_MERGED
     end note
 
-    class Void
+    class InkVoid
 
-    note right of Void
-      **ink.kt** : Void.kt:1-13
+    note right of InkVoid
+      **ink.kt** : InkVoid.kt:1-13 (renamed from Void)
       **C#** : Void.cs:1-10
       **Java** : Void.java:1-5
+      **JS** : Void.ts
+      Renamed to InkVoid to avoid java.lang.Void clash.
       All identical empty marker class.
       **Status**: COMPLETE
     end note
@@ -1020,6 +1025,11 @@ package "5. State" #E3F2FD {
         + applyAnyPatch()
         + cleanOutputWhitespace(str: String) : String
         + executeOutputOp(op: OutputOp)
+        + toJson() : String
+        + loadJson(json: String)
+        + visitCountAtPathString(pathString: String) : Int
+        ~ writeJson(writer: SimpleJson.Writer)
+        ~ loadJsonObj(jObject: Map<String, Any?>)
         .. companion ..
         {static} INK_SAVE_STATE_VERSION : Int = 10
         {static} MIN_COMPATIBLE_LOAD_VERSION : Int = 8
@@ -1027,7 +1037,7 @@ package "5. State" #E3F2FD {
     }
 
     note right of StoryState
-      **ink.kt** : StoryState.kt:1-829
+      **ink.kt** : StoryState.kt:1-1169
         ErrorHandler fun interface L:39-41
         OnDidLoadState fun interface L:48-50
         OutputOp enum              L:61-70
@@ -1035,17 +1045,24 @@ package "5. State" #E3F2FD {
         currentTags               L:236-277
         visitCountForContainer    L:610-623
         copyAndStartPatching      L:660-716
+        toJson()                  L:836-840
+        loadJson(json)            L:846-849
+        visitCountAtPathString()  L:856-863
+        writeJson(writer)         L:869-915
+        loadJsonObj(jObject)      L:922-1020
+        pointerAtPath()           L:1028-1045
+        threadFromJson()          L:1052-1113
+        flowFromJson()            L:1145-1168
       ----
       **C#** : StoryState.cs
-        ToJson()/LoadJson()       (MISSING in KT)
-        VisitCountAtPathString    (MISSING in KT)
+        ToJson()/LoadJson()       ✅ Ported
+        VisitCountAtPathString    ✅ Ported
       **Java** : StoryState.java
-        toJson()/loadJson()       (MISSING in KT)
-        visitCountAtPathString    (MISSING in KT)
+        toJson()/loadJson()       ✅ Ported
+        visitCountAtPathString    ✅ Ported
       ----
       Kotlin decouples from Story (takes Container).
-      **Status**: GAP [toJson, loadJson,
-        visitCountAtPathString, ~5 methods]
+      **Status**: COMPLETE
     end note
 
     interface "StoryState.ErrorHandler" as SSErrorHandler <<fun interface>> {
@@ -1064,18 +1081,18 @@ package "5. State" #E3F2FD {
     }
 
     class CallStack {
-        - _threads : MutableList<Thread>
+        - _threads : MutableList<InkThread>
         - _threadCounter : Int
         - _startOfRoot : Pointer
         + elements : List<Element> <<get>>
         + depth : Int <<get>>
         + currentElement : Element <<get>>
         + currentElementIndex : Int <<get>>
-        + currentThread : Thread <<get/set>>
+        + currentThread : InkThread <<get/set>>
         + canPop : Boolean <<get>>
         + canPopThread : Boolean <<get>>
         + elementIsEvaluateFromGame : Boolean <<get>>
-        + threads : List<Thread> <<get>>
+        + threads : List<InkThread> <<get>>
         + threadCounter : Int <<get>>
         + callStackTrace : String <<get>>
         --
@@ -1087,30 +1104,34 @@ package "5. State" #E3F2FD {
         + canPop(type: PushPopType?) : Boolean
         + pushThread()
         + popThread()
-        + forkThread() : Thread
-        + threadWithIndex(index: Int) : Thread?
+        + forkThread() : InkThread
+        + threadWithIndex(index: Int) : InkThread?
         + getTemporaryVariableWithName(name, contextIndex) : InkObject?
         + setTemporaryVariable(name, value, declareNew, contextIndex)
         + contextForVariableNamed(name: String) : Int
         + setJsonToken(threads, threadCounter, startOfRoot)
+        + writeJson(writer: SimpleJson.Writer)
     }
 
     note right of CallStack
-      **ink.kt** : CallStack.kt:1-281
-        reset()                   L:133
-        push()                    L:145 (default params)
-        setTemporaryVariable      L:203 (FIXED Java bug)
-        callStackTrace            L:258-280
+      **ink.kt** : CallStack.kt:1-320
+        reset()                   L:165
+        push()                    L:177 (default params)
+        setTemporaryVariable      L:235 (FIXED Java bug)
+        writeJson()               L:285-297
+        callStackTrace            L:304-320
       ----
       **C#** : CallStack.cs
-        WriteJson()               (MISSING in KT — in JsonSerialisation)
+        WriteJson()               ✅ Ported
       **Java** : CallStack.java
         setTemporaryVariable      L:384 INFINITE RECURSION BUG
         (3-arg calls itself, not 4-arg)
         Kotlin default params fix this.
+        writeJson()               ✅ Ported
       ----
       Kotlin decouples from Story (takes Container).
       Fixed C# typo: functionStartInOuputStream.
+      InkThread renamed from Thread (avoids java.lang.Thread clash).
       **Status**: COMPLETE
     end note
 
@@ -1126,40 +1147,43 @@ package "5. State" #E3F2FD {
         + copy() : Element
     }
 
-    class "CallStack.Thread" as CSThread {
+    class "CallStack.InkThread" as CSThread {
         + callstack : MutableList<Element>
         + threadIndex : Int
         + previousPointer : Pointer
         --
-        + Thread()
-        + Thread(other: Thread)
-        + copy() : Thread
+        + InkThread()
+        + InkThread(other: InkThread)
+        + copy() : InkThread
+        + writeJson(writer: SimpleJson.Writer)
     }
 
-    class Flow {
+    class InkFlow {
         + name : String
         + callStack : CallStack
         + outputStream : MutableList<InkObject>
         + currentChoices : MutableList<Choice>
         --
-        + Flow(name: String, rootContentContainer: Container)
+        + InkFlow(name: String, rootContentContainer: Container)
+        + writeJson(writer: SimpleJson.Writer)
         + loadFlowChoiceThreads(jChoiceThreads, activeCallStack)
     }
 
-    note right of Flow
-      **ink.kt** : Flow.kt:1-54
-        Flow(name, rootContentContainer) L:19
-        loadFlowChoiceThreads     L:37-53
+    note right of InkFlow
+      **ink.kt** : InkFlow.kt:1-98 (renamed from Flow)
+        InkFlow(name, rootContentContainer) L:19
+        writeJson()               L:27-68
+        loadFlowChoiceThreads     L:81-97
       ----
       **C#** : Flow.cs
         Flow(name, Story)         (takes Story ref)
-        WriteJson()               (MISSING in KT — in JsonSerialisation)
+        WriteJson()               ✅ Ported
       **Java** : Flow.java
         Flow(name, Story)         (takes Story ref)
-        writeJson()               (MISSING in KT — in JsonSerialisation)
+        writeJson()               ✅ Ported
       ----
+      Renamed to InkFlow to avoid kotlinx.coroutines.flow.Flow clash.
       Kotlin decouples from Story (takes Container).
-      JSON serialization in JsonSerialisation.kt.
       **Status**: COMPLETE
     end note
 
@@ -1231,19 +1255,20 @@ package "5. State" #E3F2FD {
     }
 
     note right of VariablesState
-      **ink.kt** : VariablesState.kt:1-325
+      **ink.kt** : VariablesState.kt:1-340
         operator get/set          L:59-86
         assign()                  L:128-166
+        writeJson(writer)         L:327-340
         setGlobal()               L:270-293
         runtimeObjectsEqual()     L:299-308
         fun interface VariableChanged L:32
       ----
       **C#** : VariablesState.cs
         IEnumerable<string>, delegate, indexer
-        WriteJson()               writeJson()
+        WriteJson()               ✅ Ported
       **Java** : VariablesState.java
         Iterable<String>, get/set methods
-        writeJson()               writeJson()
+        writeJson()               ✅ Ported
       ----
       **Status**: COMPLETE
     end note
@@ -1802,7 +1827,7 @@ Choice --|> InkObject
 Divert --|> InkObject
 Glue --|> InkObject
 Tag --|> InkObject
-Void --|> InkObject
+InkVoid --|> InkObject
 ControlCommand --|> InkObject
 VariableAssignment --|> InkObject
 VariableReference --|> InkObject
@@ -1875,11 +1900,11 @@ StoryState --> Container : rootContentContainer
 StoryState --> ListDefinitionsOrigin : listDefsOrigin
 StoryState --> VariablesState : variablesState
 StoryState --> StatePatch : patch
-StoryState --> Flow : currentFlow
-StoryState --> "*" Flow : namedFlows
-Flow --> CallStack : callStack
-Flow --> "*" Choice : currentChoices
-Flow --> "*" InkObject : outputStream
+StoryState --> InkFlow : currentFlow
+StoryState --> "*" InkFlow : namedFlows
+InkFlow --> CallStack : callStack
+InkFlow --> "*" Choice : currentChoices
+InkFlow --> "*" InkObject : outputStream
 CallStack --> "*" CSThread : _threads
 CSThread --> "*" CSElement : callstack
 CSElement --> Pointer : currentPointer
@@ -2450,9 +2475,9 @@ note as PROGRESS
   | InkObject | RTObject | RTObject | InkObject | Content | ✅ +mica fields |
   | Container | Container | Container | Container | Container | ✅ +mica fields |
   | Story | Story | Story | Story | Story | ✅ +parser mode |
-  | StoryState | StoryState | StoryState | StoryState | — | ⚠️ GAP [toJson/loadJson] |
-  | CallStack | CallStack | CallStack | CallStack | — | ✅ Complete |
-  | Flow | Flow | Flow | Flow | — | ✅ Complete |
+  | StoryState | StoryState | StoryState | StoryState | — | ✅ Complete |
+  | CallStack | CallStack | CallStack | CallStack | — | ✅ +writeJson +InkThread |
+  | InkFlow | Flow | Flow | Flow | — | ✅ +writeJson (renamed) |
   | Path | Path | Path | Path | — | ✅ Complete |
   | Pointer | Pointer | Pointer | Pointer | — | ✅ Complete |
   | SearchResult | SearchResult | SearchResult | SearchResult | — | ✅ Complete |
@@ -2463,7 +2488,7 @@ note as PROGRESS
   | Divert | Divert | Divert | Divert | Divert | ✅ +mica merge |
   | Tag | — | — | Tag | Tag | ✅ +mica merge |
   | Glue | Glue | Glue | Glue | — | ✅ Complete |
-  | Void | Void | Void | Void | — | ✅ Complete |
+  | InkVoid | Void | Void | Void | — | ✅ Complete (renamed) |
   | ControlCommand | ControlCommand | ControlCommand | ControlCommand | — | ✅ Complete |
   | NativeFunctionCall | NativeFunctionCall | NativeFunctionCall | NativeFunctionCall | Expression | ✅ Complete |
   | VariableAssignment | VariableAssignment | VariableAssignment | VariableAssignment | Declaration | ✅ Complete |
@@ -2517,6 +2542,8 @@ note as PROGRESS
   **Totals: 56 classes in PUML (was 45)**
   **mica KMP port**: ✅ All 6 JVM deps replaced
   **Parser fields**: ✅ Merged into InkObject, Container, Choice, Story
+  **Ink prefix renames**: Flow→InkFlow, Void→InkVoid, Thread→InkThread
+  **State serialization**: ✅ All gaps resolved (~555 LOC added)
   **ink-proof e2e**: 7 bytecode + 135 ink tests
   **Next**: Move 22 non-colliding mica classes to ink.kt package
 
@@ -2528,14 +2555,16 @@ note as GAPS
   **Cross-Implementation Gap Analysis (2026-02-28)**
   ════════════════════════════════════════════════════
 
-  **1. Remaining Gaps (~16 methods, ~300 LOC)**
+  **1. Remaining Gaps — ALL RESOLVED**
 
-  | Class | Gap | LOC | Priority |
-  | StoryState | toJson(), loadJson(), toJsonObject(), fromJsonObject(), visitCountAtPathString() | ~192 | P2 |
-  | JsonSerialisation | encodeFlow(), encodeCallStackThread(), decodeFlow() | ~80 | P2 |
-
-  | InkList | ~~InkList(name,Story), singleOriginListName, addItem(name,story), contains(String)~~ | ~30 | ✅ Done |
-  | Story | toJson(Appendable) stream overload | ~5 | P4 |
+  | Class | Gap | LOC | Status |
+  | ~~StoryState~~ | ~~toJson(), loadJson(), writeJson(), loadJsonObj(), visitCountAtPathString()~~ | ~340 | ✅ Done |
+  | ~~JsonSerialisation~~ | ~~encodeFlow → InkFlow.writeJson, encodeThread → InkThread.writeJson~~ | ~80 | ✅ Done |
+  | ~~InkList~~ | ~~InkList(name,Story), singleOriginListName, addItem(name,story), contains(String)~~ | ~30 | ✅ Done |
+  | ~~Story~~ | ~~toJson(Appendable) stream overload~~ | ~5 | ✅ Done |
+  | ~~VariablesState~~ | ~~writeJson(writer)~~ | ~20 | ✅ Done |
+  | ~~CallStack~~ | ~~writeJson(writer), InkThread.writeJson(writer)~~ | ~40 | ✅ Done |
+  | ~~InkFlow~~ | ~~writeJson(writer)~~ | ~40 | ✅ Done |
 
   **2. mica → ink.kt merge status**
 
@@ -2558,7 +2587,7 @@ note as GAPS
 
   | Feature | C# | ink.kt | Note |
   | ContinueAsync | ✅ | ✅ | Ported |
-  | Stream overloads | ✅ | ⬜ | KMP = string-only |
+  | Stream overloads | ✅ | ✅ | toJson(Appendable) |
   | All callbacks | ✅ delegate | ✅ fun interface | Idiomatic |
   | Copy/dontSaveDefaultValues | ✅ | ✅ | Ported |
 
@@ -2579,8 +2608,8 @@ note as GAPS
   | 2 | ~~mica KMP port~~ | ✅ Done |
   | 3 | ~~Parser fields merge~~ | ✅ Done |
   | 4 | ~~ContinueSingleStep~~ | ✅ Done |
-  | 5 | State serialization (~300 LOC) | Phase 2 |
-  | 6 | InkList completeness (~30 LOC) | Phase 3 |
+  | 5 | ~~State serialization (~300 LOC)~~ | ✅ Done |
+  | 6 | ~~InkList completeness (~30 LOC)~~ | ✅ Done |
   | 7 | Move 22 mica classes | Phase 6e |
   | 8 | Delete mica/ directory | Phase 6f |
   | 9 | KT/KMP compiler | FUTURE |
