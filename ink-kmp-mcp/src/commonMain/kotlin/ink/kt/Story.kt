@@ -202,6 +202,7 @@ class Story : VariablesState.VariableChanged {
         functions[NOT] = NotFunction()
         functions[RAND] = RandomFunction()
         functions[FLOOR] = FloorFunction()
+        functions[IF] = IfFunction()
     }
 
     fun add(story: Story) {
@@ -478,6 +479,20 @@ class Story : VariablesState.VariableChanged {
         }
     }
 
+    private class IfFunction : Function {
+        override val numParams: Int = 3
+        override val isFixedNumParams: Boolean = true
+        override fun eval(params: List<Any>, vMap: VariableMap): Any {
+            val condition = params[0]
+            val isTruthy = when (condition) {
+                is Double -> condition != 0.0
+                is Boolean -> condition
+                else -> condition != 0
+            }
+            return if (isTruthy) params[1] else params[2]
+        }
+    }
+
     companion object {
         /** The current version of the ink story file format. */
         const val INK_VERSION_CURRENT = 21
@@ -489,6 +504,7 @@ class Story : VariablesState.VariableChanged {
         private const val NOT = "not"
         private const val RAND = "random"
         private const val FLOOR = "floor"
+        private const val IF = "if"
 
         private fun cleanUpText(str: String): String =
             str.replace(Symbol.GLUE.toRegex(), " ")

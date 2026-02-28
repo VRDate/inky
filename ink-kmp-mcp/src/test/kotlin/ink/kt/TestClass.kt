@@ -2,11 +2,9 @@ package ink.kt
 
 /**
  * Test helper class for extern function tests.
- *
- * Ported from `ink.java.mica.test.helpers.TestClassKotlin` (JVM).
  * Implements [Expression.InkCallable] for pure Kotlin method dispatch (no reflection).
  */
-class TestClassKotlin : Expression.InkCallable {
+class TestClass : Expression.InkCallable {
 
     fun hello(): String = "Hello, is it me you're looking for?"
 
