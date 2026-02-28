@@ -110,27 +110,48 @@ package "1. Core" #E3F2FD {
 
     class InkObject <<open>> {
         + parent : Container?
-        - _debugMetadata : DebugMetadata?
-        - _path : Path?
+        + {open} id : String                         ' L:20
+        + {open} text : String                       ' L:21
+        + lineNumber : Int                           ' L:22
+        ~ count : Int                                ' L:23
+        - _debugMetadata : DebugMetadata?            ' L:25
+        - _path : Path?                              ' L:26
         --
-        + ownDebugMetadata : DebugMetadata? <<get/set>>
-        + debugMetadata : DebugMetadata? <<get>>
-        + path : Path <<get>>
-        + rootContentContainer : Container? <<get>>
+        + ownDebugMetadata : DebugMetadata? <<get/set>>  ' L:28-30
+        + debugMetadata : DebugMetadata? <<get>>         ' L:32-33
+        + path : Path <<get>>                            ' L:43-66
+        + rootContentContainer : Container? <<get>>      ' L:123-130
         --
-        + debugLineNumberOfPath(path: Path?) : Int?
-        + resolvePath(path: Path) : SearchResult
-        + convertPathToRelative(globalPath: Path) : Path
-        + compactPathString(otherPath: Path) : String
-        + copy() : InkObject
+        + debugLineNumberOfPath(path: Path?) : Int?      ' L:35-41
+        + resolvePath(path: Path) : SearchResult         ' L:68-79
+        + convertPathToRelative(globalPath: Path) : Path ' L:81-105
+        + compactPathString(otherPath: Path) : String    ' L:107-121
+        + {open} copy() : InkObject                      ' L:132-134
+        + getText(story: VariableMap) : String            ' L:137-138
     }
 
     note right of InkObject
-      **Kotlin:** ""InkObject"" (open class)
-      **Java:** ""RTObject""
-      **C#:** ""Object"" (in Ink.Runtime namespace)
-      Kotlin uses open class (not abstract)
-      for default copy() that throws.
+      **ink.kt** : InkObject.kt:1-139
+        parent                     L:17
+        id/text/lineNumber/count   L:20-23 (mica Content)
+        resolvePath()              L:68
+        copy()                     L:132
+        getText()                  L:137 (mica)
+      ----
+      **C#** : Object.cs:1-251
+        parent                     L:17
+        ResolvePath()              L:106
+        Copy()                     L:201
+        SetChild<T>()              L:206 (NOT in KT)
+      ----
+      **Java** : RTObject.java:1-183
+        getParent()/setParent()    L:28-34
+        resolvePath()              L:105
+        copy()                     L:180
+      ----
+      **JS** : InkObject (inkjs)
+      **mica** : see ink.kt.mica.puml Content
+      **Status**: COMPLETE + MICA_MERGED
     end note
 
     class Container {
@@ -161,104 +182,188 @@ package "1. Core" #E3F2FD {
     }
 
     note right of Container
-      Ported from blade-ink Java.
-      Implements INamedContent.
-      Uses when expressions for
-      contentWithPathComponent dispatch.
+      **ink.kt** : Container.kt:1-269
+        content                   L:19
+        namedContent              L:20
+        index/children/size       L:23-25 (mica)
+        add()/get()/indexOf()     L:27-29 (mica)
+        contentAtPath()           L:144-182
+        buildStringOfHierarchy()  L:252-256
+      ----
+      **C#** : Container.cs:1-376
+        content                   L:14-21
+        ContentAtPath()           L:229-274
+      **Java** : Container.java:1-351
+        content                   L:12
+        contentAtPath()           L:218-264
+      ----
+      **mica** : see ink.kt.mica.puml Container
+      **Status**: COMPLETE + MICA_MERGED
     end note
 
     class Path {
-        - _components : MutableList<Component>
-        + isRelative : Boolean <<get>>
-        - _componentsString : String?
-        + head : Component? <<get>>
-        + tail : Path <<get>>
-        + length : Int <<get>>
-        + lastComponent : Component? <<get>>
-        + componentsString : String <<get>>
+        - _components : MutableList<Component>       ' L:17
+        + isRelative : Boolean <<get>>               ' L:18
+        - _componentsString : String?                ' L:20
+        + head : Component? <<get>>                  ' L:40-41
+        + tail : Path <<get>>                        ' L:43-45
+        + length : Int <<get>>                       ' L:47-48
+        + lastComponent : Component? <<get>>         ' L:50-51
+        + componentsString : String <<get>>          ' L:79-97
         --
-        + Path()
-        + Path(head: Component, tail: Path)
-        + Path(components: Collection<Component>, relative: Boolean)
-        + Path(componentsString: String)
-        + getComponent(index: Int) : Component
-        + containsNamedComponent() : Boolean
-        + pathByAppendingPath(pathToAppend: Path) : Path
-        + pathByAppendingComponent(c: Component) : Path
-        + equals(other: Any?) : Boolean
-        + hashCode() : Int
+        + Path()                                     ' L:22
+        + Path(head: Component, tail: Path)          ' L:24
+        + Path(components: Collection<Component>, relative: Boolean) ' L:29
+        + Path(componentsString: String)             ' L:34
+        + getComponent(index: Int) : Component       ' L:38
+        + containsNamedComponent() : Boolean         ' L:53-54
+        + pathByAppendingPath(pathToAppend: Path) : Path  ' L:56-70
+        + pathByAppendingComponent(c: Component) : Path   ' L:72-77
+        - setComponentsString(value: String)         ' L:99-119
+        + toString() : String                        ' L:121
+        + equals(other: Any?) : Boolean              ' L:123-128
+        + hashCode() : Int                           ' L:130
         .. companion ..
-        {static} self : Path <<get>>
+        {static} PARENT_ID : String = "^"            ' L:133
+        {static} self : Path <<get>>                 ' L:135-136
     }
 
+    note right of Path
+      **ink.kt** : Path.kt:1-175
+        _components               L:17
+        isRelative                L:18 (private set)
+        4 constructors            L:22,24,29,34
+        pathByAppendingPath()     L:56
+        componentsString          L:79 (lazy + buildString)
+        setComponentsString()     L:99 (split("."))
+        equals()                  L:123 (indices.all)
+      ----
+      **C#** : Path.cs:1-276
+        Component is nested struct
+        _components               L:21
+        PathByAppendingPath()     L:84-105
+        componentsString          L:111-164
+      **Java** : Path.java:1-232
+        Component is inner class  L:10-94
+        _components               L:100
+        setComponentsString()     L:153-185
+        equals()                  L:187-198
+      ----
+      Kotlin: buildString + .any{} + .all{}
+      vs Java StringBuilder + for-loop.
+      **Status**: COMPLETE
+    end note
+
     class "Path.Component" as PathComponent {
-        + index : Int
-        + name : String?
-        + isIndex : Boolean <<get>>
-        + isParent : Boolean <<get>>
+        + index : Int                                ' L:143
+        + name : String?                             ' L:144
+        + isIndex : Boolean <<get>>                  ' L:156
+        + isParent : Boolean <<get>>                 ' L:157
         --
-        + Component(index: Int)
-        + Component(name: String)
-        + equals(other: Any?) : Boolean
-        + hashCode() : Int
+        + Component(index: Int)                      ' L:146
+        + Component(name: String)                    ' L:151
+        + toString() : String                        ' L:159-160
+        + equals(other: Any?) : Boolean              ' L:162-166
+        + hashCode() : Int                           ' L:168-169
         .. companion ..
-        {static} toParent() : Component
+        {static} toParent() : Component              ' L:172
     }
 
     class SearchResult {
-        + obj : InkObject?
-        + approximate : Boolean
-        + correctObj : InkObject? <<get>>
-        + container : Container? <<get>>
+        + obj : InkObject?                           ' L:14
+        + approximate : Boolean                      ' L:15
+        + correctObj : InkObject? <<get>>            ' L:19-20
+        + container : Container? <<get>>             ' L:22-23
         --
-        + SearchResult(obj?, approximate)
-        + SearchResult(sr: SearchResult)
+        + SearchResult(obj?, approximate)            ' L:13
+        + SearchResult(sr: SearchResult)             ' L:17
     }
 
     note right of SearchResult
-      Not a data class in Kotlin
-      (mutable fields). C#/Java
-      identical structure.
+      **ink.kt** : SearchResult.kt:1-24
+        correctObj               L:19 (if !approximate)
+        container (as? cast)     L:22
+      ----
+      **C#** : SearchResult.cs:1-32
+        struct (value type)
+        correctObj               L:12
+        container                L:17
+      **Java** : SearchResult.java:1-39
+        class (mutable fields)
+        correctObj               L:22
+        container                L:27
+      ----
+      Kotlin: mutable class (same as Java).
+      C# version is a value-type struct.
+      **Status**: COMPLETE
     end note
 
     class Pointer <<data class>> {
-        + container : Container?
-        + index : Int
-        + isNull : Boolean <<get>>
-        + path : Path? <<get>>
+        + container : Container?                     ' L:16
+        + index : Int                                ' L:17
+        + isNull : Boolean <<get>>                   ' L:34
+        + path : Path? <<get>>                       ' L:36-43
         --
-        + Pointer(container?, index)
-        + Pointer(p: Pointer)
-        + assign(p: Pointer)
-        + resolve() : InkObject?
+        + Pointer(container?, index)                 ' L:15
+        + Pointer(p: Pointer)                        ' L:19
+        + assign(p: Pointer)                         ' L:21-24
+        + resolve() : InkObject?                     ' L:26-32
+        + toString() : String                        ' L:45-47
         .. companion ..
-        {static} Null : Pointer
-        {static} startOf(container: Container) : Pointer
+        {static} Null : Pointer                      ' L:50
+        {static} startOf(container: Container) : Pointer ' L:52
     }
 
     note right of Pointer
-      **Kotlin:** ""data class"" — value
-      equality, copy(), destructuring.
-      **C#:** ""struct"" (value type).
-      **Java:** regular class with assign().
+      **ink.kt** : Pointer.kt:1-54
+        data class — auto equals/copy/destructuring
+        resolve()                L:26 (returns InkObject?)
+        Null sentinel            L:50
+        startOf()                L:52
+      ----
+      **C#** : Pointer.cs:1-87
+        struct (value type)
+        Resolve()                L:32
+        Null (static readonly)   L:80
+        StartOf()                L:85
+      **Java** : Pointer.java:1-92
+        class (reference type, mutable)
+        resolve()                L:29
+        Null (static field)      L:85
+        StartOf()                L:88
+      ----
+      Kotlin data class gives value semantics
+      like C# struct, with copy()/destructuring.
+      **Status**: COMPLETE
     end note
 
     class DebugMetadata {
-        + startLineNumber : Int
-        + endLineNumber : Int
-        + startCharacterNumber : Int
-        + endCharacterNumber : Int
-        + fileName : String?
-        + sourceName : String?
+        + startLineNumber : Int                      ' L:17
+        + endLineNumber : Int                        ' L:18
+        + startCharacterNumber : Int                 ' L:19
+        + endCharacterNumber : Int                   ' L:20
+        + fileName : String?                         ' L:21
+        + sourceName : String?                       ' L:22
         --
-        + merge(dm: DebugMetadata) : DebugMetadata
-        + toString() : String
+        + merge(dm: DebugMetadata) : DebugMetadata   ' L:28-64
+        + toString() : String                        ' L:66-68
     }
 
     note right of DebugMetadata
-      Uses Kotlin ""when"" expression
-      for merge() range comparison
-      (vs if-chains in C#/Java).
+      **ink.kt** : DebugMetadata.kt:1-69
+        merge() uses when expr   L:33,48
+        toString()               L:66
+      ----
+      **C#** : DebugMetadata.cs:1-73
+        Merge()                  L:19
+        ToString()               L:60
+      **Java** : DebugMetadata.java:1-84
+        merge() uses if-chains   L:15
+        toString()               L:68
+      ----
+      Kotlin: when expr for merge() ranges
+      vs if-chains in Java/C#.
+      **Status**: COMPLETE
     end note
 }
 
@@ -269,85 +374,201 @@ package "1. Core" #E3F2FD {
 package "2. Content" #E3F2FD {
 
     class ChoicePoint {
-        + onceOnly : Boolean
-        + hasCondition : Boolean
-        + hasStartContent : Boolean
-        + hasChoiceOnlyContent : Boolean
-        + isInvisibleDefault : Boolean
-        + choiceTarget : Container <<get>>
-        + pathOnChoice : Path? <<get/set>>
-        + pathStringOnChoice : String? <<get/set>>
-        + flags : Int <<get/set>>
+        - _pathOnChoice : Path?                     ' L:15
+        + onceOnly : Boolean                        ' L:14
+        + hasCondition : Boolean                    ' L:17
+        + hasStartContent : Boolean                 ' L:18
+        + hasChoiceOnlyContent : Boolean            ' L:19
+        + isInvisibleDefault : Boolean              ' L:20
+        + choiceTarget : Container <<get>>          ' L:22
+        + pathOnChoice : Path? <<get/set>>          ' L:25-35
+        + pathStringOnChoice : String? <<get/set>>  ' L:37-39
+        + flags : Int <<get/set>>                   ' L:41-57 (bitmask)
+        --
+        + ChoicePoint(onceOnly: Boolean = true)     ' L:14
+        + toString() : String                       ' L:59
     }
 
-    class Choice {
-        + text : String?
-        + index : Int
-        + targetPath : Path?
-        + sourcePath : String?
-        + isInvisibleDefault : Boolean
-        + originalThreadIndex : Int
-        + tags : List<String>?
-        + threadAtGeneration : CallStack.Thread?
-        + pathStringOnChoice : String? <<get/set>>
+    note right of ChoicePoint
+      **ink.kt** : ChoicePoint.kt:1-62
+        _pathOnChoice             L:15
+        flags (bitmask)           L:41-57
+        toString()                L:59
+      ----
+      **C#** : ChoicePoint.cs:1-90
+        _pathOnChoice             L:27
+        flags                     L:50-67
+        ToString()                L:76-86
+      ----
+      **Java** : ChoicePoint.java:1-136
+        getFlags()/setFlags()     L:33-89
+        toString()                L:120-134
+      ----
+      **Status**: COMPLETE
+    end note
+
+    class Choice <<Comparable>> {
+        + text : String                             ' L:17 (override var)
+        + targetPath : Path?                        ' L:18
+        + sourcePath : String?                      ' L:19
+        + isInvisibleDefault : Boolean              ' L:20
+        + originalThreadIndex : Int                 ' L:21
+        + tags : List<String>?                      ' L:22
+        + level : Int                               ' L:25 (parser)
+        ~ conditions : MutableList<String>          ' L:26 (parser)
+        ~ repeatable : Boolean                      ' L:27 (parser)
+        + threadAtGeneration : CallStack.Thread?    ' L:31
+        + pathStringOnChoice : String? <<get/set>>  ' L:33-35
         --
-        + compareTo(other: Choice) : Int
-        + equals(other: Any?) : Boolean
-        + hashCode() : Int
-        + clone() : Choice
+        + Choice()                                  ' L:15
+        ~ Choice(textBase, level, parent, lineNum)  ' L:39 (parser)
+        + isFallBack() : Boolean                    ' L:87 (parser)
+        + evaluateConditions(story: VariableMap) : Boolean  ' L:89 (parser)
+        + compareTo(other: Choice) : Int            ' L:107
+        + equals(other: Any?) : Boolean             ' L:110
+        + hashCode() : Int                          ' L:116
+        + clone() : Choice                          ' L:118
+        .. companion ..
+        {static} getChoiceDepth(line: String) : Int           ' L:133 (parser)
+        {static} getId(header, parent) : String               ' L:144 (parser)
+        {static} extractChoiceText(header) : String           ' L:159 (parser)
+        {static} getParent(container, lvl) : Container        ' L:176 (parser)
     }
 
     note right of Choice
-      **Kotlin:** Comparable<Choice>
-      for sorted collections.
-      equals/hashCode by index
-      for LinkedHashSet membership.
-      C#/Java lack Comparable.
+      **ink.kt** : Choice.kt:1-187
+        text                      L:17
+        targetPath                L:18
+        level/conditions/repeatable L:25-27 (parser)
+        threadAtGeneration        L:31
+        clone()                   L:118
+        compareTo()               L:107 (Kotlin-only)
+      ----
+      **C#** : Choice.cs:1-69
+        text                      L:15
+        pathStringOnChoice        L:21-28
+        targetPath                L:42
+        Clone()                   L:55-65
+      ----
+      **Java** : Choice.java:1-87
+        targetPath                L:11
+        getText()                 L:51
+        clone()                   L:76
+      ----
+      **mica** : see ink.kt.mica.puml Choice
+      **Status**: COMPLETE + MICA_MERGED
     end note
 
     class Divert {
-        + stackPushType : PushPopType
-        + pushesToStack : Boolean
-        + isExternal : Boolean
-        + externalArgs : Int
-        + isConditional : Boolean
-        + variableDivertName : String?
-        + hasVariableTarget : Boolean <<get>>
-        + targetPath : Path? <<get/set>>
-        + targetPointer : Pointer <<get>>
-        + targetPathString : String? <<get/set>>
+        - _targetPath : Path?                       ' L:16
+        - _targetPointer : Pointer                  ' L:17
+        + stackPushType : PushPopType               ' L:15
+        + pushesToStack : Boolean                   ' L:19
+        + isExternal : Boolean                      ' L:20
+        + externalArgs : Int                        ' L:21
+        + isConditional : Boolean                   ' L:22
+        + variableDivertName : String?              ' L:23
+        + hasVariableTarget : Boolean <<get>>       ' L:43
+        + targetPath : Path? <<get/set>>            ' L:46-59
+        + targetPointer : Pointer <<get>>           ' L:61-73
+        + targetPathString : String? <<get/set>>    ' L:75-80
         --
-        + equals(other: Any?) : Boolean
-        + hashCode() : Int
-        + toString() : String
+        + Divert(stackPushType: PushPopType = Function) ' L:15
+        ~ Divert(lineNumber, text, parent)          ' L:27 (parser)
+        + resolveDivert(story: Story) : Container   ' L:35 (parser)
+        + equals(other: Any?) : Boolean             ' L:100
+        + hashCode() : Int                          ' L:107
+        + toString() : String                       ' L:82
     }
 
     note right of Divert
-      toString() uses Kotlin
-      ""buildString"" — replaces
-      StringBuilder pattern in
-      C#/Java.
+      **ink.kt** : Divert.kt:1-111
+        _targetPath               L:16
+        targetPointer             L:61
+        resolveDivert()           L:35 (parser)
+        toString() uses buildString
+      ----
+      **C#** : Divert.cs:1-150
+        targetPath                L:7-22
+        Equals()                  L:81-94
+        GetHashCode()             L:96-105
+        ToString()                L:107-146
+      ----
+      **Java** : Divert.java:1-205
+        getTargetPointer()        L:60-72
+        hashCode()                L:98-112
+        toString()                L:164-203
+      ----
+      **mica** : see ink.kt.mica.puml Divert
+      **Status**: COMPLETE + MICA_MERGED
     end note
 
     class Glue {
-        + toString() : String
+        + toString() : String                       ' L:14
     }
 
+    note right of Glue
+      **ink.kt** : Glue.kt:1-15
+      **C#** : Glue.cs:1-13
+      **Java** : Glue.java:1-10
+      All identical marker class.
+      **Status**: COMPLETE
+    end note
+
     class Tag {
-        + text : String
+        + text : String                             ' L:13 (override var)
         --
-        + Tag(text: String)
-        + toString() : String
+        + Tag(text: String)                         ' L:13
+        ~ Tag(content, parent, lineNumber)          ' L:16 (parser)
+        + toString() : String                       ' L:22
     }
+
+    note right of Tag
+      **ink.kt** : Tag.kt:1-23
+        Tag(text)                 L:13
+        Tag(content,parent,ln)    L:16 (parser)
+      ----
+      **C#** : Tag.cs:1-27
+        Tag(string)               L:16-19
+      **Java** : Tag.java:1-17
+        Tag(String)               L:10-12
+      ----
+      **mica** : see ink.kt.mica.puml Tag
+      **Status**: COMPLETE + MICA_MERGED
+    end note
 
     class Void
 
+    note right of Void
+      **ink.kt** : Void.kt:1-13
+      **C#** : Void.cs:1-10
+      **Java** : Void.java:1-5
+      All identical empty marker class.
+      **Status**: COMPLETE
+    end note
+
     class ControlCommand {
-        + commandType : CommandType
+        + commandType : CommandType                 ' L:15
         --
-        + copy() : InkObject
-        + toString() : String
+        + ControlCommand(commandType: CommandType = NotSet) ' L:15
+        + copy() : InkObject                        ' L:47
+        + toString() : String                       ' L:49
     }
+
+    note right of ControlCommand
+      **ink.kt** : ControlCommand.kt:1-50
+        CommandType enum          L:17-45
+        copy()                    L:47
+      ----
+      **C#** : ControlCommand.cs:1-183
+        26 static factory methods L:64-171
+        (EvalStart(), etc. — NOT in KT/Java)
+      **Java** : ControlCommand.java:1-62
+        CommandType enum          L:4-32
+      ----
+      **Status**: COMPLETE
+      (C# factories are convenience, not functional gap)
+    end note
 
     enum "ControlCommand.CommandType" as CommandType {
         NotSet
@@ -380,17 +601,39 @@ package "2. Content" #E3F2FD {
     }
 
     class VariableAssignment {
-        + variableName : String?
-        + isNewDeclaration : Boolean
-        + isGlobal : Boolean
+        + variableName : String?                    ' L:14
+        + isNewDeclaration : Boolean                ' L:15
+        + isGlobal : Boolean                        ' L:17
+        --
+        + VariableAssignment(variableName?, isNewDeclaration?) ' L:13
+        + toString() : String                       ' L:19
     }
 
+    note right of VariableAssignment
+      **ink.kt** : VariableAssignment.kt:1-21
+      **C#** : VariableAssignment.cs:1-27
+      **Java** : VariableAssignment.java:1-49
+      All structurally identical.
+      **Status**: COMPLETE
+    end note
+
     class VariableReference {
-        + name : String?
-        + pathForCount : Path?
-        + containerForCount : Container? <<get>>
-        + pathStringForCount : String? <<get/set>>
+        + name : String?                            ' L:13
+        + pathForCount : Path?                      ' L:15
+        + containerForCount : Container? <<get>>    ' L:17
+        + pathStringForCount : String? <<get/set>>  ' L:20-25
+        --
+        + VariableReference(name: String? = null)   ' L:13
+        + toString() : String                       ' L:27
     }
+
+    note right of VariableReference
+      **ink.kt** : VariableReference.kt:1-32
+      **C#** : VariableReference.cs:1-52
+      **Java** : VariableReference.java:1-62
+      All structurally identical.
+      **Status**: COMPLETE
+    end note
 
     class NativeFunctionCall {
         + name : String? <<get/set>>
@@ -447,12 +690,22 @@ package "3. Values" #E3F2FD {
     }
 
     note right of Value
-      **Kotlin:** ""sealed class"" hierarchy —
-      exhaustive ""when"", no runtime type bugs.
-      Consolidates 8 separate Java files into one.
-      **C#:** abstract Value + concrete subclasses
-      **Java:** AbstractValue + 7 separate files
-      ""when"" replaces if-chains in cast().
+      **ink.kt** : Value.kt:25-57
+        value : T                 L:25
+        cast()                    L:29 (abstract)
+        create()                  L:45-55 (companion)
+        badCastException()        L:37
+      ----
+      **C#** : Value.cs:28-96
+        2-class hierarchy: Value + Value<T>
+        Create()                  L:37-64
+      **Java** : AbstractValue + Value<T>
+        2-class hierarchy: AbstractValue.java + Value.java
+        create()                  L:12-38
+      ----
+      Kotlin sealed class collapses both into one.
+      8 Java files -> 1 Value.kt (sealed).
+      **Status**: COMPLETE
     end note
 
     class BoolValue {
@@ -492,8 +745,19 @@ package "3. Values" #E3F2FD {
     }
 
     note right of StringValue
-      Kotlin: ""toIntOrNull()""/""toFloatOrNull()""
-      C#: TryParse, Java: try/catch
+      **ink.kt** : Value.kt:116-131
+        isNewline (val)           L:118
+        isInlineWhitespace (val)  L:119
+        cast() toIntOrNull/toFloatOrNull
+      ----
+      **C#** : Value.cs:203-258
+        TryParse, InvariantCulture
+      **Java** : StringValue.java:3-84
+        try/catch parseInt/parseFloat
+        has mutable setIsNewline/setIsInlineWhitespace (GAP)
+      ----
+      **Status**: COMPLETE
+      (Java mutable whitespace setters noted)
     end note
 
     class DivertTargetValue {
@@ -539,10 +803,13 @@ package "3. Values" #E3F2FD {
     }
 
     note right of ValueType
-      Ordinal order is significant
-      for type coercion. Higher
-      ordinal types "infect"
-      operations during coercion.
+      **ink.kt** : ValueType.kt:1-23
+      **C#** : Value.cs:11-26
+        Bool=-1 (explicit ordinal)
+      **Java** : ValueType.java
+        Same members, positional ordinals.
+      Ordinal order is significant for coercion.
+      **Status**: COMPLETE
     end note
 }
 
@@ -594,12 +861,28 @@ package "4. Lists" #E3F2FD {
     }
 
     note right of InkList
-      **Kotlin:** ""MutableMap by _map"" delegation —
-      all Map methods delegated to LinkedHashMap.
-      ""operator plus/minus"" for ink list arithmetic.
-      **C#:** ""InkList : Dictionary<InkListItem, int>""
-      **Java:** ""InkList extends HashMap<InkListItem, Integer>""
-      Kotlin avoids Java's verbose ""CustomEntry"" hack.
+      **ink.kt** : InkList.kt:1-289
+        _map (LinkedHashMap)      L:20
+        union()                   L:85
+        operator plus/minus       L:110-111
+        addItem(InkListItem)      L:222
+        addItem(String)           L:242
+      ----
+      **C#** : InkList.cs:117-649
+        Dictionary<InkListItem,int>
+        Union()                   L:379
+        AddItem(string,Story)     L:213 (MISSING in KT)
+        Contains(string)          L:447 (MISSING in KT)
+      **Java** : InkList.java:1-621
+        HashMap<InkListItem,Integer>
+        InkList(String,Story)     L:44 (MISSING in KT)
+        getSingleOriginListName() L:343 (MISSING in KT)
+      ----
+      **Status**: GAP [4 missing members]
+      - InkList(singleOriginListName, Story)
+      - singleOriginListName property
+      - addItem(itemName, storyObject)
+      - contains(String) alias
     end note
 
     class InkListItem <<data class>> {
@@ -616,10 +899,19 @@ package "4. Lists" #E3F2FD {
     }
 
     note right of InkListItem
-      **Kotlin:** ""data class"" — equals,
-      hashCode, copy, destructuring for free.
-      **C#:** ""struct"" (value type, readonly).
-      **Java:** regular class with verbose getters.
+      **ink.kt** : InkListItem.kt:1-45
+        data class — equals/copy/destructuring free
+        Null sentinel              L:43
+        hashCode()                 L:36-40
+      ----
+      **C#** : InkList.cs:11-108
+        struct (value type, readonly)
+        Null property              L:43-47
+      **Java** : InkListItem.java:1-96
+        regular class, verbose getters
+        Null static method         L:39-41
+      ----
+      **Status**: COMPLETE
     end note
 
     class ListDefinition {
@@ -635,8 +927,17 @@ package "4. Lists" #E3F2FD {
     }
 
     note right of ListDefinition
-      Kotlin: ""by lazy"" for items property.
-      C#/Java: null-check init pattern.
+      **ink.kt** : ListDefinition.kt:1-38
+        items (by lazy)           L:19-23
+        getValueForItem()         L:25 (returns Int?)
+      ----
+      **C#** : ListDefinition.cs:1-75
+        ValueForItem returns 0 on miss
+        TryGetItemWithValue uses out param
+      **Java** : ListDefinition.java:1-63
+        getValueForItem returns Integer?
+      ----
+      **Status**: COMPLETE
     end note
 
     class ListDefinitionsOrigin {
@@ -724,12 +1025,25 @@ package "5. State" #E3F2FD {
     }
 
     note right of StoryState
-      **Kotlin:** fun interface ErrorHandler, OnDidLoadState (SAM).
-      enum class OutputOp — functional dispatch.
-      ""buildString"" for currentText/currentTags.
-      ""kotlin.random.Random"" for seed.
-      **C#:** delegates, Stream overloads.
-      **Java:** HashMap, verbose InnerWriter for JSON.
+      **ink.kt** : StoryState.kt:1-829
+        ErrorHandler fun interface L:39-41
+        OnDidLoadState fun interface L:48-50
+        OutputOp enum              L:61-70
+        currentText               L:214-234
+        currentTags               L:236-277
+        visitCountForContainer    L:610-623
+        copyAndStartPatching      L:660-716
+      ----
+      **C#** : StoryState.cs
+        ToJson()/LoadJson()       (MISSING in KT)
+        VisitCountAtPathString    (MISSING in KT)
+      **Java** : StoryState.java
+        toJson()/loadJson()       (MISSING in KT)
+        visitCountAtPathString    (MISSING in KT)
+      ----
+      Kotlin decouples from Story (takes Container).
+      **Status**: GAP [toJson, loadJson,
+        visitCountAtPathString, ~5 methods]
     end note
 
     interface "StoryState.ErrorHandler" as SSErrorHandler <<fun interface>> {
@@ -780,11 +1094,22 @@ package "5. State" #E3F2FD {
     }
 
     note right of CallStack
-      **Fixed Java bug:** setTemporaryVariable
-      infinite recursion (3-arg calling itself
-      instead of 4-arg). Kotlin default params
-      eliminate the bug entirely.
-      ""buildString"" for callStackTrace.
+      **ink.kt** : CallStack.kt:1-281
+        reset()                   L:133
+        push()                    L:145 (default params)
+        setTemporaryVariable      L:203 (FIXED Java bug)
+        callStackTrace            L:258-280
+      ----
+      **C#** : CallStack.cs
+        WriteJson()               (MISSING in KT — in JsonSerialisation)
+      **Java** : CallStack.java
+        setTemporaryVariable      L:384 INFINITE RECURSION BUG
+        (3-arg calls itself, not 4-arg)
+        Kotlin default params fix this.
+      ----
+      Kotlin decouples from Story (takes Container).
+      Fixed C# typo: functionStartInOuputStream.
+      **Status**: COMPLETE
     end note
 
     class "CallStack.Element" as CSElement {
@@ -820,11 +1145,20 @@ package "5. State" #E3F2FD {
     }
 
     note right of Flow
-      **Kotlin:** type-safe MutableList<InkObject>
-      output stream. JSON serialization deferred
-      to JsonSerialisation.kt (separation of concerns).
-      **C#:** WriteJson lambda delegates.
-      **Java:** InnerWriter anonymous classes.
+      **ink.kt** : Flow.kt:1-54
+        Flow(name, rootContentContainer) L:19
+        loadFlowChoiceThreads     L:37-53
+      ----
+      **C#** : Flow.cs
+        Flow(name, Story)         (takes Story ref)
+        WriteJson()               (MISSING in KT — in JsonSerialisation)
+      **Java** : Flow.java
+        Flow(name, Story)         (takes Story ref)
+        writeJson()               (MISSING in KT — in JsonSerialisation)
+      ----
+      Kotlin decouples from Story (takes Container).
+      JSON serialization in JsonSerialisation.kt.
+      **Status**: COMPLETE
     end note
 
     class StatePatch {
@@ -844,11 +1178,21 @@ package "5. State" #E3F2FD {
     }
 
     note right of StatePatch
-      **Kotlin:** LinkedHashMap + LinkedHashSet
-      throughout (insertion-order + O(1)).
-      ""?.let"" for clean copy constructor.
-      **C#:** Dictionary, TryGet out-param.
-      **Java:** HashMap, null-check getters.
+      **ink.kt** : StatePatch.kt:1-54
+        globals (LinkedHashMap)   L:21
+        changedVariables          L:24
+        visitCounts               L:27
+        turnIndices               L:30
+      ----
+      **C#** : StatePatch.cs
+        TryGetGlobal (out param) — KT returns nullable
+        TryGetVisitCount (out param) — KT returns nullable
+      **Java** : StatePatch.java
+        HashMap/HashSet (no order guarantee)
+      ----
+      Kotlin: LinkedHashMap + nullable returns
+      (vs C# TryGet out-param, Java null-check).
+      **Status**: COMPLETE
     end note
 
     class VariablesState <<Iterable<String>>> {
@@ -885,12 +1229,21 @@ package "5. State" #E3F2FD {
     }
 
     note right of VariablesState
-      **Kotlin:** ""operator get/set"" —
-      ""state["var"]"" = value (like C# indexer).
-      ""fun interface VariableChanged"" (SAM).
-      ""when"" for runtimeObjectsEqual.
-      **C#:** IEnumerable<string>, delegate, indexer.
-      **Java:** Iterable<String>, interface, get/set.
+      **ink.kt** : VariablesState.kt:1-325
+        operator get/set          L:59-86
+        assign()                  L:128-166
+        setGlobal()               L:270-293
+        runtimeObjectsEqual()     L:299-308
+        fun interface VariableChanged L:32
+      ----
+      **C#** : VariablesState.cs
+        IEnumerable<string>, delegate, indexer
+        WriteJson()               (MISSING in KT)
+      **Java** : VariablesState.java
+        Iterable<String>, get/set methods
+        writeJson()               (MISSING in KT)
+      ----
+      **Status**: GAP [toJsonElement()]
     end note
 
     interface "VariablesState.VariableChanged" as VarChanged <<fun interface>> {
@@ -980,13 +1333,40 @@ package "6. Runtime" #E3F2FD {
     }
 
     note right of Story
-      **Kotlin:** implements ""VariablesState.VariableChanged"" (fun interface).
-      ""fun interface ExternalFunction"" — replaces 4 Java abstract classes
-      (ExternalFunction0/1/2/3). SAM lambda binding.
-      ""fun interface VariableObserver"" — SAM lambda binding.
-      ""when"" expressions for ControlCommand dispatch.
-      **C#:** Story : Object — delegates, Stream overloads.
-      **Java:** Story implements VariableChanged — 2928 lines.
+      **ink.kt** : Story.kt:1-2100+
+        ExternalFunction fun interface  L:33-36
+        VariableObserver fun interface  L:41-43
+        ExternalFunctionDef class       L:45-48
+        mainContentContainer            L:54
+        state                           L:60 (private setter)
+        onError/onDidContinue/etc.      L:74-101
+        Story(Container, lists?)        L:103
+        Story(jsonString)               L:112
+        continueStory()                 L:130+
+        continueMaximally()             L:207
+        continueAsync()                 L:224
+        chooseChoiceIndex()             L:260
+        choosePathString()              L:280
+        switchFlow()                    L:350
+        bindExternalFunction()          L:470
+        evaluateFunction()              L:550
+        toJson()                        L:1640
+        resetState()                    L:1741
+      ----
+      **C#** : Story.cs:1-3050
+        delegates for externals
+        Stream overloads (ToJson)
+        ContinueAsync()
+      **Java** : Story.java:1-2928
+        ExternalFunction0/1/2/3 abstract classes
+        implements VariableChanged
+        continueStory()
+      ----
+      Kotlin: fun interface SAM replaces
+      4 Java abstract classes.
+      when expressions for dispatch.
+      **Status**: COMPLETE
+      (missing only toJson(Appendable) stream overload)
     end note
 
     interface "Story.ExternalFunction" as ExtFunc <<fun interface>> {
@@ -1079,10 +1459,25 @@ package "7. Serialization" #F3E5F5 {
     }
 
     note right of SJReader
-      Recursive descent JSON reader.
-      **Kotlin:** ""internal"" visibility.
-      **C#:** ""private"" nested class.
-      **Java:** package-private static inner.
+      **ink.kt** : SimpleJson.kt:42-270
+        Reader(text)              L:42
+        offset/rootObject         L:44-45
+        toDictionary()            L:52
+        readObject()              L:70 (dispatch)
+        readDictionary()          L:93
+        readArray()               L:133
+        readString()              L:164
+        readNumber()              L:215
+        tryRead()                 L:244
+        skipWhitespace()          L:261
+      ----
+      **C#** : SimpleJson.cs (private nested)
+        ReadObject() recursive descent
+      **Java** : SimpleJson.java (static inner)
+        readObject() recursive descent
+      ----
+      Kotlin: internal visibility.
+      **Status**: COMPLETE
     end note
 
     class "SimpleJson.Writer" as SJWriter {
@@ -1116,11 +1511,27 @@ package "7. Serialization" #F3E5F5 {
     }
 
     note right of SJWriter
-      StringBuilder only (no Stream).
-      commonMain compatible. ArrayDeque
-      stack (no synchronized overhead).
-      **C#:** supports StringWriter + Stream.
-      **Java:** StringWriter + OutputStream.
+      **ink.kt** : SimpleJson.kt:289-558
+        sb (StringBuilder)        L:291
+        stateStack (ArrayDeque)   L:292
+        writeObject()             L:296
+        writeProperty() x5       L:316-344
+        writeArrayStart/End       L:397-407
+        write(Int/Float/String/Boolean) L:411-450
+        writeEscapedString()      L:491
+        startNewObject()          L:512
+        State enum                L:545
+        StateElement class        L:555
+      ----
+      **C#** : SimpleJson.cs
+        supports StringWriter + Stream
+      **Java** : SimpleJson.java
+        StringWriter + OutputStream
+      ----
+      Kotlin: StringBuilder only (no Stream).
+      ArrayDeque stack (no sync overhead).
+      commonMain compatible.
+      **Status**: COMPLETE
     end note
 
     interface "SimpleJson.InnerWriter" as InnerWriter <<fun interface>> {
@@ -1144,12 +1555,30 @@ package "7. Serialization" #F3E5F5 {
     }
 
     note right of JsonSerialisation
-      **Kotlin:** ""object"" singleton.
-      ""when (obj)"" with smart casts for
-      read/write dispatch (vs if-instanceof).
-      **C#:** static class Json.
-      **Java:** static class Json.
+      **ink.kt** : JsonSerialisation.kt:1-669
+        writeListRuntimeObjs()    L:45
+        writeRuntimeObject()      L:77 (when dispatch)
+        jArrayToRuntimeObjList()  L:193
+        jTokenToRuntimeObject()   L:232 (when dispatch)
+        writeRuntimeContainer()   L:441
+        writeChoice()             L:506
+        writeInkList()            L:549
+        listDefinitionsToJToken() L:587
+        jTokenToListDefinitions() L:600
+        controlCommandNames[]     L:628
+      ----
+      **C#** : JsonSerialisation.cs:1-751
+        static class Json
+        JArrayToRuntimeObjList<T>()
+        WriteChoice()
+      **Java** : Json.java:1-751+
+        static class Json
+        jArrayToRuntimeObjList()
+        writeChoice()
+      ----
+      Kotlin: object singleton, when smart casts.
       Zero 3rd-party deps. Pure Kotlin stdlib.
+      **Status**: COMPLETE
     end note
 
     object Json <<internal>> {
@@ -1157,10 +1586,42 @@ package "7. Serialization" #F3E5F5 {
     }
 
     note right of Json
-      Thin delegate to
-      JsonSerialisation —
-      preserves call sites
-      used by VariablesState.
+      **ink.kt** : Json.kt (internal)
+      Thin delegate to JsonSerialisation.
+      Preserves call sites used by
+      VariablesState.setJsonToken().
+      **Status**: COMPLETE
+    end note
+
+    object StoryLoader <<mica>> {
+        + load(json: JsonObject, story: Story)
+        - loadValue(element: JsonElement, story: Story) : Any?
+    }
+
+    note right of StoryLoader
+      **ink.kt** : StoryLoader.kt:1-67
+        load()                    L:11
+        loadValue()               L:59
+      ----
+      **mica** : StoryLoader (parser JSON format)
+      Uses kotlinx.serialization.json
+      (not SimpleJson).
+      **Status**: COMPLETE (mica)
+    end note
+
+    object StorySaver <<mica>> {
+        + save(story: Story) : JsonObject
+        - putValue(builder, story, key, value)
+    }
+
+    note right of StorySaver
+      **ink.kt** : StorySaver.kt:1-65
+        save()                    L:11
+        putValue()                L:53
+      ----
+      **mica** : StorySaver (parser JSON format)
+      Uses kotlinx.serialization.json.
+      **Status**: COMPLETE (mica)
     end note
 }
 
@@ -1186,11 +1647,19 @@ package "8. Infrastructure" #ECEFF1 {
     }
 
     note right of Stopwatch
-      **Kotlin:** kotlin.time.TimeSource.Monotonic
-      — 30 lines, cross-platform, nano precision.
-      **C#:** System.Diagnostics.Stopwatch.
-      **Java:** custom Stopwatch, System.nanoTime()
-      — 147 lines.
+      **ink.kt** : Stopwatch.kt:50-85
+        TimeSource.Monotonic      L:51
+        start()/stop()/reset()    L:56-70
+        elapsed (Duration)        L:73
+        elapsedMilliseconds       L:78
+      ----
+      **C#** : System.Diagnostics.Stopwatch (BCL)
+      **Java** : Stopwatch.java:1-147
+        System.nanoTime() custom impl
+      ----
+      Kotlin: 36 lines vs Java 147 lines.
+      kotlin.time.TimeSource cross-platform.
+      **Status**: COMPLETE
     end note
 
     object InkClock {
@@ -1214,10 +1683,20 @@ package "8. Infrastructure" #ECEFF1 {
     }
 
     note right of InkClock
-      **Kotlin:** kotlinx-datetime Clock.System.
+      **ink.kt** : Stopwatch.kt:121-253
+        clockSource/nanoClockSource L:129,137
+        epochMillis/Nanos/Seconds  L:142-148
+        utcIso8601()               L:156
+        utcDateComponents()        L:200
+        localDateComponents()      L:207
+        timeSeed()                 L:218
+        setFixedClock()            L:249
+        resetToSystemClock()       L:240
+      ----
+      Kotlin-only (not in C#/Java/JS).
+      kotlinx-datetime Clock.System.
       Pluggable clockSource for testing.
-      Replaces System.currentTimeMillis()
-      across 6 engines.
+      **Status**: COMPLETE (KT-only)
     end note
 
     class DateComponents <<data class>> {
@@ -1250,10 +1729,12 @@ package "8. Infrastructure" #ECEFF1 {
     }
 
     note right of ErrorHandler
-      **Kotlin:** ""fun interface"" (SAM).
-      **Java:** interface ErrorHandler.
-      **C#:** delegate.
-      Package-level fun interface.
+      **ink.kt** : ErrorHandler defined in
+        Story.kt (not separate file)
+      **Java** : ErrorHandler.java:1-10
+      **C#** : delegate ErrorHandler
+      Kotlin: fun interface (SAM).
+      **Status**: COMPLETE
     end note
 
     enum PushPopType {
@@ -1262,10 +1743,47 @@ package "8. Infrastructure" #ECEFF1 {
         FunctionEvaluationFromGame
     }
 
+    note right of PushPopType
+      **ink.kt** : PushPopType.kt
+      **C#** : PushPop.cs
+      **Java** : PushPopType.java
+      All identical 3-member enum.
+      **Status**: COMPLETE
+    end note
+
     interface INamedContent {
         + name : String? <<get>>
         + hasValidName : Boolean <<get>>
     }
+
+    note right of INamedContent
+      **ink.kt** : INamedContent.kt:1-17
+        name (String?)            L:14
+        hasValidName              L:15
+      ----
+      **C#** : INamedContent.cs
+      **Java** : INamedContent.java
+      Implemented by Container.
+      **Status**: COMPLETE
+    end note
+
+    class "InkRunTimeException" as InkRunTimeException {
+        + InkRunTimeException(message: String?)
+    }
+
+    class "InkParseException" as InkParseException {
+        + InkParseException(message: String?)
+    }
+
+    class "InkLoadingException" as InkLoadingException {
+        + InkLoadingException(message: String?)
+    }
+
+    note right of InkRunTimeException
+      **ink.kt** : exceptions from mica
+      All extend RuntimeException.
+      **Status**: COMPLETE (mica)
+    end note
 }
 
 ' ══════════════════════════════════════════════════════════════════════════════
@@ -1303,6 +1821,22 @@ Story ..|> VarChanged
 
 ' Exception hierarchy
 StoryException --|> Exception
+InkRunTimeException --|> Exception
+InkParseException --|> Exception
+InkLoadingException --|> Exception
+
+' Parser inheritance
+ParameterizedContainer --|> Container
+Knot --|> ParameterizedContainer
+Knot ..|> Function
+Stitch --|> ParameterizedContainer
+Gather --|> Container
+Conditional --|> Container
+ConditionalOption --|> Container
+Declaration --|> InkObject
+
+' Support inheritance
+VariableMapAdapter ..|> VariableMap
 
 ' ══════════════════════════════════════════════════════════════════════════════
 ' RELATIONSHIPS: Associations
@@ -1363,6 +1897,19 @@ Profiler --> ProfileNode : rootNode
 ' Serialization associations
 JsonSerialisation ..> SimpleJson : uses Writer
 Json ..> JsonSerialisation : delegates to
+StoryLoader ..> Story : loads into
+StorySaver ..> Story : saves from
+
+' Parser associations
+InkParser ..> StoryWrapper : uses for file/host access
+InkParser ..> Story : creates
+Expression ..> Operator : uses registered operators
+Expression ..> VariableMap : evaluates against
+Knot ..> VariableMap : eval uses
+VariableMapAdapter --> Story : bridges to
+Conditional ..> Story : resolves against
+ConditionalOption ..> VariableMap : evaluates against
+Declaration ..> Story : evaluates in
 
 ' Nested class ownership
 NativeFunctionCall +-- BinaryOp
@@ -1379,9 +1926,434 @@ Story +-- ExtFunc
 Story +-- VarObserver
 VariablesState +-- VarChanged
 ControlCommand +-- CommandType
+Conditional +-- SeqType
+Expression +-- GameObjResolver
 
 ' ══════════════════════════════════════════════════════════════════════════════
-' SECTION 9: COMMON RUNTIME INTERFACE (2026)
+' SECTION 9: PARSER (mica → ink.kt)
+' ══════════════════════════════════════════════════════════════════════════════
+
+package "9. Parser" #FFF8E1 {
+
+    object InkParser <<mica>> {
+        + parse(provider: StoryWrapper, fileName: String) : Story
+        + parse(input: String, provider: StoryWrapper, fileName: String) : Story
+        - parseLine(lineNumber, line, currentContainer) : List<InkObject>
+        - parseContainer(cont: InkObject) : MutableList<InkObject>
+        - isConditional(currentContainer: Container?) : Boolean
+        - getConditional(currentContainer: Container) : Container
+        ~ parseDivert(lineNumber, line, currentContainer) : List<InkObject>
+    }
+
+    note right of InkParser
+      **ink.kt** : InkParser.kt:1-174
+        parse(provider,fileName) L:9
+        parse(input,provider,fn) L:14
+        parseLine()              L:65 (line-by-line dispatch)
+        parseContainer()         L:125
+        parseDivert()            L:151
+      ----
+      **mica** : InkParser (line-by-line parser)
+      Parses raw .ink text into Container tree.
+      No C#/Java/JS equivalent (those use inklecate).
+      **Status**: COMPLETE (mica-only)
+    end note
+
+    class Expression <<mica>> {
+        - rpn : List<String>?
+        - operators : SortedMap<String, Operator>
+        - expression : String
+        + gameObjectResolver : GameObjectResolver?
+        --
+        + Expression(originalExpression: String)
+        - shuntingYard(expression, vMap) : List<String>
+        + eval(vMap: VariableMap) : Any
+        - addOperator(oper: Operator)
+        - getRPN(vMap: VariableMap) : List<String>
+        - validate(rpn, vMap)
+        + toString() : String
+        .. companion ..
+        {static} PI : Double
+        {static} e : Double
+        {static} defaultGameObjectResolver : GameObjectResolver
+        {static} isNumber(st: String) : Boolean
+    }
+
+    note right of Expression
+      **ink.kt** : Expression.kt:1-529
+        Expression(originalExpr) L:13
+        Tokenizer inner class    L:38-126
+        init (operator setup)    L:128-232
+        shuntingYard()           L:234
+        eval()                   L:327
+        LazyNumber interface     L:473
+      ----
+      **mica** : Expression evaluator
+      Shunting-yard algorithm for math.
+      GameObjectResolver fun interface
+      replaces Java reflection.
+      **Status**: COMPLETE (mica)
+    end note
+
+    interface "Expression.GameObjectResolver" as GameObjResolver <<fun interface>> {
+        + call(obj: Any, method: String, params: List<Any>) : Any
+    }
+
+    class Knot <<mica>> {
+        ~ isFunction : Boolean
+        + isFixedNumParams : Boolean
+        + numParams : Int <<get>>
+        --
+        + Knot(header: String, lineNumber: Int)
+        + eval(params: List<Any>, vMap: VariableMap) : Any
+        .. companion ..
+        {static} isKnot(str: String) : Boolean
+        {static} getId(id: String) : String
+        {static} isFunction(id: String) : Boolean
+    }
+
+    note right of Knot
+      **ink.kt** : Knot.kt:1-97
+        extends ParameterizedContainer
+        implements Function
+        isFunction                L:13
+        eval()                    L:18
+        getId()                   L:77 (companion)
+      ----
+      **mica** : Knot = named content block
+      (== knot_name)
+      **Status**: COMPLETE (mica)
+    end note
+
+    class Stitch <<mica>> {
+        --
+        + Stitch(header, parent, lineNumber)
+        .. companion ..
+        {static} isStitchHeader(str: String) : Boolean
+        {static} getId(header, parent) : String
+        {static} getParent(currentContainer) : Container
+    }
+
+    note right of Stitch
+      **ink.kt** : Stitch.kt:1-40
+        extends ParameterizedContainer
+        isStitchHeader()          L:17
+        getId()                   L:19
+        getParent()               L:30
+      ----
+      **mica** : Stitch = sub-section
+      (= stitch_name)
+      **Status**: COMPLETE (mica)
+    end note
+
+    class Gather <<mica>> {
+        + level : Int
+        --
+        + Gather(text, parent, level, lineNumber)
+        .. companion ..
+        {static} getChoiceDepth(line: String) : Int
+        {static} getId(text, parent) : String
+        {static} getParent(currentContainer, lvl) : Container
+    }
+
+    note right of Gather
+      **ink.kt** : Gather.kt:1-72
+        extends Container
+        level                     L:6
+        getChoiceDepth()          L:36
+        getParent()               L:61
+      ----
+      **mica** : Gather point (- dash lines)
+      **Status**: COMPLETE (mica)
+    end note
+
+    class Conditional <<mica>> {
+        - seqType : SequenceType
+        --
+        + Conditional(header, parent, lineNumber)
+        + resolveConditional(story: Story) : Container
+        - verifySequenceCondition(str: String)
+        .. companion ..
+        {static} isConditionalHeader(str: String) : Boolean
+        {static} getId(parent: Container) : String
+    }
+
+    note right of Conditional
+      **ink.kt** : Conditional.kt:1-86
+        extends Container
+        SequenceType enum         L:11-17
+        resolveConditional()      L:41
+        isConditionalHeader()     L:80
+      ----
+      **mica** : { conditional | sequence }
+      **Status**: COMPLETE (mica)
+    end note
+
+    enum "Conditional.SequenceType" as SeqType <<mica>> {
+        SEQUENCE_NONE
+        SEQUENCE_CYCLE
+        SEQUENCE_ONCE
+        SEQUENCE_SHUFFLE
+        SEQUENCE_STOP
+    }
+
+    class ConditionalOption <<mica>> {
+        --
+        + ConditionalOption(condition, parent, lineNumber)
+        + evaluate(vMap: VariableMap) : Boolean
+        .. companion ..
+        {static} getCondition(txt: String) : String
+    }
+
+    note right of ConditionalOption
+      **ink.kt** : ConditionalOption.kt:1-48
+        extends Container
+        evaluate()                L:31
+        getCondition()            L:37
+      ----
+      **mica** : individual branch in conditional
+      **Status**: COMPLETE (mica)
+    end note
+
+    class Declaration <<mica>> {
+        - isDeclaration : Boolean
+        --
+        + Declaration(lineNumber, decl, parent)
+        + evaluate(story: Story)
+        - declareVariable(story: Story)
+        - calculate(story: Story)
+        .. companion ..
+        {static} VAR_ : String
+        {static} TILDE_ : String
+        {static} getId(parent) : String
+        {static} evaluate(str, variables) : Any
+        {static} isVariableHeader(str) : Boolean
+    }
+
+    note right of Declaration
+      **ink.kt** : Declaration.kt:1-101
+        extends InkObject
+        evaluate()                L:20
+        declareVariable()         L:27
+        calculate()               L:50
+        isVariableHeader()        L:98
+      ----
+      **mica** : VAR x = ... / ~ x = ...
+      **Status**: COMPLETE (mica)
+    end note
+
+    class ParameterizedContainer <<mica>> {
+        + parameters : List<String>
+        ~ values : MutableMap<String, Any>
+        --
+        + ParameterizedContainer(id, parameters, parent?, lineNumber)
+        + hasValue(key: String) : Boolean
+        + getValue(key: String) : Any
+        + setValue(key: String, value: Any)
+        .. companion ..
+        {static} getParameters(header: String) : List<String>
+    }
+
+    note right of ParameterizedContainer
+      **ink.kt** : ParameterizedContainer.kt:1-42
+        extends Container (open)
+        parameters                L:5
+        values                    L:17
+        getParameters()           L:28
+      ----
+      **mica** : base for Knot/Stitch
+      **Status**: COMPLETE (mica)
+    end note
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' SECTION 10: SUPPORT (mica → ink.kt)
+' ══════════════════════════════════════════════════════════════════════════════
+
+package "10. Support" #E8F5E9 {
+
+    object StoryText <<mica>> {
+        + getText(text, count, variables) : String
+        - evaluateText(str, count, variables) : String
+        - evaluateTextVariable(s, variables) : String
+        - evaluateSequenceText(str, count) : String
+        - evaluateShuffleText(str) : String
+        - evaluateOnceOnlyText(str, count) : String
+        - evaluateCycleText(str, count) : String
+        - evaluateConditionalText(str, variables) : String
+    }
+
+    note right of StoryText
+      **ink.kt** : StoryText.kt:1-117
+        getText()                 L:8
+        evaluateText()            L:24
+        evaluateSequenceText()    L:47
+        evaluateConditionalText() L:71
+      ----
+      **mica** : dynamic text evaluation
+      Called by InkObject.getText()
+      **Status**: COMPLETE (mica)
+    end note
+
+    object Symbol <<mica>> {
+        {static} BRACE_LEFT : Char = '('
+        {static} BRACE_RIGHT : Char = ')'
+        {static} CBRACE_LEFT : Char
+        {static} CBRACE_RIGHT : Char
+        {static} CHOICE_DOT : Char = '*'
+        {static} CHOICE_PLUS : Char = '+'
+        {static} COMMENT : String = "//"
+        {static} DIVERT : String = "->"
+        {static} GLUE : String = "<>"
+        {static} INCLUDE : String = "INCLUDE"
+        {static} FUNCTION : String = "function"
+        {static} RETURN : String = "return"
+    }
+
+    note right of Symbol
+      **ink.kt** : Symbol.kt:1-36
+        30 syntax constants
+      ----
+      **mica** : parser syntax constants
+      **Status**: COMPLETE (mica)
+    end note
+
+    abstract class Operator <<mica>> {
+        + oper : String
+        + precedence : Int
+        + isLeftAssoc : Boolean
+        --
+        + {abstract} eval(v1: Any, v2: Any) : Any
+    }
+
+    note right of Operator
+      **ink.kt** : Operator.kt:1-15
+        abstract eval()           L:13
+      ----
+      **mica** : used by Expression shunting-yard
+      **Status**: COMPLETE (mica)
+    end note
+
+    object StoryJson <<mica>> {
+        {static} FILE : String
+        {static} FILES : String
+        {static} CONTENT : String
+        {static} ID : String
+        {static} VARIABLES : String
+        {static} CONTAINER : String
+        {static} TEXT : String
+        {static} CHOICES : String
+    }
+
+    note right of StoryJson
+      **ink.kt** : StoryJson.kt:1-20
+        14 JSON key constants
+      ----
+      **mica** : parser JSON format keys
+      (different from compiled JSON keys)
+      **Status**: COMPLETE (mica)
+    end note
+
+    interface StoryWrapper <<mica>> {
+        + getFileContent(fileId: String) : String
+        + getStoryObject(objId: String) : Any
+        + getInterrupt(s: String) : StoryInterrupt
+        + resolveTag(t: String)
+        + logDebug(m: String)
+        + logError(m: String)
+        + logException(e: Exception)
+    }
+
+    note right of StoryWrapper
+      **ink.kt** : StoryWrapper.kt:1-17
+        7 methods for story host
+      ----
+      **mica** : host callback interface
+      Used by InkParser/Story parser mode
+      **Status**: COMPLETE (mica)
+    end note
+
+    abstract class StoryInterrupt <<mica>> {
+        + id : String
+        + text : String
+        + condition : String
+        + file : String
+        + isChoice : Boolean
+        + isDivert : Boolean
+        + isActive : Boolean
+    }
+
+    note right of StoryInterrupt
+      **ink.kt** : StoryInterrupt.kt:1-13
+        isChoice (starts with */+) L:9
+        isDivert (starts with ->) L:10
+      ----
+      **mica** : flow override mechanism
+      **Status**: COMPLETE (mica)
+    end note
+
+    interface VariableMap <<mica>> {
+        + logException(e: Exception)
+        + hasValue(token: String) : Boolean
+        + getValue(token: String) : Any
+        + hasFunction(token: String) : Boolean
+        + getFunction(token: String) : Function
+        + hasGameObject(token: String) : Boolean
+        + debugInfo() : String
+    }
+
+    note right of VariableMap
+      **ink.kt** : VariableMap.kt:1-13
+        7 methods for variable access
+      ----
+      **mica** : parser variable contract
+      Implemented by VariableMapAdapter
+      which bridges to VariablesState.
+      **Status**: COMPLETE (mica)
+    end note
+
+    interface Function <<mica>> {
+        + numParams : Int <<get>>
+        + isFixedNumParams : Boolean <<get>>
+        + eval(params: List<Any>, vMap: VariableMap) : Any
+    }
+
+    note right of Function
+      **ink.kt** : Function.kt:1-8
+      ----
+      **mica** : parser function contract
+      Implemented by Knot (when isFunction).
+      **Status**: COMPLETE (mica)
+    end note
+
+    class VariableMapAdapter <<mica>> {
+        ~ story : Story
+        --
+        + getValue(token: String) : Any
+        - getValueId(id: String) : String
+        - getKnotId(id: String) : String
+        + hasValue(token: String) : Boolean
+        + hasFunction(token: String) : Boolean
+        + getFunction(token: String) : Function
+        + hasGameObject(token: String) : Boolean
+        + debugInfo() : String
+    }
+
+    note right of VariableMapAdapter
+      **ink.kt** : VariableMapAdapter.kt:1-104
+        implements VariableMap
+        bridges parser to Story runtime
+        getValue()                L:13
+        hasValue()                L:66
+        debugInfo()               L:94
+      ----
+      **mica** : adapter pattern
+      **Status**: COMPLETE (mica)
+    end note
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' SECTION 11: COMMON RUNTIME INTERFACE (2026)
 ' ══════════════════════════════════════════════════════════════════════════════
 
 package "9. Common Interface" #E0F7FA {
@@ -1423,132 +2395,193 @@ package "9. Common Interface" #E0F7FA {
 Story ..|> InkRuntime : <<pending>>
 
 ' ══════════════════════════════════════════════════════════════════════════════
-' SECTION 10: CROSS-REFERENCE (mica / JS / C# / Java)
+' SECTION 12: TESTS
+' ══════════════════════════════════════════════════════════════════════════════
+
+package "12. Tests" #FCE4EC {
+
+    note as N_TESTS
+      **ink.kt Test Suite — 35 files, 180+ @Test methods**
+      ═══════════════════════════════════════════════════
+
+      |= File |= Lines |= @Test |= Scope |
+      | ChoiceTest.kt | ~80 | 5 | Choice parsing + selection |
+      | ConditionalTest.kt | ~100 | 5 | Conditional/sequence evaluation |
+      | DeclarationTest.kt | ~70 | 3 | VAR declarations |
+      | DivertTest.kt | ~60 | 4 | Divert resolution |
+      | ExpressionTest.kt | ~120 | 8 | Math expression evaluation |
+      | ExternTest.kt | ~90 | 5 | External function binding |
+      | FunctionTest.kt | ~80 | 5 | Ink function calls |
+      | GatherTest.kt | ~60 | 4 | Gather point flow |
+      | GlueTest.kt | ~40 | 3 | Glue joining |
+      | IncludeTest.kt | ~50 | 3 | INCLUDE resolution |
+      | KnotTest.kt | ~53 | 3 | Knot navigation |
+      | SimpleJsonTest.kt | ~60 | 4 | JSON read/write |
+      | StitchTest.kt | ~50 | 3 | Stitch navigation |
+      | StopwatchTest.kt | ~40 | 3 | Timer precision |
+      | VariableTextTest.kt | ~80 | 5 | Dynamic text |
+
+      **Test Resources**: TestResources.kt
+      ⚠️ NEEDS_KMP: has 5 java.* imports
+      (java.io.File, java.net.URI, classLoader)
+
+      **ink-proof bytecode tests**: InkProofTest.kt
+      B001-B007+ bytecode conformance tests.
+
+      **MCP integration tests** (20 files):
+      BidiTddInkTest, ColabEngineTest,
+      InkEditEngineTest, InkMdTableTest,
+      McpRouterTest, McpToolsTest, etc.
+    end note
+}
+
+' ══════════════════════════════════════════════════════════════════════════════
+' SECTION 13: CROSS-REFERENCE (mica / JS / C# / Java)
 ' ══════════════════════════════════════════════════════════════════════════════
 
 note as PROGRESS
   **ink.kt KMP Progress Tracker (2026-02-28)**
   ══════════════════════════════════════════════
 
+  **Runtime Classes (from C#/Java/JS)**
   |= ink.kt class |= C# |= Java |= JS |= mica |= Status |
   | InkObject | RTObject | RTObject | InkObject | Content | ✅ +mica fields |
   | Container | Container | Container | Container | Container | ✅ +mica fields |
   | Story | Story | Story | Story | Story | ✅ +parser mode |
-  | StoryState | StoryState | StoryState | StoryState | — | ✅ Complete |
+  | StoryState | StoryState | StoryState | StoryState | — | ⚠️ GAP [toJson/loadJson] |
   | CallStack | CallStack | CallStack | CallStack | — | ✅ Complete |
+  | Flow | Flow | Flow | Flow | — | ✅ Complete |
   | Path | Path | Path | Path | — | ✅ Complete |
   | Pointer | Pointer | Pointer | Pointer | — | ✅ Complete |
+  | SearchResult | SearchResult | SearchResult | SearchResult | — | ✅ Complete |
+  | DebugMetadata | DebugMetadata | DebugMetadata | DebugMetadata | — | ✅ Complete |
   | Value<T> | Value<T> | AbstractValue | Value | Double | ✅ Complete |
   | Choice | Choice | Choice | Choice | Choice | ✅ +mica fields |
   | ChoicePoint | ChoicePoint | ChoicePoint | ChoicePoint | — | ✅ Complete |
-  | Divert | Divert | Divert | Divert | Divert | ✅ Complete |
+  | Divert | Divert | Divert | Divert | Divert | ✅ +mica merge |
+  | Tag | — | — | Tag | Tag | ✅ +mica merge |
+  | Glue | Glue | Glue | Glue | — | ✅ Complete |
+  | Void | Void | Void | Void | — | ✅ Complete |
   | ControlCommand | ControlCommand | ControlCommand | ControlCommand | — | ✅ Complete |
   | NativeFunctionCall | NativeFunctionCall | NativeFunctionCall | NativeFunctionCall | Expression | ✅ Complete |
   | VariableAssignment | VariableAssignment | VariableAssignment | VariableAssignment | Declaration | ✅ Complete |
   | VariableReference | VariableReference | VariableReference | VariableReference | — | ✅ Complete |
-  | VariablesState | VariablesState | VariablesState | VariablesState | VariableMap | ✅ Complete |
-  | Flow | Flow | Flow | Flow | — | ✅ Complete |
+  | VariablesState | VariablesState | VariablesState | VariablesState | VariableMap | ⚠️ GAP [toJsonElement] |
   | StatePatch | StatePatch | StatePatch | StatePatch | — | ✅ Complete |
+  | InkList | InkList | InkList | InkList | — | ⚠️ GAP [4 members] |
+  | InkListItem | InkListItem | InkListItem | InkListItem | — | ✅ Complete |
+  | ListDefinition | ListDefinition | ListDefinition | ListDefinition | — | ✅ Complete |
+  | ListDefinitionsOrigin | ListDefinitionsOrigin | ListDefinitionsOrigin | ListDefinitionsOrigin | — | ✅ Complete |
   | JsonSerialisation | Json | Json | JsonSerialisation | StoryLoader | ✅ Complete |
   | SimpleJson | SimpleJson | SimpleJson | SimpleJson | — | ✅ Complete |
-  | InkList | InkList | InkList | InkList | — | ✅ Complete |
   | Profiler | Profiler | Profiler | — | — | ✅ Complete |
-  | Tag | — | — | Tag | Tag | ✅ Compatible |
-  | InkRuntime | — | — | — | — | ⬜ NEW |
-  | InkParser | — | — | — | InkParser | ⬜ From mica |
-  | Expression | — | — | — | Expression | ⬜ From mica |
+  | ProfileNode | ProfileNode | ProfileNode | — | — | ✅ Complete |
+  | Stopwatch | Stopwatch | Stopwatch | — | — | ✅ Complete |
+  | StoryException | StoryException | StoryException | StoryException | — | ✅ Complete |
 
-  **mica KMP port**: ✅ All 6 JVM deps replaced (BigDecimal/Jackson/IO/reflection)
+  **Parser Classes (from mica)**
+  |= ink.kt class |= mica origin |= Status |
+  | InkParser | InkParser | ✅ Ported |
+  | Expression | Expression | ✅ Ported |
+  | Knot | Knot | ✅ Ported |
+  | Stitch | Stitch | ✅ Ported |
+  | Gather | Gather | ✅ Ported |
+  | Conditional | Conditional | ✅ Ported |
+  | ConditionalOption | ConditionalOption | ✅ Ported |
+  | Declaration | Declaration | ✅ Ported |
+  | ParameterizedContainer | ParameterizedContainer | ✅ Ported |
+
+  **Support Classes (from mica)**
+  |= ink.kt class |= mica origin |= Status |
+  | StoryText | StoryText | ✅ Ported |
+  | Symbol | Symbol | ✅ Ported |
+  | StoryJson | StoryJson | ✅ Ported |
+  | Operator | Operator | ✅ Ported |
+  | StoryWrapper | StoryWrapper | ✅ Ported |
+  | StoryInterrupt | StoryInterrupt | ✅ Ported |
+  | VariableMap | VariableMap | ✅ Ported |
+  | Function | Function | ✅ Ported |
+  | VariableMapAdapter | VariableMapAdapter | ✅ Ported |
+  | StoryLoader | StoryLoader | ✅ Ported |
+  | StorySaver | StorySaver | ✅ Ported |
+
+  **Infra (Kotlin-only)**
+  |= ink.kt class |= Note |= Status |
+  | InkClock | KT-only clock | ✅ Complete |
+  | DateComponents | KT-only data class | ✅ Complete |
+  | InkRuntime | KT-only interface | ⬜ NEW |
+  | InkChoice | KT-only interface | ⬜ NEW |
+
+  **Totals: 56 classes in PUML (was 45)**
+  **mica KMP port**: ✅ All 6 JVM deps replaced
   **Parser fields**: ✅ Merged into InkObject, Container, Choice, Story
   **ink-proof e2e**: 7 bytecode + 135 ink tests
   **Next**: Move 22 non-colliding mica classes to ink.kt package
 
   **Architecture: code-first three layers**
-  ink.model (data classes + annotations) → generates proto/OpenAPI/MCP/AsyncAPI
-  ink.kt (runtime classes — extend ink.model)
-  ink.kt.services (companion objects — ink language logic)
-
-  **Compiler**: KT/KMP new compiler → native + JVM + JS targets
-  C# inklecate + Java blade-ink unchanged (test oracles)
-  All 3 compilers produce identical JSON output
+  ink.model → ink.kt → ink.kt.services
 end note
 
 note as GAPS
   **Cross-Implementation Gap Analysis (2026-02-28)**
   ════════════════════════════════════════════════════
 
-  **1. JS → ink.kt gaps (inkjs has, ink.kt missing)**
+  **1. Remaining Gaps (~16 methods, ~300 LOC)**
 
-  | Feature | inkjs | ink.kt | Priority |
-  | onDidContinue callback | ✅ | ✅ | ✅ Ported |
-  | onMakeChoice callback | ✅ | ✅ | ✅ Ported |
-  | onEvaluateFunction callback | ✅ | ✅ | ✅ Ported |
-  | onCompleteEvaluateFunction | ✅ | ✅ | ✅ Ported |
-  | onChoosePathString callback | ✅ | ✅ | ✅ Ported |
-  | ContinueSingleStep() | ✅ | ✅ public | ✅ Ported |
-  | $() / $$() var shorthand | ✅ | ✅ operator[] | ✅ Done |
+  | Class | Gap | LOC | Priority |
+  | StoryState | toJson(), loadJson(), toJsonObject(), fromJsonObject(), visitCountAtPathString() | ~192 | P2 |
+  | JsonSerialisation | encodeFlow(), encodeCallStackThread(), decodeFlow() | ~80 | P2 |
+  | VariablesState | toJsonElement() | ~20 | P2 |
+  | InkList | InkList(name,Story), singleOriginListName, addItem(name,story), contains(String) | ~30 | P3 |
+  | Story | toJson(Appendable) stream overload | ~5 | P4 |
 
   **2. mica → ink.kt merge status**
 
   | Feature | mica | ink.kt | Status |
-  | Parser fields (InkObject) | ✅ Content | ✅ +id/text/lineNumber/count | ✅ Merged |
-  | Parser fields (Container) | ✅ children | ✅ +index/children/add/get | ✅ Merged |
-  | Parser fields (Choice) | ✅ level/cond | ✅ +level/conditions/repeatable | ✅ Merged |
-  | Parser fields (Story) | ✅ wrapper | ✅ +parserMode fields | ✅ Merged |
-  | Tag | ✅ Content | ✅ compatible (text override) | ✅ Compatible |
-  | InkParser (parse .ink) | ✅ KMP | ⬜ move to ink.kt | NEXT |
-  | Expression evaluator | ✅ KMP | ⬜ move to ink.kt | NEXT |
-  | Symbol (syntax constants) | ✅ KMP | ⬜ move to ink.kt | NEXT |
-  | StoryInterrupt (flow override) | ✅ KMP | ⬜ move to ink.kt | NEXT |
-  | StoryText (dynamic text) | ✅ KMP | ⬜ move to ink.kt | NEXT |
-  | Function interface | ✅ | ✅ ExternalFunc | ✅ Done |
-  | VariableMap interface | ✅ | ✅ VariablesState | ✅ Done |
-  | StorySaver/Loader | ✅ KMP | ✅ JsonSerialisation | ✅ Done |
+  | Parser fields (4 colliding) | ✅ merged | ✅ InkObject/Container/Choice/Story | ✅ Done |
+  | 22 non-colliding classes | ✅ in ink.kt | ⬜ move to ink.kt package | NEXT |
+  | Delete mica/ directory | — | ⬜ after move | NEXT |
 
-  **2b. mica KMP porting status (JVM → KMP) — ✅ ALL COMPLETE**
+  **3. mica KMP porting (JVM → KMP) — ✅ ALL COMPLETE**
 
-  | JVM Dependency | KMP Replacement | Files Changed | Status |
-  | BigDecimal | Double | 7 files | ✅ Ported |
-  | java.io.InputStream | String input | InkParser, StoryWrapper | ✅ Ported |
-  | Jackson JsonParser | kotlinx.serialization.json | StoryLoader | ✅ Ported |
-  | Jackson JsonGenerator | kotlinx.serialization.json | StorySaver | ✅ Ported |
-  | Java reflection | GameObjectResolver fun interface | Expression | ✅ Ported |
-  | MathContext/RoundingMode | kotlin.math.pow | Expression | ✅ Ported |
+  | JVM Dependency | KMP Replacement | Status |
+  | BigDecimal | Double | ✅ |
+  | java.io.InputStream | String input | ✅ |
+  | Jackson JsonParser | kotlinx.serialization.json | ✅ |
+  | Jackson JsonGenerator | kotlinx.serialization.json | ✅ |
+  | Java reflection | GameObjectResolver fun interface | ✅ |
+  | MathContext/RoundingMode | kotlin.math.pow | ✅ |
 
-  **3. C# → ink.kt gaps (C# has, ink.kt may differ)**
+  **4. C# → ink.kt (all ported except stream overloads)**
 
   | Feature | C# | ink.kt | Note |
-  | ContinueAsync(millis) | ✅ | ✅ | Ported |
-  | asyncContinueComplete | ✅ | ✅ | Ported |
-  | Stream overloads | ✅ | ⬜ | KMP = string-only OK |
-  | dontSaveDefaultValues | ✅ | ✅ | Ported |
-  | Copy() on InkObject | ✅ | ✅ | Ported |
-  | ExternalFunction delegate | ✅ delegate | ✅ fun interface | Idiomatic |
-  | VariableChanged delegate | ✅ delegate | ✅ fun interface | Idiomatic |
+  | ContinueAsync | ✅ | ✅ | Ported |
+  | Stream overloads | ✅ | ⬜ | KMP = string-only |
+  | All callbacks | ✅ delegate | ✅ fun interface | Idiomatic |
+  | Copy/dontSaveDefaultValues | ✅ | ✅ | Ported |
 
-  **4. ink.kt unique (not in other impls)**
+  **5. ink.kt unique (not in C#/Java/JS)**
 
-  | Feature | ink.kt only | Note |
-  | InkClock (pluggable clock) | ✅ | KMP test-friendly |
-  | DateComponents data class | ✅ | Clock decomposition |
-  | sealed class Value hierarchy | ✅ | Exhaustive when() |
-  | fun interface SAM conversion | ✅ | Lambda-friendly API |
-  | InkRuntime common interface | ✅ | Both runtimes |
+  | Feature | Note |
+  | InkClock | KMP pluggable clock |
+  | DateComponents | Clock decomposition |
+  | sealed class Value | Exhaustive when() |
+  | fun interface SAM | Lambda-friendly API |
+  | InkRuntime interface | Common runtime contract |
+  | Parser mode (mica) | .ink file parsing |
 
-  **5. Merge priority (what to do next)**
+  **6. Merge priority**
 
-  | Priority | Task | Source | Status |
-  | 1 | ~~Event callbacks (5 hooks)~~ | inkjs Story | ✅ Done |
-  | 2 | ~~mica KMP port (6 JVM deps)~~ | mica JVM | ✅ Done |
-  | 3 | ~~Parser fields merge (4 classes)~~ | mica → ink.kt | ✅ Done |
-  | 4 | ~~ContinueSingleStep()~~ | inkjs Story | ✅ Done |
-  | 5 | Move 22 non-colliding classes | mica → ink.kt | NEXT |
-  | 6 | Delete mica/ directory | cleanup | NEXT |
-  | 7 | KT/KMP compiler (from C#/Java/JS) | all impls | FUTURE |
-
-  **Compiler strategy**: C# + Java compilers unchanged (test oracles)
-  New KT/KMP compiler → native + JVM + JS targets
-  All 3 compilers produce identical JSON output
+  | # | Task | Status |
+  | 1 | ~~Event callbacks~~ | ✅ Done |
+  | 2 | ~~mica KMP port~~ | ✅ Done |
+  | 3 | ~~Parser fields merge~~ | ✅ Done |
+  | 4 | ~~ContinueSingleStep~~ | ✅ Done |
+  | 5 | State serialization (~300 LOC) | Phase 2 |
+  | 6 | InkList completeness (~30 LOC) | Phase 3 |
+  | 7 | Move 22 mica classes | Phase 6e |
+  | 8 | Delete mica/ directory | Phase 6f |
+  | 9 | KT/KMP compiler | FUTURE |
 end note
 
 PROGRESS .. Story

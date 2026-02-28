@@ -1135,6 +1135,23 @@ note as N_GAPS
   Parser fields from mica now merged into ink.kt data classes.
 end note
 
+note as N_INKKT
+  **ink.kt PUML Reference (2026-02-28)**
+  ═══════════════════════════════════════
+  See **ink.kt.puml** for complete
+  56-class diagram with method-level
+  cross-language line references for
+  every C#/Java/JS/mica equivalent.
+
+  Each ink.kt class note contains:
+  - ink.kt file:line references
+  - C# file:line references
+  - Java file:line references
+  - mica merge status
+  - Gap analysis per method
+end note
+
 N_GAPS .. Story
+N_INKKT .. VariablesState
 
 @enduml

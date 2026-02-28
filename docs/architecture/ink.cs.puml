@@ -965,8 +965,32 @@ note as N_MERGE
   | ink.kt | KT/KMP | NEW — validated against C# + Java JSON |
 end note
 
+note as N_INKKT
+  **ink.kt PUML Reference (2026-02-28)**
+  ═══════════════════════════════════════
+  See **ink.kt.puml** for complete
+  56-class diagram with method-level
+  cross-language line references for
+  every C#/Java/JS/mica equivalent.
+
+  **ink.kt.puml sections:**
+  1. Core (InkObject, Container, Path, Pointer, SearchResult, DebugMetadata)
+  2. Content (ChoicePoint, Choice, Divert, Tag, Glue, Void, ControlCommand, VariableAssignment, VariableReference, NativeFunctionCall)
+  3. Values (Value sealed + 7 subtypes)
+  4. Lists (InkList, InkListItem, ListDefinition, ListDefinitionsOrigin)
+  5. State (StoryState, CallStack, Flow, StatePatch, VariablesState)
+  6. Runtime (Story, Profiler, ProfileNode)
+  7. Serialization (SimpleJson, JsonSerialisation, StoryLoader, StorySaver)
+  8. Infrastructure (Stopwatch, InkClock, DateComponents, StoryException, ErrorHandler, PushPopType, INamedContent, Exceptions)
+  9. Parser (InkParser, Expression, Knot, Stitch, Gather, Conditional, ConditionalOption, Declaration, ParameterizedContainer)
+  10. Support (StoryText, Symbol, Operator, StoryJson, StoryWrapper, StoryInterrupt, VariableMap, Function, VariableMapAdapter)
+  11. Common Interface (InkRuntime, InkChoice)
+  12. Tests (35 files, 180+ @Test methods)
+end note
+
 N_COMPARE .. Story
 N_GAPS .. StoryState
 N_MERGE .. Container
+N_INKKT .. VariablesState
 
 @enduml

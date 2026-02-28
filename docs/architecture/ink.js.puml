@@ -890,9 +890,27 @@ note as N4
   - inkjs: remains as browser runtime; KT/JS runs alongside
 end note
 
+note as N_INKKT
+  **ink.kt PUML Reference (2026-02-28)**
+  ═══════════════════════════════════════
+  See **ink.kt.puml** for complete
+  56-class diagram with method-level
+  cross-language line references for
+  every C#/Java/JS/mica equivalent.
+
+  Each ink.kt class note contains:
+  - ink.kt file:line references
+  - C# file:line references
+  - Java file:line references
+  - JS/inkjs references
+  - mica merge status
+  - Gap analysis per method
+end note
+
 N1 .. Story
 N2 .. Value
 N3 .. StoryState
 N4 .. Story
+N_INKKT .. VariablesState
 
 @enduml
