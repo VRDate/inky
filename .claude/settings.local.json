@@ -43,7 +43,10 @@
       "Bash(./gradlew :ink-kmp-mcp:generateProtos:*)",
       "Bash(do sed:*)",
       "Bash(jar tf:*)",
-      "Bash(unzip:*)"
+      "Bash(unzip:*)",
+      "Bash(git xet:*)",
+      "Bash(gh api:*)",
+      "WebFetch(domain:api.github.com)"
     ]
   }
 }
