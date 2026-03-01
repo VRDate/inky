@@ -20,23 +20,31 @@ on:
   workflow_dispatch:
 
 env:
-  UNITY_VERSION: '6000.0.48f1'
   PROJECT_PATH: OneJS_CI_Project
   SAMPLE_SCENE: Assets/OneJS/Samples/OneJS_SampleScene.unity
 
 jobs:
   test-and-build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     environment: unity-ci
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Read SDK versions from libs.versions.toml
+        id: sdk
+        run: |
+          TOML="gradle/libs.versions.toml"
+          get() { grep "^$1 = " "$TOML" | sed 's/.*= "\(.*\)"/\1/'; }
+          echo "unity=$(get unity)" >> "$GITHUB_OUTPUT"
+          echo "unity-ci-image=$(get unity-ci-image)" >> "$GITHUB_OUTPUT"
 
       # Create empty project + import OneJS
       # Deleting the Android folder in the end to avoid possible naming conflict with Linux
       # https://github.com/Tencent/puerts/issues/1817#issuecomment-2292431530
       - name: Bootstrap minimal Unity project
         run: |
+          UNITY_VERSION="${{ steps.sdk.outputs.unity }}"
           mkdir -p "$PROJECT_PATH/Assets" "$PROJECT_PATH/Packages" "$PROJECT_PATH/ProjectSettings"
           cat > "$PROJECT_PATH/Packages/manifest.json" <<'JSON'
           {
@@ -66,16 +74,9 @@ jobs:
       - uses: actions/cache@v3
         with:
           path: ${{ env.PROJECT_PATH }}/Library
-          key: Library-${{ env.UNITY_VERSION }}-${{ github.sha }}
+          key: Library-${{ steps.sdk.outputs.unity }}-${{ github.sha }}
           restore-keys: |
-            Library-${{ env.UNITY_VERSION }}-
-      
-      # - name: Copy libpuerts.so from Docker image into project
-      #   run: |
-      #     docker run --rm \
-      #       -v "$GITHUB_WORKSPACE/${{ env.PROJECT_PATH }}/Assets/OneJS/Puerts/Plugins/x86_64:/out" \
-      #       singtaa/unity-ci-node:6000.0.48f1 \
-      #       cp /home/libpuerts.so /out/libpuerts.so
+            Library-${{ steps.sdk.outputs.unity }}-
 
       # Playmode tests
       - uses: game-ci/unity-test-runner@v4
@@ -85,8 +86,8 @@ jobs:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
-          customImage: singtaa/unity-ci-node:6000.0.48f1
-          unityVersion: ${{ env.UNITY_VERSION }}
+          customImage: ${{ steps.sdk.outputs.unity-ci-image }}:${{ steps.sdk.outputs.unity }}
+          unityVersion: ${{ steps.sdk.outputs.unity }}
           projectPath: ${{ env.PROJECT_PATH }}
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           testMode: playmode
@@ -114,9 +115,9 @@ jobs:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
-          customImage: singtaa/unity-ci-node:6000.0.48f1
+          customImage: ${{ steps.sdk.outputs.unity-ci-image }}:${{ steps.sdk.outputs.unity }}
           allowDirtyBuild: true
-          unityVersion: ${{ env.UNITY_VERSION }}
+          unityVersion: ${{ steps.sdk.outputs.unity }}
           projectPath: ${{ env.PROJECT_PATH }}
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           targetPlatform: StandaloneLinux64

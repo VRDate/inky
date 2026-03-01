@@ -11,18 +11,32 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        include:
+          - os: macos-latest
+            platform: darwin
+          - os: windows-latest
+            platform: win32
+          - os: ubuntu-22.04
+            platform: linux
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+
+      - name: Read SDK versions from libs.versions.toml
+        id: sdk
+        run: |
+          TOML="gradle/libs.versions.toml"
+          get() { grep "^$1 = " "$TOML" | sed 's/.*= "\(.*\)"/\1/'; }
+          echo "node=$(get node)" >> "$GITHUB_OUTPUT"
+          echo "inky-app=$(get inky-app)" >> "$GITHUB_OUTPUT"
 
       - name: Set app configuration
         env:
           APP_NAME: inky
           DESCRIPTION: "An editor for ink: inkle's narrative scripting language"
 
-          # This must be of the format "N.N.N", where the N's are all numbers
-          VERSION: 0.16.0
+          # Managed in gradle/libs.versions.toml (inky-app)
+          VERSION: ${{ steps.sdk.outputs.inky-app }}
 
           # By default, the author will be your name on GitHub. You can manually change this.
           AUTHOR: "inkle ltd."
@@ -34,9 +48,9 @@ jobs:
           echo "AUTHOR=${AUTHOR}" >> $GITHUB_ENV
 
       - name: Install Node.js
-        uses: actions/setup-node@v1
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ steps.sdk.outputs.node }}
 
       - name: Test for presence of Windows codesigning secrets
         id: vars
@@ -57,31 +71,29 @@ jobs:
 
       # insures that the index.html has been built
       - name: Build electron app (Mac x64)
-        if: matrix.os == 'macos-latest'
+        if: matrix.platform == 'darwin'
         run: |
           npx --yes @electron/packager app Inky --platform=darwin --arch=x64 --icon=./resources/Icon.icns --extend-info=./resources/info.plist --app-bundle-id=com.inkle.inky --prune --asar.unpackDir="main-process/ink" --ignore="inklecate_win.exe"
           mkdir -p ReleaseUpload
           ditto -c -k --keepParent Inky-darwin-x64/Inky.app ReleaseUpload/Inky_mac.zip
 
       - name: Build electron app (Win)
-        if: matrix.os == 'windows-latest'
+        if: matrix.platform == 'win32'
         run: |
           npx --yes @electron/packager app Inky --platform=win32  --arch=x64 --icon=./resources/Icon1024.png.ico --prune --asar.unpackDir="main-process/ink" --ignore="inklecate_mac" --win32metadata.ProductName="Inky" --win32metadata.CompanyName="inkle Ltd" --win32metadata.FileDescription="Inky" --win32metadata.OriginalFilename="Inky" --win32metadata.InternalName="Inky"
           mkdir -p ReleaseUpload
-          7z a -tzip Inky-win32-x64.zip Inky-win32-x64 
+          7z a -tzip Inky-win32-x64.zip Inky-win32-x64
           mv Inky-win32-x64.zip ReleaseUpload/Inky-win32-x64.zip
 
-      
-      - name: Build electron app (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Build electron app (Ubuntu Jammy)
+        if: matrix.platform == 'linux'
         run: |
           npx --yes @electron/packager app Inky --platform=linux --arch=x64 --icon=./resources/Icon.icns --extend-info=resources/info.plist --prune --asar.unpackDir="main-process/ink" --ignore="inklecate_mac"
           mkdir -p ReleaseUpload
           zip -r ReleaseUpload/Inky_linux.zip Inky-linux-x64
 
-
       - name: Add MacOS certs
-        if: matrix.os == 'macos-latest'
+        if: matrix.platform == 'darwin'
         shell: bash
         run: |
           if ! [[ -n $CERTIFICATE_OSX_APPLICATION && -n $CERTIFICATE_PASSWORD ]]; then exit 0 ; fi
@@ -99,7 +111,7 @@ jobs:
           CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
 
       - name: Add Windows certificate
-        if: matrix.os == 'windows-latest' && steps.vars.outputs.HAS_WINDOWS_CREDS
+        if: matrix.platform == 'win32' && steps.vars.outputs.HAS_WINDOWS_CREDS
         id: write_file
         uses: timheuer/base64-to-file@v1
         with:
@@ -140,7 +152,7 @@ jobs:
       # The next two steps are identical, except for explicitly passing in the tag name in the latter
       # I wish I knew how to do this in a more elegant way.
       # See also: I'd love to abstract out the startsWith() check and generated tag name into variable
-      
+
       - name: Release on GitHub (Built via Tag)
         uses: softprops/action-gh-release@v1
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
@@ -149,8 +161,8 @@ jobs:
         with:
           files: |
             ReleaseUpload/**/*.zip
-            
-      
+
+
       - name: Release on GitHub (Automated Tag)
         uses: softprops/action-gh-release@v1
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
@@ -160,4 +172,3 @@ jobs:
           tag_name: ${{ format('{0}.0.0', github.run_number) }}
           files: |
             ReleaseUpload/**/*.zip
-            

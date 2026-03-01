@@ -1,4 +1,13 @@
 [versions]
+# ── SDK / CI toolchain (single source of truth for workflows + Gradle) ──
+node = "20"
+python = "3.11"
+unity = "6000.0.48f1"
+unity-ci-image = "singtaa/unity-ci-node"
+ubuntu = "22.04"
+inky-app = "0.16.0"
+
+# ── Gradle / JVM ──
 kotlin = "2.3.0"
 jdk = "24"
 ktor = "3.1.1"
