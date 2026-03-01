@@ -12,7 +12,7 @@
 | **C#** (InkBidiTdd.Tests) | 4 + InkTestFixtures + InkStorySession | 42 | Ink.Compiler, Ink.Runtime, 10-method OneJS bridge | `InkTestFixtures.cs` + `InkStorySession.cs` fluent API | production |
 | **TypeScript** (ink-editor) | 1 | 48 | ink-grammar.ts, BIDI_TDD_ISSUES.md | inline | 1/16 (6%) |
 | **JavaScript** (ink-electron) | 4 + e2e-helpers | 64 | bidify.js + E2E via Playwright | `e2e-helpers.js` module | 1/29 (3%) |
-| **PlantUML** | — | — | 23 diagrams across 3 dirs (ink.ts.puml + ink.py.puml added) | — | — |
+| **PlantUML** | — | — | 24 diagrams across 3 dirs (+ink.ts.puml, ink.py.puml, ink.magiconion.puml) | — | — |
 | **Markdown** | — | — | 15 docs (~280K lines) | — | — |
 | **Total** | **16+** | **299** | | | |
 
@@ -149,7 +149,7 @@
 
 ## 5. Documentation & Diagram Gaps
 
-> 15 markdown docs (280K lines), 23 PlantUML diagrams.
+> 15 markdown docs (280K lines), 24 PlantUML diagrams.
 > Architecture and bidi docs are excellent; feature/API docs are missing.
 > Plan files consolidated into roadmap.md (originals in bak/). Interop plan documented as Section 5b.
 
@@ -264,6 +264,62 @@
 
 ---
 
+## 9. MagicOnion Integration (Unity/.NET gRPC)
+
+> MagicOnion (Cysharp) = gRPC + MessagePack for Unity/.NET.
+> Replaces WebSocket+msgpack (MAUI) and enables networked Unity clients.
+> Keeps OneJS for local Unity (no network needed).
+>
+> **Architecture diagram**: `docs/architecture/ink.magiconion.puml`
+
+### Prerequisites (already done)
+
+| # | What | Status | Location |
+|---|------|--------|----------|
+| — | Proto messages (16 files, 65 messages) | Done | `src/proto/ink/model/` |
+| — | Binary protobuf encoding (`msg.encode()`) | Done | `InkModelSerializers.toBytes()` |
+| — | MessagePack serialization (Jackson) | Done | `InkModelSerializers.toMsgpack()` |
+| — | IInkRuntime interface (11 methods) | Done | `src/csMain/ink/cs/IInkRuntime.cs` |
+| — | InkRuntimeService (platform-agnostic) | Done | `src/csMain/ink/cs/InkRuntimeService.cs` |
+| — | IAssetEventTransport (6 channels) | Done | `src/csMain/ink/cs/transport/IAssetEventTransport.cs` |
+| — | Proto-generated C# model classes | Done | `src/csMain/ink/cs/model/` |
+
+### P0 — Service Interfaces
+
+| # | Task | Effort | Notes |
+|---|------|--------|-------|
+| 9.1 | **IInkRuntimeService : IService\<IInkRuntimeService\>** — 11 unary RPC methods wrapping IInkRuntime (Compile, StartStory, ContinueStory, Choose, Get/SetVariable, Save/LoadState, Reset, EndSession, GetAssetEvents) | **M** | MagicOnion shared interface (NuGet: MagicOnion.Abstractions) |
+| 9.2 | **IInkEventHub : IStreamingHub\<IInkEventHub, IInkEventReceiver\>** — streaming hub: JoinSession, LeaveSession, SendEvent (fire-and-forget) | **M** | Maps to AssetEventBus 6 channels |
+| 9.3 | **IInkEventReceiver** — client callback interface: OnTagEvent, OnAssetLoad, OnAssetLoaded, OnInventoryChange, OnVoiceSynthesize, OnVoiceReady | **S** | Mirrors IAssetEventTransport events |
+
+### P1 — Server Implementation
+
+| # | Task | Effort | Notes |
+|---|------|--------|-------|
+| 9.4 | **InkRuntimeServiceImpl** — MagicOnion server wrapping InkRuntimeService | **M** | NuGet: MagicOnion.Server, hosted in ASP.NET or Kestrel |
+| 9.5 | **InkEventHubImpl** — StreamingHub server bridging AssetEventBus | **L** | Pub/sub relay: AssetEventBus → StreamingHub broadcast |
+| 9.6 | **MessagePack-CSharp config** — ContractlessStandardResolver to match Jackson string-key format | **S** | NuGet: MessagePack, must match `InkModelSerializers.toMsgpack()` |
+
+### P2 — Client Implementation
+
+| # | Task | Effort | Notes |
+|---|------|--------|-------|
+| 9.7 | **MagicOnionInkClient (Unity)** — replaces in-process OneJS for networked Unity clients | **M** | NuGet: MagicOnion.Client + grpc-dotnet |
+| 9.8 | **MagicOnionEventReceiver (Unity)** — implements IInkEventReceiver, replaces InkAssetEventReceiver WebSocket path | **M** | Main-thread dispatch via Unity Update() |
+| 9.9 | **MagicOnionInkClient (MAUI)** — replaces MsgpackAssetEventClient WebSocket transport | **M** | Same interfaces, different DI registration |
+| 9.10 | **Proto service definitions** — add `service InkStoryService` + `service InkEventService` to .proto files | **S** | Enables grpc-dotnet codegen alongside MagicOnion |
+
+### P3 — KT Server Bridge
+
+| # | Task | Effort | Notes |
+|---|------|--------|-------|
+| 9.11 | **gRPC endpoint in McpRouter.kt** — serve binary protobuf over HTTP/2 | **L** | grpc-kotlin or Ktor gRPC plugin, bridges to InkEngine |
+| 9.12 | **Streaming bridge** — AssetEventBus → gRPC server-side streaming | **M** | Converts publish/subscribe to gRPC streams |
+
+**Subtotal: 12 tasks | Effort: ~6–8 weeks**
+
+---
+
 ## Summary by Effort
 
 | Category | Done | Remaining | Total Items |
@@ -276,11 +332,12 @@
 | **6. BIDI matrix gaps** | 0 | 12 | 12 |
 | **7. Build/infra** | 3 (GraalVM, dir rename, ink-csharp) | 3 | 6 |
 | **8. Original Inky TODO** | 0 | 24 | 24 |
-| **Grand Total** | **18** | **73** | **91** |
+| **9. MagicOnion** | 0 | 12 | 12 |
+| **Grand Total** | **18** | **85** | **103** |
 
 ### Current Test Counts: KT 145 + C# 42 + TS 48 + JS 64 = **299 total**
 
-### Estimated Remaining Effort: ~22–30 weeks (1 developer)
+### Estimated Remaining Effort: ~28–38 weeks (1 developer)
 
 ### Priority Order (recommended)
 1. ~~KT P0 tests (1.1–1.4)~~ — **DONE** (145 tests passing)
@@ -288,4 +345,5 @@
 3. **JS P0 tests** (2.1–2.3) — prevent data loss bugs (#508, #515)
 4. **BIDI matrix EXTERNAL** (6.12) — only fully-untested feature
 5. **C# Unity bridge** (4.3) — enable Unity integration
-6. Everything else by priority tier
+6. **MagicOnion P0** (9.1–9.3) — service interfaces (unlocks all MagicOnion work)
+7. Everything else by priority tier

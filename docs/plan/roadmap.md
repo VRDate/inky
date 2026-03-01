@@ -479,10 +479,36 @@ MagicOnion (Cysharp's gRPC-based real-time framework for Unity/.NET) sits betwee
 - The Unity C# side (InkOneJsBinding.cs currently uses in-process OneJS bridge)
 - gRPC transport (binary protobuf encoding already exists via `InkModelSerializers.toBytes()`)
 
-MagicOnion would add:
-- `IService<T>` interfaces for unary RPC (compile, continue, choose)
-- `StreamingHub<THub, TReceiver>` for real-time story events (replacing current in-process-only OneJS approach for networked Unity clients)
-- MessagePack serialization (already present on KT side via Jackson MessagePackFactory)
+**Architecture diagram**: `docs/architecture/ink.magiconion.puml`
+
+#### Service Interfaces (Shared — NuGet: MagicOnion.Abstractions)
+
+| Interface | Pattern | Methods | Maps To |
+|-----------|---------|---------|---------|
+| `IInkRuntimeService : IService<IInkRuntimeService>` | Unary RPC | 11 (Compile, StartStory, ContinueStory, Choose, Get/SetVariable, Save/LoadState, Reset, EndSession, GetAssetEvents) | `IInkRuntime.cs` |
+| `IInkEventHub : IStreamingHub<IInkEventHub, IInkEventReceiver>` | StreamingHub | JoinSession, LeaveSession, SendEvent | `AssetEventBus.kt` (6 channels) |
+| `IInkEventReceiver` | Client callback | OnTagEvent, OnAssetLoad, OnAssetLoaded, OnInventoryChange, OnVoiceSynthesize, OnVoiceReady | `IAssetEventTransport.cs` |
+
+#### Server (.NET — NuGet: MagicOnion.Server)
+
+- `InkRuntimeServiceImpl` — wraps `InkRuntimeService.cs` (platform-agnostic, already done)
+- `InkEventHubImpl` — bridges `AssetEventBus.kt` channels to StreamingHub broadcast
+- MessagePack-CSharp with `ContractlessStandardResolver` (matches Jackson string-key msgpack)
+
+#### Clients (NuGet: MagicOnion.Client + grpc-dotnet)
+
+- **Unity**: `MagicOnionInkClient` replaces in-process OneJS for networked scenarios; `MagicOnionEventReceiver` replaces WebSocket path in `InkAssetEventReceiver.cs`
+- **MAUI**: `MagicOnionInkClient` replaces `MsgpackAssetEventClient.cs` WebSocket transport
+- OneJS bridge (`InkOneJsBinding.cs`) remains for local Unity (no network overhead)
+
+#### KT Server Bridge
+
+- gRPC endpoint in `McpRouter.kt` (grpc-kotlin or Ktor gRPC plugin) — binary protobuf over HTTP/2
+- Streaming bridge: `AssetEventBus.publish()` → gRPC server-side streaming → MagicOnion StreamingHub relay
+
+#### Implementation Tasks (see TODO.md Section 9)
+
+12 tasks in 4 tiers: P0 interfaces (9.1–9.3) → P1 server (9.4–9.6) → P2 clients (9.7–9.10) → P3 KT bridge (9.11–9.12)
 
 ---
 

@@ -1,0 +1,202 @@
+@startuml ink-magiconion
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+
+title Ink MagicOnion Integration — Component Architecture
+footer Inky • MagicOnion Integration Plan • 2026-03-01
+
+' ───────── Color palette ─────────
+skinparam component {
+    BackgroundColor<<kt>> #E3F2FD
+    BackgroundColor<<cs>> #F3E5F5
+    BackgroundColor<<unity>> #FCE4EC
+    BackgroundColor<<maui>> #EDE7F6
+    BackgroundColor<<proto>> #FFF9C4
+    BackgroundColor<<magiconion>> #E8EAF6
+}
+skinparam package {
+    FontSize 13
+}
+skinparam note {
+    BackgroundColor #FFF9C4
+    BorderColor #F9A825
+    FontColor #333333
+    FontSize 10
+}
+
+' ╔══════════════════════════════════════════════════════════════════════╗
+' ║  TOP: PROTO SOURCE LAYER                                           ║
+' ╚══════════════════════════════════════════════════════════════════════╝
+
+package "Proto Source Layer" as protoLayer {
+    [16 .proto files\n(ink/proto/)] as PROTO <<proto>>
+    [Wire (KT codegen)] as WIRE <<proto>>
+    [protoc --csharp_out\n--python_out --ts_out] as PROTOC <<proto>>
+
+    PROTO --> WIRE : generates KT
+    PROTO --> PROTOC : generates CS/PY/TS
+}
+
+' ╔══════════════════════════════════════════════════════════════════════╗
+' ║  MIDDLE-LEFT: KT/JVM SERVER                                        ║
+' ╚══════════════════════════════════════════════════════════════════════╝
+
+package "KT/JVM Server (Ktor)" as ktServer {
+    [InkEngine.kt\n(GraalJS + inkjs)] as KT_ENGINE <<kt>>
+    [McpTools.kt\n(79 MCP tools)] as KT_TOOLS <<kt>>
+    [InkModelSerializers.kt\n(JSON / msgpack / protobuf / jsonSchema)] as KT_SERIAL <<kt>>
+    [AssetEventBus.kt\n(6 AsyncAPI channels)] as KT_BUS <<kt>>
+    [CamelRoutes.kt\n(LLM pipeline)] as KT_CAMEL <<kt>>
+    [gRPC Endpoint\n(Ktor + grpc-kotlin)] as KT_GRPC <<kt>>
+
+    KT_TOOLS --> KT_ENGINE : delegates
+    KT_CAMEL --> KT_ENGINE : orchestrates
+    KT_ENGINE --> KT_BUS : publishes events
+    KT_ENGINE --> KT_SERIAL : serializes
+    KT_SERIAL --> KT_GRPC : binary protobuf
+}
+
+' ╔══════════════════════════════════════════════════════════════════════╗
+' ║  MIDDLE-CENTER: MAGICONION LAYER (NEW)                              ║
+' ╚══════════════════════════════════════════════════════════════════════╝
+
+package ".NET MagicOnion Server" as moServer {
+
+    package "Unary RPC (IService<T>)" as moUnary {
+        [IInkRuntimeService\n: IService<IInkRuntimeService>\n──────────────────────\nCompile(source) -> CompileResult\nStartStory(json) -> string\nContinueStory(sessionId) -> StoryStateDto\nChoose(sessionId, choiceIndex) -> StoryStateDto\nGetVariable(sessionId, name) -> string\nSetVariable(sessionId, name, value)\nSaveState(sessionId) -> string\nLoadState(sessionId, stateJson)\nResetStory(sessionId)\nEndSession(sessionId)\nGetAssetEvents(sessionId) -> AssetEventRefDto[]] as MO_SERVICE <<magiconion>>
+    }
+
+    package "StreamingHub (bidirectional)" as moHub {
+        [IInkEventHub\n: IStreamingHub<IInkEventHub,\n  IInkEventReceiver>\n──────────────────────\nJoinSession(sessionId) -> Task\nLeaveSession(sessionId) -> Task\nSendEvent(channel, eventJson) -> Task] as MO_HUB <<magiconion>>
+
+        [IInkEventReceiver\n(client callbacks)\n──────────────────────\nOnTagEvent(InkTagEvent)\nOnAssetLoad(AssetLoadRequest)\nOnAssetLoaded(assetId)\nOnInventoryChange(InventoryChangeEvent)\nOnVoiceSynthesize(VoiceSynthRequest)\nOnVoiceReady(audioUrl)] as MO_RECEIVER <<magiconion>>
+    }
+
+    [MessagePack-CSharp\nSerializer] as MO_MSGPACK <<magiconion>>
+
+    MO_HUB --> MO_RECEIVER : pushes to clients
+    MO_SERVICE --> MO_MSGPACK : serializes
+    MO_HUB --> MO_MSGPACK : serializes
+}
+
+' ╔══════════════════════════════════════════════════════════════════════╗
+' ║  MIDDLE-RIGHT: EXISTING C# CONTRACTS                                ║
+' ╚══════════════════════════════════════════════════════════════════════╝
+
+package "Existing C# Contracts\n(Ink.Common)" as csContracts {
+    [IInkRuntime.cs\n(11 methods)] as CS_RUNTIME <<cs>>
+    [InkRuntimeService.cs\n(platform-agnostic impl)] as CS_IMPL <<cs>>
+    [IAssetEventTransport.cs\n(6 channels)] as CS_TRANSPORT <<cs>>
+    [Proto-generated C# model\n(src/csMain/ink/cs/model/)] as CS_MODEL <<cs>>
+
+    CS_IMPL ..|> CS_RUNTIME : implements
+}
+
+' ╔══════════════════════════════════════════════════════════════════════╗
+' ║  BOTTOM-LEFT: UNITY CLIENTS                                         ║
+' ╚══════════════════════════════════════════════════════════════════════╝
+
+package "Unity Clients" as unityClients {
+    [InkOneJsBinding.cs\n(in-process OneJS)] as U_ONEJS <<unity>>
+    [UnityInkBridge.cs\n(wraps IInkRuntime)] as U_BRIDGE <<unity>>
+    [InkAssetEventReceiver.cs\n(event consumer)] as U_EVENTS <<unity>>
+    [NEW: MagicOnionInkClient\n(networked Unity)] as U_MO_CLIENT <<magiconion>>
+    [NEW: MagicOnionEventReceiver\n(impl IInkEventReceiver)] as U_MO_RECV <<magiconion>>
+
+    U_BRIDGE --> U_ONEJS : delegates (local)
+    U_MO_RECV --> U_EVENTS : feeds events
+}
+
+' ╔══════════════════════════════════════════════════════════════════════╗
+' ║  BOTTOM-RIGHT: MAUI CLIENTS                                         ║
+' ╚══════════════════════════════════════════════════════════════════════╝
+
+package "MAUI Clients" as mauiClients {
+    [MsgpackAssetEventClient.cs\n(WebSocket + msgpack)] as M_MSGPACK <<maui>>
+    [IUnityBridge\n(UAAL bridge)] as M_BRIDGE <<maui>>
+    [NEW: MagicOnionInkClient\n(replaces WS transport)] as M_MO_CLIENT <<magiconion>>
+    [NEW: MagicOnionEventClient\n(impl IInkEventReceiver)] as M_MO_RECV <<magiconion>>
+}
+
+' ╔══════════════════════════════════════════════════════════════════════╗
+' ║  ARROWS / RELATIONSHIPS                                             ║
+' ╚══════════════════════════════════════════════════════════════════════╝
+
+' --- Proto generation ---
+WIRE --> KT_SERIAL : KT wire types
+PROTOC --> CS_MODEL : C# generated classes
+
+' --- KT Server <-> MagicOnion Server (gRPC/HTTP2) ---
+KT_GRPC <-[#1A237E,bold]-> MO_SERVICE : gRPC / HTTP/2\n(binary protobuf)
+KT_BUS <-[#1A237E,bold]-> MO_HUB : gRPC / HTTP/2\n(event stream)
+
+' --- MagicOnion Server -> Existing contracts (delegation) ---
+MO_SERVICE -[#7B1FA2]-> CS_IMPL : delegates 11 methods
+MO_HUB -[#7B1FA2]-> CS_TRANSPORT : delegates 6 channels
+MO_MSGPACK -[#7B1FA2]-> CS_MODEL : uses generated DTOs
+
+' --- Unity -> MagicOnion (new solid/bold paths) ---
+U_MO_CLIENT -[#1A237E,bold]--> MO_SERVICE : gRPC + MessagePack\n(unary RPC)
+U_MO_RECV -[#1A237E,bold]--> MO_HUB : gRPC + MessagePack\n(StreamingHub)
+
+' --- MAUI -> MagicOnion (new solid/bold paths) ---
+M_MO_CLIENT -[#1A237E,bold]--> MO_SERVICE : gRPC + MessagePack\n(unary RPC)
+M_MO_RECV -[#1A237E,bold]--> MO_HUB : gRPC + MessagePack\n(StreamingHub)
+
+' --- Existing paths (dashed/deprecated) ---
+U_ONEJS .[#999999,dashed].> KT_ENGINE : in-process OneJS\n(local only — kept)
+M_MSGPACK .[#999999,dashed].> KT_BUS : WebSocket + msgpack\n(deprecated by MagicOnion)
+M_BRIDGE .[#999999,dashed].> U_BRIDGE : UAAL in-process\n(deprecated by MagicOnion)
+
+' ╔══════════════════════════════════════════════════════════════════════╗
+' ║  NOTES                                                              ║
+' ╚══════════════════════════════════════════════════════════════════════╝
+
+note as N1
+  **N1 — MagicOnion Architecture**
+  ════════════════════════════════
+  MagicOnion (Cysharp) — gRPC + MessagePack for Unity/.NET
+  - IService<T>: unary RPC (request-response)
+  - StreamingHub<THub, TReceiver>: real-time bidirectional
+  - MessagePack-CSharp: binary serialization (matches Jackson on KT)
+  - NuGet: MagicOnion.Server + MagicOnion.Client
+  - Replaces: WebSocket+msgpack (MAUI), in-process OneJS (Unity networked)
+  - Keeps: OneJS for local Unity (no network needed)
+end note
+
+note as N2
+  **N2 — Integration Points (Existing -> MagicOnion)**
+  ════════════════════════════════════════════════════
+  IInkRuntime (11 methods) -> IService<IInkRuntimeService> (unary gRPC)
+  AssetEventBus (6 channels) -> StreamingHub (bidirectional streaming)
+  InkModelSerializers.toBytes() -> gRPC binary protobuf transport
+  InkModelSerializers.toMsgpack() -> MessagePack-CSharp interop
+  MsgpackAssetEventClient -> MagicOnionEventClient (MAUI)
+  InkAssetEventReceiver -> MagicOnionEventReceiver (Unity)
+end note
+
+note as N3
+  **N3 — Cross-Reference**
+  ════════════════════════
+  Related diagrams:
+  - ink-rsocket-transport.puml — existing MCP+Yjs+RSocket sequence
+  - ink-per-framework-runtime.puml — per-framework runtime architecture
+  - ink.cs.puml — C# class diagram (Ink.Common namespace)
+  - ink.kt.puml — Kotlin runtime (InkModelSerializers, AssetEventBus)
+  - ink.proto.puml — proto source (16 .proto files)
+
+  Related code:
+  - IInkRuntime.cs — 11-method contract (Ink.Common namespace)
+  - InkRuntimeService.cs — platform-agnostic implementation
+  - IAssetEventTransport.cs — 6-channel transport contract
+  - InkModelSerializers.kt — JSON/msgpack/protobuf/jsonSchema
+  - AssetEventBus.kt — 6 AsyncAPI channels
+end note
+
+N1 .. moServer
+N2 .. csContracts
+N3 .. protoLayer
+
+@enduml
