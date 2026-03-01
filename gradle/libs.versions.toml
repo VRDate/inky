@@ -1,8 +1,8 @@
 [versions]
 # ── SDK / CI toolchain (single source of truth for workflows + Gradle) ──
-node = "20"
+node = "24"
 python = "3.11"
-unity = "6000.0.48f1"
+unity = "6000.3.10f1"
 unity-ci-image = "singtaa/unity-ci-node"
 ubuntu = "22.04"
 inky-app = "0.16.0"
