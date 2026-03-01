@@ -12,7 +12,7 @@
 | **C#** (InkBidiTdd.Tests) | 4 + InkTestFixtures + InkStorySession | 42 | Ink.Compiler, Ink.Runtime, 10-method OneJS bridge | `InkTestFixtures.cs` + `InkStorySession.cs` fluent API | production |
 | **TypeScript** (ink-editor) | 1 | 48 | ink-grammar.ts, BIDI_TDD_ISSUES.md | inline | 1/16 (6%) |
 | **JavaScript** (ink-electron) | 4 + e2e-helpers | 64 | bidify.js + E2E via Playwright | `e2e-helpers.js` module | 1/29 (3%) |
-| **PlantUML** | — | — | 21 diagrams across 3 dirs | — | — |
+| **PlantUML** | — | — | 23 diagrams across 3 dirs (ink.ts.puml + ink.py.puml added) | — | — |
 | **Markdown** | — | — | 15 docs (~280K lines) | — | — |
 | **Total** | **16+** | **299** | | | |
 
@@ -149,8 +149,22 @@
 
 ## 5. Documentation & Diagram Gaps
 
-> 15 markdown docs (280K lines), 21 PlantUML diagrams.
+> 15 markdown docs (280K lines), 23 PlantUML diagrams.
 > Architecture and bidi docs are excellent; feature/API docs are missing.
+> Plan files consolidated into roadmap.md (originals in bak/). Interop plan documented as Section 5b.
+
+### DONE
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 5.a | ~~Merge plan files into roadmap.md~~ | **DONE** | Event-Driven + iCal4j plans → roadmap Section 2 (originals → bak/) |
+| 5.b | ~~Interop Plan in roadmap.md~~ | **DONE** | Wire/Moshi/Camel/gRPC/RSocket/MessagePack/JSON/Unity/MagicOnion → Section 5b |
+| 5.c | ~~ink.ts.puml~~ — 16 packages, 57 interfaces, 12 enums (protoc-gen-ts_proto) | **DONE** | Teal/cyan theme, MessageFns pattern, cross-language mapping notes |
+| 5.d | ~~ink.py.puml~~ — 16 packages, 65 messages, 20 enums (protoc v5.28.3) | **DONE** | Amber/orange theme, descriptor pool pattern, .pyi stub notes |
+| 5.e | ~~Update all 6 existing puml diagrams~~ — dates, cross-refs, progress, interop | **DONE** | ink.proto/kt/java/cs/js/kt.mica.puml → 2026-03-01, 8-diagram cross-refs |
+| 5.f | ~~Proto count 14→16~~ in roadmap + puml files | **DONE** | ical.proto + vcard.proto added |
+
+### Remaining
 
 | # | Task | Effort | Type | Notes |
 |---|------|--------|------|-------|
@@ -164,7 +178,7 @@
 | 5.8 | **PUML: Error handling flow** — error browser, file I/O errors | **S** | PUML | Missing |
 | 5.9 | **PUML: Player/runtime interaction** — story lifecycle sequence | **S** | PUML | Missing |
 
-**Subtotal: 9 docs/diagrams | Effort: ~3–4 weeks**
+**Remaining: 9 docs/diagrams | Effort: ~3–4 weeks**
 
 ---
 
@@ -258,11 +272,11 @@
 | **2. JS test gaps** | 0 | 9 | 9 |
 | **3. TS test gaps** | 0 (48 tests exist but only 1 module) | 5 | 5 |
 | **4. C# test gaps** | 3 (ink-csharp + OneJS + BidiTdd) | 3 | 6 |
-| **5. Docs/diagrams** | 0 | 9 | 9 |
+| **5. Docs/diagrams** | 6 (plan merge, interop, ts/py puml, puml updates, proto count) | 9 | 15 |
 | **6. BIDI matrix gaps** | 0 | 12 | 12 |
 | **7. Build/infra** | 3 (GraalVM, dir rename, ink-csharp) | 3 | 6 |
 | **8. Original Inky TODO** | 0 | 24 | 24 |
-| **Grand Total** | **12** | **73** | **85** |
+| **Grand Total** | **18** | **73** | **91** |
 
 ### Current Test Counts: KT 145 + C# 42 + TS 48 + JS 64 = **299 total**
 
