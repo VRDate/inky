@@ -216,8 +216,16 @@
 | 7.4 | **CI/CD pipeline** — GitHub Actions for testAll across KT, JS, TS, C# | **L** | No CI exists |
 | 7.5 | ~~Directory rename~~ — app→ink-electron, mcp-server→ink-kmp-mcp, ink-editor→ink-js/inkey | **DONE** | Completed |
 | 7.6 | ~~ink-csharp cloned~~ + ink-unity/onejs TBD | **PARTIAL** | ink-csharp vendored, ink-unity not yet |
+| 7.7 | **Create `.sdkmanrc`** — pin `java=25.0.2-graal`, `kotlin=2.3.0` at repo root | **S** | Dev/WSL/Termux SDK pinning |
+| 7.8 | **Create `Dockerfile.ci`** — extend `unityci/editor` + sdkman (GraalVM 25) + Node 24 + Python 3.11 + .NET 9 + Vulkan | **L** | Replaces `singtaa/unity-ci-node` |
+| 7.9 | **Create `docker-build-ci.sh`** — multi-target builder reading versions from TOML | **S** | linux-il2cpp, android, webgl, windows-mono |
+| 7.10 | **Unity CI multi-target matrix** — expand workflow for Android, WebGL, Windows cross-compile | **M** | Extends current StandaloneLinux64-only build |
+| 7.11 | **Add software Vulkan to CI** — `mesa-vulkan-drivers` for UI automation tests without GPU | **S** | Enables UI Toolkit testing in headless CI |
+| 7.12 | **CI/CD pipeline — GitHub Actions for testAll** across KT, JS, TS, C# | **L** | See [`KMP_CICD.md`](docs/architecture/KMP_CICD.md) [`MAUI_CICD.md`](docs/architecture/MAUI_CICD.md) [`UNITY_CICD.md`](docs/architecture/UNITY_CICD.md) |
+| 7.13 | **TOML version sync check** — CI step that verifies TOML versions match Dockerfile/workflow | **S** | Drift detection |
+| 7.14 | **GHCR image publishing workflow** — build + push CI images on version bump | **M** | `ghcr.io/vrdate/inky-ci` |
 
-**Remaining: 3 infra tasks | Effort: ~3–4 weeks**
+**Remaining: 11 infra tasks | Effort: ~6–8 weeks**
 
 ---
 

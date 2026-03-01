@@ -154,7 +154,7 @@ package "1. Core" #E3F2FD {
         copy()                     L:180
       ----
       **JS** : InkObject (inkjs)
-      **mica** : see ink.kt.mica.puml Content
+      **mica** : see ink.java.puml (page 2) Content
       **Status**: COMPLETE + MICA_MERGED
     end note
 
@@ -201,7 +201,7 @@ package "1. Core" #E3F2FD {
         content                   L:12
         contentAtPath()           L:218-264
       ----
-      **mica** : see ink.kt.mica.puml Container
+      **mica** : see ink.java.puml (page 2) Container
       **Status**: COMPLETE + MICA_MERGED
     end note
 
@@ -459,7 +459,7 @@ package "2. Content" #E3F2FD {
         getText()                 L:51
         clone()                   L:76
       ----
-      **mica** : see ink.kt.mica.puml Choice
+      **mica** : see ink.java.puml (page 2) Choice
       **Status**: COMPLETE + MICA_MERGED
     end note
 
@@ -503,7 +503,7 @@ package "2. Content" #E3F2FD {
         hashCode()                L:98-112
         toString()                L:164-203
       ----
-      **mica** : see ink.kt.mica.puml Divert
+      **mica** : see ink.java.puml (page 2) Divert
       **Status**: COMPLETE + MICA_MERGED
     end note
 
@@ -537,7 +537,7 @@ package "2. Content" #E3F2FD {
       **Java** : Tag.java:1-17
         Tag(String)               L:10-12
       ----
-      **mica** : see ink.kt.mica.puml Tag
+      **mica** : see ink.java.puml (page 2) Tag
       **Status**: COMPLETE + MICA_MERGED
     end note
 
@@ -2736,7 +2736,7 @@ note as PROGRESS
   | ink.java.puml | Java | blade-ink reference | ✅ |
   | ink.cs.puml | C# | inkle reference | ✅ |
   | ink.js.puml | JS/TS | inkjs + ink/js components | ✅ |
-  | ink.kt.mica.puml | Kotlin | Parser reference | ✅ |
+  | ink.java.puml (p2) | Kotlin | mica parser (merged) | ✅ |
   | **ink.ts.puml** | **TypeScript** | **Proto model (NEW)** | ✅ |
   | **ink.py.puml** | **Python** | **Proto model (NEW)** | ✅ |
 

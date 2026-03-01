@@ -1,0 +1,211 @@
+@startuml jbang-launcher
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam packageStyle rectangle
+
+title Inky MCP Server — Smart Mode Detection & Launcher Architecture
+footer JBang + GraalVM 25 + Ktor + GraalJS | Oracle GraalVM 25.0.2-graal
+
+' ── Color palette ──
+skinparam state {
+    BackgroundColor<<detect>> #E3F2FD
+    BackgroundColor<<mode>> #C8E6C9
+    BackgroundColor<<llm>> #FFF3E0
+}
+
+' ═══════════ Page 1: Smart Mode Detection ═══════════
+
+state "System Detection" as detect <<detect>> {
+    state "OS\nos.name → Linux/macOS/Windows" as os
+    state "Arch\nos.arch → x86_64/aarch64" as arch
+    state "Headless\nDISPLAY == null &&\nWAYLAND_DISPLAY == null" as headless
+    state "Container\n/.dockerenv exists ||\ncgroup contains docker" as container
+    state "WSL\n/proc/version contains\nmicrosoft" as wsl
+    state "Termux\nTERMUX_VERSION\nenv var set" as termux
+    state "GPU Probe\nvulkaninfo --summary\n/dev/dri/renderD*" as gpu
+    state "Vector API\njdk.incubator.vector\nFloatVector available?" as vector
+    state "Hardware\ncpuCores + maxMemory" as hw
+
+    os --> arch
+    arch --> headless
+    headless --> container
+    container --> wsl
+    wsl --> termux
+    termux --> gpu
+    gpu --> vector
+    vector --> hw
+}
+
+state "SystemInfo\n(data class)" as sysinfo
+
+state "Mode Selection" as modes <<mode>> {
+    state "mcp\n79 tools + JLama +\nLM Studio + 11 cloud" as mcp
+    state "jlama\n79 tools +\nJLama local only" as jlama
+    state "lmstudio\n79 tools +\nLM Studio external" as lmstudio
+    state "pwa\n46 tools\nno LLM (lightest)" as pwa
+}
+
+detect --> sysinfo
+sysinfo --> modes : auto-select\n(unless --mode flag)
+
+note right of mcp
+  Default for:
+  • Desktop (macOS/Linux/Windows)
+  • GPU-enabled containers
+  • WSL with vectorApi
+end note
+
+note right of pwa
+  Auto-selected for:
+  • Headless + no GPU containers
+  • Termux (limited resources)
+  • CI runners
+end note
+
+state "JLama Gate" as jlama_gate <<llm>> {
+    state "vectorApi + cores≥4\n+ memory≥4GB\n→ JLama enabled" as jlama_ok
+    state "vectorApi + low resources\n→ suggest LM Studio" as jlama_low
+    state "no vectorApi\n→ JLama disabled" as jlama_no
+}
+
+sysinfo --> jlama_gate
+
+newpage
+
+' ═══════════ Page 2: All Running Modes ═══════════
+
+title Inky — All Running Modes (Component Diagram)
+
+skinparam component {
+    BackgroundColor<<jbang>> #E8F5E9
+    BackgroundColor<<gradle>> #E3F2FD
+    BackgroundColor<<electron>> #FFF3E0
+    BackgroundColor<<server>> #F3E5F5
+    BackgroundColor<<transport>> #E0F7FA
+}
+
+package "JBang Launcher" <<jbang>> {
+    [InkyMcp.kt\n///usr/bin/env jbang\n//DEPS (19)\n//SOURCES (19)] as JBANG <<jbang>>
+    [jbang --native\n→ GraalVM native-image] as NATIVE <<jbang>>
+}
+
+package "Gradle Launcher" <<gradle>> {
+    [Main.kt\ngradle run] as GRADLE <<gradle>>
+    [gradle fatJar\n→ inky-mcp.jar] as JAR <<gradle>>
+}
+
+package "Electron Desktop" <<electron>> {
+    [main.js\nnpm start] as ELECTRON <<electron>>
+    [inklecate\n(C# compiler subprocess)] as INKLECATE <<electron>>
+    [inkjs\n(in-process JS runtime)] as INKJS_EL <<electron>>
+    [ACE Editor\n(ink syntax mode)] as ACE <<electron>>
+    ELECTRON --> INKLECATE : compiles .ink
+    ELECTRON --> INKJS_EL : plays story
+    ELECTRON --> ACE : edits .ink
+}
+
+package "MCP Server\n(Ktor Netty + GraalJS)" as server <<server>> {
+    [InkEngine\n(GraalJS + inkjs)] as ENGINE <<server>>
+    [McpRouter\n(SSE + WS + REST)] as ROUTER <<server>>
+    [McpTools\n(79 tools)] as TOOLS <<server>>
+    [ColabEngine\n(Yjs CRDT)] as COLAB <<server>>
+    [LlmEngine\n(JLama)] as LLM <<server>>
+    [LmStudioEngine\n(external)] as LMSTUDIO <<server>>
+    [AssetEventBus\n(RSocket + msgpack)] as BUS <<server>>
+    [CamelRoutes\n(LLM pipeline)] as CAMEL <<server>>
+    [InkAuthEngine\n(Keycloak OIDC)] as AUTH <<server>>
+    ENGINE --> TOOLS
+    TOOLS --> ROUTER
+    LLM --> CAMEL
+    LMSTUDIO --> CAMEL
+}
+
+package "Transport" <<transport>> {
+    [SSE /sse\n(MCP events)] as SSE <<transport>>
+    [WS /collab/:docId\n(Yjs CRDT)] as WS_COLAB <<transport>>
+    [WS /rsocket\n(asset events)] as WS_RS <<transport>>
+    [REST /api/*\n(direct API)] as REST <<transport>>
+    [WebDAV /dav/*\n(ink-scripts)] as DAV <<transport>>
+}
+
+JBANG --> ROUTER : starts server
+GRADLE --> ROUTER : starts server
+JAR --> ROUTER : starts server
+
+ROUTER --> SSE
+COLAB --> WS_COLAB
+BUS --> WS_RS
+ROUTER --> REST
+ROUTER --> DAV
+
+ELECTRON ..> REST : optional MCP\nbackend (HTTP)
+
+newpage
+
+' ═══════════ Page 3: Startup Sequence ═══════════
+
+title Inky MCP Server — Startup Sequence
+
+|Startup|
+start
+:Parse CLI arguments\n(--mode, --port, --inkjs, --model, etc.);
+
+if (--mode flag provided?) then (yes)
+    :Use explicit mode;
+else (no)
+    :Probe SystemInfo\n(OS, arch, headless, container,\nWSL, Termux, GPU, vectorApi,\ncpuCores, memory);
+    :Auto-select mode\nbased on decision tree;
+endif
+
+:Resolve inkjs path\n(../ink-electron/node_modules/inkjs/dist/ink-full.js\nor --inkjs override);
+
+:Resolve bidify path\n(../ink-electron/renderer/bidify.js\nor --bidify override);
+
+|Engine Init|
+:InkEngine(inkjsPath, bidifyPath)\n→ GraalJS polyglot context + inkjs;
+
+:ColabEngine()\n→ Yjs WebSocket rooms;
+
+:InkAuthEngine()\n→ Keycloak OIDC (if KEYCLOAK_REALM_URL set);
+
+:InkCalendarEngine() + InkVCardEngine()\n→ iCal4j + ez-vcard;
+
+:InkWebDavEngine()\n→ Sardine + filesystem;
+
+:EditEngine() + Ink2PumlEngine()\n→ ink section editor + PlantUML;
+
+:EmojiAssetManifest() + AssetEventBus()\n→ RSocket + msgpack event bus;
+
+if (LLM enabled?\n(mode != pwa)) then (yes)
+    :LlmEngine(modelCachePath)\n→ JLama + vector API;
+    if (mode == lmstudio?) then (yes)
+        :LmStudioEngine(baseUrl, modelName)\n→ OpenAI-compatible API;
+    else (no)
+    endif
+    :CamelRoutes(inkEngine, llmEngine)\n→ Apache Camel LLM pipeline;
+else (no)
+endif
+
+|Server Start|
+:embeddedServer(Netty, port);
+
+:Install CORS + ContentNegotiation\n+ StatusPages + SSE + WebSockets;
+
+:Register SSE /sse endpoint\n(MCP event stream);
+
+:Register POST /message\n(JSON-RPC tool invocation);
+
+:Register WS /collab/:docId\n(Yjs CRDT sync);
+
+:Register WS /rsocket\n(asset events, msgpack);
+
+:Register REST /api/* routes;
+
+:Register WebDAV /dav/* routes;
+
+:Print startup banner\n(SystemInfo + mode + endpoints);
+
+:server.start(wait = true);
+stop
+
+@enduml

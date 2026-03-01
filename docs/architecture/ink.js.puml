@@ -912,10 +912,9 @@ note as N_INKKT
   | Diagram | Language | Focus |
   | ink.kt.puml | Kotlin | Runtime (56 classes) |
   | ink.proto.puml | proto3 | Messages (16 files) |
-  | ink.java.puml | Java | blade-ink reference |
+  | ink.java.puml | Java | blade-ink + mica (page 2) |
   | ink.cs.puml | C# | inkle reference |
   | ink.js.puml | JS/TS | inkjs + ink/js (this file) |
-  | ink.kt.mica.puml | Kotlin | Parser reference |
   | **ink.ts.puml** | **TS** | **Proto model (NEW)** |
   | **ink.py.puml** | **PY** | **Proto model (NEW)** |
 end note

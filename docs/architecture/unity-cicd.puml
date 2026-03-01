@@ -1,0 +1,152 @@
+@startuml unity-cicd
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam packageStyle rectangle
+
+title Unity CI/CD — Docker Image Layers + Multi-Target Pipeline
+footer game-ci 3.2.1 | Unity 6000.3.10f1 | sdkman + GraalVM 25 + Node 24 + .NET 9
+
+' ── Color palette ──
+skinparam node {
+    BackgroundColor<<base>> #E8EAF6
+    BackgroundColor<<hub>> #C5CAE9
+    BackgroundColor<<editor>> #9FA8DA
+    BackgroundColor<<ci>> #7986CB
+}
+
+' ═══════════ Page 1: Docker Image Layers ═══════════
+
+node "unityci/base\nUbuntu 22.04" <<base>> {
+    card "xvfb (X virtual framebuffer)" as xvfb
+    card "git + curl + wget" as git
+}
+
+node "unityci/hub" <<hub>> {
+    card "Unity Hub\n(installer)" as uhub
+}
+
+node "unityci/editor\n:ubuntu-{version}-{component}-{gameci}" <<editor>> {
+    card "Unity Editor 6000.3.10f1" as ueditor
+    card "Component modules:" as comp
+    card "linux-il2cpp | android\nwebgl | windows-mono\nmac-mono | ios | base" as targets
+}
+
+node "inky-ci\nghcr.io/vrdate/inky-ci" <<ci>> {
+    package "sdkman" as sdkman {
+        card "Oracle GraalVM 25\n(25.0.2-graal)" as jdk
+        card "Kotlin 2.3.0" as kotlin
+    }
+    card "Node.js 24 LTS\n(nodesource)" as node
+    card "Python 3.11\n(python3.11-venv)" as python
+    card ".NET 9 SDK\n(dotnet-install.sh)" as dotnet
+    card "mesa-vulkan-drivers\nlibvulkan1 vulkan-tools\n(software Vulkan)" as vulkan
+}
+
+newpage
+
+' ═══════════ Page 2: Unity CI Pipeline ═══════════
+
+title Unity CI/CD — Test + Multi-Target Build Pipeline
+
+|TOML Parse|
+start
+:Read gradle/libs.versions.toml;
+:unity=6000.3.10f1\ngameci=3.2.1\nnode=24, jdk-sdkman=25.0.2-graal;
+
+|Bootstrap|
+:Create minimal Unity project\nmkdir Assets/ Packages/ ProjectSettings/;
+
+:Write Packages/manifest.json\n(com.unity.mathematics, com.unity.burst,\ncom.unity.test-framework, etc.);
+
+:Write ProjectSettings/ProjectVersion.txt\nm_EditorVersion: 6000.3.10f1;
+
+:rsync OneJS into Assets/OneJS\n(exclude .git .github);
+
+:Apply csc.rsp\n-define:PUERTS_DISABLE_IL2CPP_OPTIMIZATION;
+
+|Test|
+:game-ci/unity-test-runner@v4\ntestMode: editmode;
+note right
+  Logic / data model tests
+  -batchmode -nographics
+  No GPU needed
+end note
+
+:game-ci/unity-test-runner@v4\ntestMode: playmode;
+note right
+  UI Toolkit + asset tests
+  xvfb + mesa-vulkan-drivers
+  Software Vulkan rendering
+end note
+
+:Upload test results\n(actions/upload-artifact);
+
+|Build Matrix|
+fork
+    :StandaloneLinux64\nlinux-il2cpp\nubuntu-22.04;
+fork again
+    :Android\nandroid\nubuntu-22.04;
+fork again
+    :WebGL\nwebgl\nubuntu-22.04;
+fork again
+    :Windows\nwindows-mono\nubuntu-22.04 (cross-compile);
+end fork
+
+note right
+  macOS/iOS targets
+  require macos-latest runner
+  (separate job)
+end note
+
+|Publish|
+:Upload build artifacts\n(per-target .zip);
+
+:Push Docker image\nghcr.io/vrdate/inky-ci:{unity}-{component};
+
+stop
+
+newpage
+
+' ═══════════ Page 3: Testing Patterns ═══════════
+
+title Unity CI — Testing Patterns by GPU Requirement
+
+skinparam card {
+    BackgroundColor<<none>> #C8E6C9
+    BackgroundColor<<soft>> #FFF9C4
+    BackgroundColor<<hard>> #FFCDD2
+}
+
+card "EditMode Tests\n-batchmode -nographics\n\nLogic, data model, parser\nNo GPU, no display\ngame-ci: out of box" <<none>> as edit
+
+card "EditMode + xvfb\n(drop -nographics)\n\nUI Toolkit layout tests\nMinimal GPU (software)\ngame-ci: xvfb pre-installed" <<soft>> as edit_xvfb
+
+card "PlayMode + xvfb\n+ InputTestFixture\n\nUI click simulation\nSoftware rendering\ngame-ci: xvfb pre-installed" <<soft>> as play_input
+
+card "PlayMode + xvfb\n+ mesa-vulkan-drivers\n+ com.unity.testframework.graphics\n\nVisual regression testing\nSoftware Vulkan (llvmpipe)\nDeterministic pixel output" <<soft>> as play_visual
+
+card "Self-hosted GPU runner\n+ NVIDIA Container Toolkit\n\nShader compilation tests\nCompute shader tests\nPerformance benchmarks\nRequires real GPU hardware" <<hard>> as gpu
+
+edit -[hidden]-> edit_xvfb
+edit_xvfb -[hidden]-> play_input
+play_input -[hidden]-> play_visual
+play_visual -[hidden]-> gpu
+
+note bottom of edit
+  ✅ GitHub-hosted runners
+  Cost: Free (public repos)
+end note
+
+note bottom of play_visual
+  ✅ GitHub-hosted runners
+  + mesa-vulkan-drivers in Dockerfile
+  Cost: Free (public repos)
+end note
+
+note bottom of gpu
+  ⚠️ Self-hosted runners only
+  NVIDIA GPU + Container Toolkit
+  Cost: Hardware + hosting
+end note
+
+@enduml

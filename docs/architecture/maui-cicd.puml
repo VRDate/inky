@@ -1,0 +1,108 @@
+@startuml maui-cicd
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam packageStyle rectangle
+
+title MAUI CI/CD — .NET 9 + SteelToe + MagicOnion
+footer .NET 9 | xunit | Google.Protobuf 4.28.x | MessagePack | MagicOnion | SteelToe 4.x
+
+' ── Color palette ──
+skinparam component {
+    BackgroundColor<<maui>> #F3E5F5
+    BackgroundColor<<unity>> #E8F5E9
+    BackgroundColor<<kmp>> #E3F2FD
+    BackgroundColor<<transport>> #FFF3E0
+}
+
+' ═══════════ Page 1: Platform Build Matrix ═══════════
+
+package ".NET MAUI App" <<maui>> {
+    [ink C# Runtime\n(Ink.Compiler + Ink.Runtime.Story)] as CS_RUNTIME <<maui>>
+    [InkRuntimeService.cs\n(platform-agnostic)] as SERVICE <<maui>>
+    [MagicOnion Client\n(gRPC + msgpack)] as MAGIC_CLIENT <<maui>>
+    [SteelToe Services\n(Eureka + Polly + OTel)] as STEELTOE <<maui>>
+    SERVICE --> CS_RUNTIME
+}
+
+package "Unity UAAL" <<unity>> {
+    [InkOneJsBinding.cs\n(11 methods)] as ONEJS <<unity>>
+    [InkAssetEventReceiver.cs\n(6 channels)] as RECEIVER <<unity>>
+    [OneJS + inkjs\n(in-process JS)] as ONEJS_ENGINE <<unity>>
+    ONEJS --> ONEJS_ENGINE
+}
+
+package "KMP MCP Server" <<kmp>> {
+    [InkEngine.kt\n(GraalJS + inkjs)] as KMP_ENGINE <<kmp>>
+    [McpRouter.kt\n(SSE + WS + REST)] as KMP_ROUTER <<kmp>>
+    [AssetEventBus.kt\n(RSocket + msgpack)] as KMP_BUS <<kmp>>
+}
+
+package "Transport" <<transport>> {
+    [In-process bridge\n(Android AAR / iOS .framework)] as BRIDGE <<transport>>
+    [WebSocket\n(Windows / macOS fallback)] as WS <<transport>>
+    [MCP REST/SSE\n(HTTP JSON-RPC)] as MCP <<transport>>
+    [gRPC\n(MagicOnion, HTTP/2)] as GRPC <<transport>>
+    [RSocket\n(msgpack asset events)] as RSOCKET <<transport>>
+}
+
+' MAUI ↔ Unity
+SERVICE --> BRIDGE : Android/iOS\n(UAAL in-process)
+SERVICE --> WS : Windows/macOS\n(no UAAL)
+BRIDGE --> RECEIVER
+WS --> RECEIVER
+
+' MAUI ↔ KMP
+MAGIC_CLIENT --> GRPC : planned
+SERVICE ..> MCP : current
+RECEIVER --> RSOCKET
+RSOCKET --> KMP_BUS
+
+newpage
+
+' ═══════════ Page 2: CI Pipeline ═══════════
+
+title MAUI CI/CD — Build + Test Pipeline
+
+|Restore|
+start
+:dotnet restore;
+:dotnet workload install\nandroid ios maccatalyst maui;
+
+|Test|
+:dotnet test (xunit)\n42 C# tests;
+
+:ink-proof conformance\n135 stories × 3 runtimes\n(C#, ink.kt via MCP, inkjs via Node);
+
+:Proto round-trip\nKT ink.model ↔ C# Ink.Model\n(protobuf, JSON, msgpack);
+
+|Build|
+fork
+    :Android\nubuntu-22.04\nnet9.0-android;
+    note right: Unity AAR\n(ARM64)
+fork again
+    :iOS\nmacos-latest\nnet9.0-ios;
+    note right: Unity .framework\n(ARM64)
+fork again
+    :Windows\nwindows-latest\nnet9.0-windows;
+    note right: WinUI3\n(no UAAL)
+fork again
+    :macOS\nmacos-latest\nnet9.0-maccatalyst;
+    note right: Catalyst\n(no UAAL)
+end fork
+
+|Pack|
+:dotnet pack;
+fork
+    :Inky.Ink.Model\n(proto-generated C#);
+fork again
+    :Inky.Ink.AssetEvents\n(transport client);
+fork again
+    :Inky.Ink.Unity\n(non-MonoBehaviour);
+end fork
+
+|Publish|
+:Upload NuGet packages;
+:Upload platform binaries;
+stop
+
+@enduml

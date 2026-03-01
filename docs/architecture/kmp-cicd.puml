@@ -1,0 +1,106 @@
+@startuml kmp-cicd
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam packageStyle rectangle
+
+title KMP CI/CD — GraalVM 25 + Gradle 9 Pipeline
+footer Oracle GraalVM 25.0.2-graal | Kotlin 2.3.0 | Gradle 9.3.1 | libs.versions.toml
+
+' ── Color palette ──
+skinparam component {
+    BackgroundColor<<graal>> #E3F2FD
+    BackgroundColor<<kmp>> #E0F7FA
+    BackgroundColor<<test>> #C8E6C9
+    BackgroundColor<<artifact>> #FFF3E0
+}
+
+' ═══════════ Page 1: GraalVM Polyglot Stack ═══════════
+
+package "Oracle GraalVM 25" <<graal>> {
+    [Graal JIT Compiler\n(C2 replacement)] as GRAAL_JIT <<graal>>
+    [JVM (JDK 25)\njdk.incubator.vector\n--enable-preview] as JVM <<graal>>
+    [GraalJS Polyglot\n(embedded JS engine)] as GRAALJS <<graal>>
+    [Native Image\n(AOT compilation)] as NATIVE <<graal>>
+    GRAAL_JIT --> JVM
+    JVM --> GRAALJS
+    JVM --> NATIVE
+}
+
+package "Ink Engines" {
+    [inkjs\n(ink-full.js, 243KB)] as INKJS
+    [bidify.js\n(RTL bidi markers)] as BIDIFY
+    [InkEngine.kt\n(GraalJS context)] as ENGINE
+    [McpTools.kt\n(79 tools)] as TOOLS
+    INKJS --> ENGINE : loaded via\nGraalJS polyglot
+    BIDIFY --> ENGINE : loaded via\nGraalJS polyglot
+    ENGINE --> TOOLS
+}
+
+package "KMP Targets" <<kmp>> {
+    [JVM\n(Android, Desktop)] as KMP_JVM <<kmp>>
+    [JS (IR)\n(Browser, Node)] as KMP_JS <<kmp>>
+    [Native\n(iOS, Linux, macOS)] as KMP_NATIVE <<kmp>>
+    [WASM\n(WasmJS, WASI)] as KMP_WASM <<kmp>>
+}
+
+package "ink.kt commonMain\n(31 classes)" <<kmp>> {
+    [InkObject → Container\nValue<T> (sealed)\nControlCommand, Divert] as KMP_CORE <<kmp>>
+    [CallStack, Flow\nVariablesState\nNativeFunctionCall] as KMP_ENGINE <<kmp>>
+    [StoryState\nInkList (LinkedHashMap)] as KMP_STATE <<kmp>>
+}
+
+KMP_CORE --> KMP_JVM : compiled to
+KMP_CORE --> KMP_JS : compiled to
+KMP_CORE --> KMP_NATIVE : compiled to
+KMP_CORE --> KMP_WASM : compiled to
+
+newpage
+
+' ═══════════ Page 2: CI Pipeline ═══════════
+
+title KMP CI/CD — Gradle Test + Build Pipeline
+
+|TOML Parse|
+start
+:Read gradle/libs.versions.toml;
+:jdk=25, kotlin=2.3.0, graal=25.0.2;
+
+|Setup|
+:actions/setup-java@v4\ndistribution: graalvm\njava-version: 25;
+:gradle/actions/setup-gradle@v4;
+
+|Compile|
+:compileKotlin\n(commonMain + jvmMain + jsMain);
+
+|Test|
+fork
+    :InkEngineTest (29)\nGraalJS + inkjs integration;
+fork again
+    :McpToolsTest (15)\n79 tool invocations;
+fork again
+    :McpRouterTest (8)\nKtor testHost SSE/WS;
+fork again
+    :InkEditEngineTest (19)\nSection parse/replace;
+fork again
+    :ColabEngineTest (14)\nYjs room lifecycle;
+fork again
+    :InkWebDavEngineTest (25)\nWebDAV CRUD + backup;
+fork again
+    :InkMdTableTest (35)\nMarkdown table parsing;
+end fork
+
+:Total: 145 tests\n(7/20 modules, 35% coverage);
+
+|Build|
+fork
+    :fatJar\n→ inky-mcp.jar (JVM);
+fork again
+    :jsBrowserProductionWebpack\n→ ink.kt.js (browser);
+end fork
+
+|Artifact|
+:Upload test results;
+:Upload fat JAR;
+stop
+
+@enduml
