@@ -7,6 +7,8 @@
 > - KMP Multiplatform Build Migration + JS/JVM Annotations
 > - Test Porting Strategy (C#/Java/JS → commonTest/jvmTest/jsTest)
 > - **.NET MAUI App + Unity UAAL + SteelToe Cloud-Native Integration**
+> - Inky Editor Stack, Client Surfaces, Engines, MCP Architecture
+> - Interop Plan (Wire/Moshi/Camel/gRPC/RSocket/MessagePack/MagicOnion)
 >
 > **Constraint**: NO JVM imports in commonMain — pure Kotlin everywhere
 
@@ -59,9 +61,9 @@ The ink.kt package (60 files, ~9600 LOC) contains both the compiled runtime (fro
 | Compilation | `CompileResult` | `CompileResult` | (via adapter) | `ink.model.CompileResult` |
 | Variables | (via engine) | `VariablesState` | (via runtime) | `ink.model.Variable` |
 
-### Proto Directory (14 files in `src/main/proto/ink/model/`)
+### Proto Directory (16 files in `src/proto/ink/model/`)
 
-`story.proto`, `structure.proto`, `debug.proto`, `table.proto`, `document.proto`, `asset.proto`, `faker.proto`, `event.proto`, `mcp.proto`, `llm.proto`, `principal.proto`, `calendar.proto`, `collab.proto`, `sillytavern.proto`
+`story.proto`, `structure.proto`, `debug.proto`, `table.proto`, `document.proto`, `asset.proto`, `faker.proto`, `event.proto`, `mcp.proto`, `llm.proto`, `principal.proto`, `calendar.proto`, `collab.proto`, `sillytavern.proto`, `ical.proto`, `vcard.proto`
 
 ### Per-Framework Runtime — 3 KMP Ink Engines
 
@@ -76,11 +78,98 @@ The ink.kt package (60 files, ~9600 LOC) contains both the compiled runtime (fro
 
 > **`legacy` flag**: When `legacy=true`, use the official engine (blade-ink Java on JVM, inkjs on JS) instead of ink.kt. Used for parity tests to verify ink.kt produces identical output.
 
+### Ink Compiler/Runtime Per Framework
+
+Each framework has its own ink compiler/runtime. GraalJS is to KT what OneJS is to Unity — an embedded JS engine alongside the native engine.
+
+| Framework | Compiler | Runtime | JS Engine | Entry Point |
+|-----------|----------|---------|-----------|-------------|
+| **KT/JVM** (MCP server) | GraalJS + inkjs | GraalJS + inkjs | GraalVM Polyglot | `InkEngine.kt` → `ink-full.js` |
+| **C#/Unity** | ink-csharp `Ink.Compiler` | ink-csharp `Ink.Runtime.Story` | OneJS (bridges JS → C#) | `InkOneJsBinding.cs` |
+| **JS/Electron** (Inky desktop) | inklecate subprocess | inkjs directly | N/A (native JS) | `inklecate.js` |
+| **JS/BabylonJS** (inkey web) | inkjs directly | inkjs directly | N/A (native JS) | `InkRuntimeAdapter.ts` |
+
+### Inky Editor Stack
+
+**Inky = JS compiler + editor.** Two apps, shared grammar (`@inky/ink-language`):
+
+| App | Editor | Content Type | Collaboration | Packages |
+|-----|--------|-------------|---------------|----------|
+| **ink-electron** (desktop) | ACE | Ink source only (.ink) | Yjs (`y-ace`) | `ace-ink-mode/ace-ink.js` |
+| **ink-js/inkey** (web) | CodeMirror 6 | Ink source + embedded blocks | Yjs (`y-codemirror.next`) | `@inky/codemirror-ink` |
+| **ink-js/inkey** (web) | Remirror | MD + ```ink blocks | Yjs (`y-remirror`) | `@inky/remirror-ink` |
+| **ink-js/inkey** (web) | InkPlayer | Play mode (readonly) | — | `react-ink-editor/InkPlayer.tsx` |
+
+**Key React components** (`@inky/react-ink-editor`):
+- `InkCodeEditor.tsx` — CodeMirror 6 editor (ink source only, edit mode)
+- `InkRemirrorEditor.tsx` (was InkProseEditor) — Remirror-only markdown editor (MD prose + embedded ```ink blocks, edit mode)
+- `InkPlayer.tsx` — Story player (play mode, uses inkjs directly)
+- `InkEditorProvider.tsx` — Context provider (Yjs doc + runtime)
+- `ModeToggle.tsx` — Edit/Play mode toggle
+
+### Existing Engines
+
+- **InkMdEngine** (`InkMdEngine.kt`) — parses MD tables + ink blocks → ink VARs
+- **InkEditEngine** (`InkEditEngine.kt`) — parses ink structure (knots, stitches, variables, diverts)
+- **InkEngine** (`InkEngine.kt`) — GraalJS ink compiler/runtime, emits `ContinueResult` with `.tags`
+- **InkOneJsBinding.cs** — 10-method OneJS bridge (`__inkBridge` global)
+- **InkRuntimeAdapter.ts** — 10-method interface with `InkStoryState.tags`, 3 backends: `createInkJsAdapter()`, `createOneJsAdapter()`, `createMcpAdapter()`
+- **CamelRoutes** — Apache Camel routes for LLM + ink pipeline
+- **McpTools** — 79+ tools, constructor takes optional engines
+
+### MCP Server = Multi-Tenant OIDC PWA UI Server
+
+The MCP server isn't just an API — it's a multi-tenant application server:
+
+| Concern | Technology | Description |
+|---------|-----------|-------------|
+| **Identity** | Keycloak OIDC + JWT | Multi-tenant authentication |
+| **Principals** | ez-vcard per user | User/LLM identity cards |
+| **Sessions** | Per-user folders | LLM model user sessions + ink story state |
+| **Collaboration** | Yjs (HocusPocus WS) | Real-time shared editing |
+| **Storage** | WebDAV (Sardine + FS) | domain/user/shared/ folder hierarchy |
+| **PWA UI** | Ktor static + SPA | Serves inkey editor as PWA |
+
+### Client Surfaces
+
+| Client | Type | Purpose |
+|--------|------|---------|
+| **SillyTavern** | MCP user UI (localhost:8000) | Chat-based story interaction with LLM |
+| **Electron** (Inky desktop) | Desktop app | ACE editor + inklecate compiler |
+| **inkey PWA** | Progressive Web App | CodeMirror + Remirror + Yjs collab |
+| **Chromium PWA extension** | Browser extension | Editor extension for Chrome/Edge |
+| **Unity WebGL** | 3D rendering client | AssetBundle prefabs + animation |
+| **BabylonJS WebXR** | 3D rendering client | glTF meshes + WebXR immersive |
+
+### Faker Per Framework
+
+faker-js in JS/OneJS/Electron, kotlin-faker at MCP server:
+
+| Framework | Faker Library | Usage |
+|-----------|--------------|-------|
+| **KT/JVM** (MCP server) | `kotlin-faker` (serpro69) | MCP tools: `generate_ink_vars`, `generate_story_md` |
+| **JS/Electron** (Inky) | `faker-js` (npm) | Client-side data generation |
+| **JS/Browser** (inkey) | `faker-js` (npm) | Client-side data generation |
+| **C#/Unity + OneJS** | `faker-js` via OneJS | In-process via `__inkBridge` |
+
+### 2D vs 3D: Text UI vs Rendering Clients
+
+**inkjs = 2D emoji tags + text UI.** Emoji are text markers in ink tags — not 3D objects themselves. The 3D clients resolve these text markers to actual assets:
+
+| Layer | Technology | What It Does |
+|-------|-----------|-------------|
+| **2D Text UI** | inkjs | Emits tags like `# mesh:🗡️` `# anim:sword_slash` — pure text |
+| **3D Rendering** | BabylonJS (WebXR) | Resolves emoji tag → glTF mesh → 3D scene |
+| **3D Rendering** | Unity (WebGL) | Resolves emoji tag → AssetBundle prefab → 3D scene |
+| **2D Editor** | inkey PWA (CM6/Remirror) | Shows emoji as text indicators in story output |
+
+The EmojiAssetManifest bridges 2D text tags → 3D asset references.
+
 ---
 
 ## 3. Completed Steps
 
-- [x] **Step 0** — 14 .proto files, Gradle protobuf plugin, InkModelSerializers.kt
+- [x] **Step 0** — 16 .proto files, Wire 5.4.0 Gradle plugin (90 KT classes), InkModelSerializers.kt
 - [x] **Step 1** — EmojiAssetManifest.kt, InkFakerEngine.kt, 6 MCP tools
 - [x] **Step 1b** — UnicodeSymbolParser rewrite
 - [x] **Step 2** — RSocket + msgpack + AsyncAPI event layer
@@ -363,6 +452,37 @@ Phase 13 (C# Proto) ──┬──> Phase 14 (MAUI App) ──> Phase 15 (Trans
 3. **Unity UAAL desktop** — no official support on Windows/macOS; plan uses WebSocket fallback
 4. **SteelToe 4.x + .NET 9** — SteelToe targets .NET 8; keep API project on `net8.0`, MAUI on `net9.0`
 5. **KMP scope** — only 60 pure-Kotlin runtime classes move to `commonMain`; 27 JVM-dependent engines stay in `jvmMain`
+
+---
+
+## 5b. Interop Plan — Technology Stack Status
+
+| Layer | Technology | Status | Location |
+|-------|-----------|--------|----------|
+| **Proto** | 16 .proto files (package ink.model) | Done | `ink-kmp-mcp/src/proto/ink/model/` |
+| **Gen** | Wire 5.4.0 Gradle plugin (KT), proto-gen.sh (CS/PY/TS) | Done | `proto-gen.sh` → cs/py/ts targets |
+| **Wire** | Wire-generated Kotlin classes (90 classes in ink.model) | Done | `build/generated/source/wire/` |
+| **Moshi** | WireJsonAdapterFactory for Wire JSON | Done | `InkModelSerializers.kt:26-28` |
+| **Camel Route** | Apache Camel 4.18 — 10 routes (LLM, compile, play, asset, voice) | Done | `CamelRoutes.kt` |
+| **gRPC** | Binary protobuf via `msg.encode()` — gRPC-ready | Partial | `InkModelSerializers.toBytes()` |
+| **RSocket** | WebSocket transport, msgpack-encoded streams | Done | `AssetEventBus.kt`, `ink-rsocket-transport.puml` |
+| **MessagePack** | Jackson + MessagePackFactory for RSocket wire format | Done | `InkModelSerializers.toMsgpack()` |
+| **JSON** | Moshi (MCP JSON-RPC), kotlinx.serialization (Ktor), JSON Schema | Done | `InkModelSerializers.kt` |
+| **Unity** | InkOneJsBinding.cs MonoBehaviour (11 methods) | Done | `ink-unity/InkOneJsBinding.cs` |
+| **MagicOnion** | gRPC framework for C#/Unity — not yet integrated | Planned | — |
+| **C# proto** | proto-gen.sh cs → C# via protoc --csharp_out | Done | `src/csMain/ink/cs/model/` |
+
+### MagicOnion (Planned)
+
+MagicOnion (Cysharp's gRPC-based real-time framework for Unity/.NET) sits between:
+- The Wire-generated proto messages (already done)
+- The Unity C# side (InkOneJsBinding.cs currently uses in-process OneJS bridge)
+- gRPC transport (binary protobuf encoding already exists via `InkModelSerializers.toBytes()`)
+
+MagicOnion would add:
+- `IService<T>` interfaces for unary RPC (compile, continue, choose)
+- `StreamingHub<THub, TReceiver>` for real-time story events (replacing current in-process-only OneJS approach for networked Unity clients)
+- MessagePack serialization (already present on KT side via Jackson MessagePackFactory)
 
 ---
 
