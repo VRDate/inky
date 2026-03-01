@@ -15,7 +15,7 @@
 ' Three layers: ink.model (data) → ink.kt (runtime) → ink.kt.services (logic)
 ' C# + Java compilers unchanged (test oracles, same JSON output)
 '
-' Last updated: 2026-02-28
+' Last updated: 2026-03-01
 ' ==============================================================================
 
 skinparam backgroundColor #FAFAFA
@@ -627,7 +627,7 @@ note as N1
   2. **ink.kt** — runtime classes (extend model data classes)
   3. **ink.kt.services** — companion objects (ink language logic)
 
-  **14 data class groups | 44 messages | 5 enums**
+  **16 data class groups | 65 messages | 20 enums**
 
   | Data class group | Messages | Enums | Annotations |
   | story | 4 | 0 | @Proto @Mcp |
@@ -644,6 +644,8 @@ note as N1
   | calendar | 1 | 0 | @Proto @Mcp |
   | collab | 3 | 0 | @Proto @AsyncApi |
   | sillytavern | 1 | 0 | @Proto @Mcp |
+  | ical | 11 | 9 | @Proto @Mcp |
+  | vcard | 9 | 4 | @Proto @Mcp |
 
   **Annotation-driven schema generation:**
 
@@ -689,6 +691,24 @@ end note
 
 N1 .. StoryState
 N2 .. CompileResult
+
+note as N3
+  **Proto Codegen Targets (2026-03-01)**
+  ════════════════════════════════════════
+
+  | Target | Generator | Output | PUML |
+  | KT | Wire 5.4.0 Gradle plugin | build/generated/source/wire/ | ink.kt.puml |
+  | CS | protoc --csharp_out | src/csMain/ink/cs/model/ | ink.cs.puml |
+  | TS | protoc-gen-ts_proto v2.11.4 | src/tsMain/ink/ts/model/ | **ink.ts.puml** |
+  | PY | protoc --python_out v5.28.3 | src/pyMain/ink/py/model/ | **ink.py.puml** |
+
+  Script: proto-gen.sh [cs] [py] [ts]
+  KT: Wire Gradle plugin (./gradlew generateProtos)
+  See ink.ts.puml for TypeScript interfaces + MessageFns.
+  See ink.py.puml for Python pb2 descriptors.
+end note
+
+N3 .. N1
 
 legend bottom right
   |= Color |= Proto File Domain |

@@ -416,7 +416,7 @@ note as N2
 end note
 
 note as N3
-  **mica → ink.kt Merge Status (2026-02-28)**
+  **mica → ink.kt Merge Status (2026-03-01)**
   ═════════════════════════════════════════════
 
   **Phase 1: ✅ COMPLETE — KMP port + parser fields**

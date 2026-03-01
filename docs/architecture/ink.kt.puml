@@ -2639,7 +2639,7 @@ package "12. Tests" #FCE4EC {
 ' ══════════════════════════════════════════════════════════════════════════════
 
 note as PROGRESS
-  **ink.kt KMP Progress Tracker (2026-02-28)**
+  **ink.kt KMP Progress Tracker (2026-03-01)**
   ══════════════════════════════════════════════
 
   **Runtime Classes (from C#/Java/JS)**
@@ -2728,10 +2728,37 @@ note as PROGRESS
   Each Story → StoryState → InkFlow(s) → Flow<InkObject>
   InkThread = coroutine (cooperative on JS, parallel on JVM)
   EmittingList bridges sync engine → reactive stream
+
+  **PUML Diagram Cross-Reference (8 diagrams)**
+  |= PUML |= Language |= Focus |= Status |
+  | ink.kt.puml | Kotlin | Runtime (56 classes) | ✅ |
+  | ink.proto.puml | proto3 | Messages (16 files) | ✅ |
+  | ink.java.puml | Java | blade-ink reference | ✅ |
+  | ink.cs.puml | C# | inkle reference | ✅ |
+  | ink.js.puml | JS/TS | inkjs + ink/js components | ✅ |
+  | ink.kt.mica.puml | Kotlin | Parser reference | ✅ |
+  | **ink.ts.puml** | **TypeScript** | **Proto model (NEW)** | ✅ |
+  | **ink.py.puml** | **Python** | **Proto model (NEW)** | ✅ |
+
+  **Roadmap Phase Status (2026-03-01)**
+  |= Phase |= Description |= Status |
+  | 0-6 | Feature parity + proto + events + PUML + mica merge | ✅ Complete |
+  | 7 | KMP Multiplatform Build Migration | ⬜ Pending |
+  | 8 | JS Annotations (@JsExport, @JsName) | ⬜ Pending |
+  | 9 | JVM Annotations (@JvmName, etc.) | ⬜ Pending |
+  | 10 | Schema Annotations (@Proto, @OpenApi, etc.) | ⬜ Pending |
+  | 11 | Test Porting (I001-I135, C# Tests.cs) | ⬜ Pending |
+  | 12 | Ink Engine Selection Framework | ⬜ Pending |
+  | 13-18 | C# / MAUI / Unity / SteelToe track | ⬜ Pending |
+
+  **Interop Stack**
+  Wire (KT) + Moshi + Camel + RSocket + MessagePack + JSON
+  proto-gen.sh → CS + PY + TS codegen
+  MagicOnion (planned) for Unity/C# gRPC
 end note
 
 note as GAPS
-  **Cross-Implementation Gap Analysis (2026-02-28)**
+  **Cross-Implementation Gap Analysis (2026-03-01)**
   ════════════════════════════════════════════════════
 
   **1. Remaining Gaps — ALL RESOLVED**

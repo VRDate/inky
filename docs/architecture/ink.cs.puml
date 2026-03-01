@@ -931,7 +931,7 @@ note as N_COMPARE
 end note
 
 note as N_GAPS
-  **C# → ink.kt Gap Analysis (2026-02-28)**
+  **C# → ink.kt Gap Analysis (2026-03-01)**
   ═══════════════════════════════════════════
 
   **C# is the canonical reference.**
@@ -970,7 +970,7 @@ note as N_GAPS
 end note
 
 note as N_MERGE
-  **Merge Status & Architecture (2026-02-28)**
+  **Merge Status & Architecture (2026-03-01)**
   ═══════════════════════════════════════════════
 
   **mica → ink.kt merge (complete as of 2026-02-28):**
@@ -1000,26 +1000,28 @@ note as N_MERGE
 end note
 
 note as N_INKKT
-  **ink.kt PUML Reference (2026-02-28)**
-  ═══════════════════════════════════════
+  **ink.[lang].puml Cross-Reference (2026-03-01)**
+  ════════════════════════════════════════════════
   See **ink.kt.puml** for complete
   56-class diagram with method-level
-  cross-language line references for
-  every C#/Java/JS/mica equivalent.
+  cross-language line references.
+
+  **All 8 ink.[lang].puml diagrams:**
+  | Diagram | Language | Focus |
+  | ink.kt.puml | Kotlin | Runtime (56 classes) |
+  | ink.proto.puml | proto3 | Messages (16 files) |
+  | ink.java.puml | Java | blade-ink reference |
+  | ink.cs.puml | C# | inkle (this file) |
+  | ink.js.puml | JS/TS | inkjs + ink/js |
+  | ink.kt.mica.puml | Kotlin | Parser reference |
+  | **ink.ts.puml** | **TS** | **Proto model (NEW)** |
+  | **ink.py.puml** | **PY** | **Proto model (NEW)** |
 
   **ink.kt.puml sections:**
-  1. Core (InkObject, Container, Path, Pointer, SearchResult, DebugMetadata)
-  2. Content (ChoicePoint, Choice, Divert, Tag, Glue, Void, ControlCommand, VariableAssignment, VariableReference, NativeFunctionCall)
-  3. Values (Value sealed + 7 subtypes)
-  4. Lists (InkList, InkListItem, ListDefinition, ListDefinitionsOrigin)
-  5. State (StoryState, CallStack, Flow, StatePatch, VariablesState)
-  6. Runtime (Story, Profiler, ProfileNode)
-  7. Serialization (SimpleJson, JsonSerialisation, StoryLoader, StorySaver)
-  8. Infrastructure (Stopwatch, InkClock, DateComponents, StoryException, ErrorHandler, PushPopType, INamedContent, Exceptions)
-  9. Parser (InkParser, Expression, Knot, Stitch, Gather, Conditional, ConditionalOption, Declaration, ParameterizedContainer)
-  10. Support (StoryText, Symbol, Operator, StoryJson, StoryWrapper, StoryInterrupt, VariableMap, Function, VariableMapAdapter)
-  11. Common Interface (InkRuntime, InkChoice)
-  12. Tests (35 files, 180+ @Test methods)
+  1. Core  2. Content  3. Values  4. Lists
+  5. State  6. Runtime  7. Serialization
+  8. Infrastructure  9. Parser  10. Support
+  11. Common Interface  12. Tests
 end note
 
 N_COMPARE .. Story

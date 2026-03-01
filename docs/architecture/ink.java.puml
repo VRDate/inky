@@ -1073,7 +1073,7 @@ Flow ..> SJWriter : writeJson
 VariablesState ..> SJWriter : writeJson
 
 note as N_GAPS
-  **Java (blade-ink) → ink.kt Gap Analysis (2026-02-28)**
+  **Java (blade-ink) → ink.kt Gap Analysis (2026-03-01)**
   ═════════════════════════════════════════════════════════
 
   **Porting complete: 46 Java files → 36 Kotlin files.**
@@ -1145,19 +1145,22 @@ note as N_GAPS
 end note
 
 note as N_INKKT
-  **ink.kt PUML Reference (2026-02-28)**
-  ═══════════════════════════════════════
+  **ink.[lang].puml Cross-Reference (2026-03-01)**
+  ════════════════════════════════════════════════
   See **ink.kt.puml** for complete
   56-class diagram with method-level
-  cross-language line references for
-  every C#/Java/JS/mica equivalent.
+  cross-language line references.
 
-  Each ink.kt class note contains:
-  - ink.kt file:line references
-  - C# file:line references
-  - Java file:line references
-  - mica merge status
-  - Gap analysis per method
+  **All 8 ink.[lang].puml diagrams:**
+  | Diagram | Language | Focus |
+  | ink.kt.puml | Kotlin | Runtime (56 classes) |
+  | ink.proto.puml | proto3 | Messages (16 files) |
+  | ink.java.puml | Java | blade-ink (this file) |
+  | ink.cs.puml | C# | inkle reference |
+  | ink.js.puml | JS/TS | inkjs + ink/js |
+  | ink.kt.mica.puml | Kotlin | Parser reference |
+  | **ink.ts.puml** | **TS** | **Proto model (NEW)** |
+  | **ink.py.puml** | **PY** | **Proto model (NEW)** |
 end note
 
 N_GAPS .. Story

@@ -902,20 +902,22 @@ note as N4
 end note
 
 note as N_INKKT
-  **ink.kt PUML Reference (2026-02-28)**
-  ═══════════════════════════════════════
+  **ink.[lang].puml Cross-Reference (2026-03-01)**
+  ════════════════════════════════════════════════
   See **ink.kt.puml** for complete
   56-class diagram with method-level
-  cross-language line references for
-  every C#/Java/JS/mica equivalent.
+  cross-language line references.
 
-  Each ink.kt class note contains:
-  - ink.kt file:line references
-  - C# file:line references
-  - Java file:line references
-  - JS/inkjs references
-  - mica merge status
-  - Gap analysis per method
+  **All 8 ink.[lang].puml diagrams:**
+  | Diagram | Language | Focus |
+  | ink.kt.puml | Kotlin | Runtime (56 classes) |
+  | ink.proto.puml | proto3 | Messages (16 files) |
+  | ink.java.puml | Java | blade-ink reference |
+  | ink.cs.puml | C# | inkle reference |
+  | ink.js.puml | JS/TS | inkjs + ink/js (this file) |
+  | ink.kt.mica.puml | Kotlin | Parser reference |
+  | **ink.ts.puml** | **TS** | **Proto model (NEW)** |
+  | **ink.py.puml** | **PY** | **Proto model (NEW)** |
 end note
 
 N1 .. Story
